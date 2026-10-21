@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bulldogs Watch Party</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #0E1A2B; --muted: #4A5568; --line: #D9DFE8; --ground: #F4F6FA; --surface: #FFFFFF;
+  --navy: #0E1A2B; --navy-2: #22324A; --on-navy: #C7D2E3;
+  --accent: #1D4ED8; --accent-dark: #1E3A8A; --accent-soft: #E6EEFC;
+  --work: #9A3412; --work-soft: #FDF0E1; --warn: #B45309;
+  --radius: 12px; --display: 'Barlow Semi Condensed', 'Arial Narrow', system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: 14px/1.45 Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; }
+a { color: var(--accent); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid #93B4F5; outline-offset: 2px; }
+.hidden { display: none !important; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; margin: 0; }
+h1 { font-size: 30px; } h2 { font-size: 20px; } h3 { font-size: 16px; }
+
+/* header */
+.topbar { background: var(--navy); color: #fff; padding: 10px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-name { font-family: var(--display); font-weight: 700; font-size: 21px; letter-spacing: .3px; line-height: 1.1; }
+.brand-sub { font-size: 12px; color: var(--on-navy); }
+.nav { display: flex; gap: 4px; flex-wrap: wrap; }
+.nav a { color: var(--on-navy); text-decoration: none; padding: 10px 14px; border-radius: 8px; font-weight: 500; }
+.nav a[aria-current="page"] { background: var(--navy-2); color: #fff; }
+.who { font-size: 13px; color: var(--on-navy); }
+
+/* layout */
+main { max-width: 1440px; margin: 0 auto; padding: 24px; }
+.cols { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.col-main { flex: 999 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.col-side { flex: 1 1 340px; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+.stack { display: flex; flex-direction: column; gap: 12px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.spread { justify-content: space-between; }
+.grow { flex: 1 1 auto; min-width: 0; }
+
+/* buttons */
+.btn { min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.btn:hover { border-color: #AFC0DA; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: var(--accent-dark); }
+.btn.outline { border-color: var(--accent); color: var(--accent); }
+.btn.danger { color: #B91C1C; }
+.btn.small { min-height: 36px; padding: 0 10px; font-size: 13px; border-radius: 8px; }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+.btn[aria-pressed="true"] { border: 2px solid var(--accent); background: var(--accent-soft); color: var(--accent-dark); }
+.iconbtn { width: 44px; height: 44px; padding: 0; }
+
+/* forms */
+label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 13px; }
+input[type=text], input[type=number], input[type=date], select, textarea { min-height: 44px; padding: 0 12px; border: 1px solid #C3CCD9; border-radius: 8px; background: #fff; font-weight: 400; font-size: 14px; }
+input.time { width: 96px; font-variant-numeric: tabular-nums; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 640px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+
+/* games */
+.drop { border: 2px dashed #9AB3EC; background: #F2F6FE; border-radius: var(--radius); padding: 24px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.drop.over { background: var(--accent-soft); border-color: var(--accent); }
+.partrow, .gamerow { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+.partrow .name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.gamerow { align-items: flex-start; flex-wrap: wrap; }
+
+/* player */
+.videobox { position: relative; background: #0B1220; border-radius: var(--radius); overflow: hidden; display: flex; justify-content: center; align-items: center; min-height: 200px; }
+.vframe { position: relative; width: 100%; overflow: hidden; touch-action: none; }
+.vframe.zoomed { cursor: grab; }
+.vframe.dragging { cursor: grabbing; }
+.vframe video { width: 100%; height: 100%; display: block; background: #0B1220; transform-origin: 0 0; }
+.overlay-bl { position: absolute; left: 12px; bottom: 12px; font-size: 12px; padding: 6px 10px; border-radius: 6px; background: rgba(11,18,32,.82); color: #fff; pointer-events: none; }
+.zoombar { position: absolute; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 2px; background: rgba(11,18,32,.82); border-radius: 10px; padding: 3px; color: #fff; }
+.zoombar button { min-width: 40px; height: 40px; border: none; border-radius: 8px; background: transparent; color: #fff; font-size: 18px; font-weight: 600; }
+.zoombar button#z-fit { font-size: 13px; padding: 0 10px; }
+.zoombar button:hover { background: #22324A; }
+.zoombar span { min-width: 44px; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; }
+.zoompill { background: #EEF2F7; color: var(--ink); }
+.overlay-tl, .overlay-tr { position: absolute; top: 12px; font-size: 12px; padding: 6px 10px; border-radius: 6px; }
+.overlay-tl { left: 12px; background: rgba(11,18,32,.82); color: #fff; font-variant-numeric: tabular-nums; }
+.overlay-tr { right: 12px; background: var(--accent); color: #fff; font-weight: 600; }
+.relink { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #fff; text-align: center; padding: 24px; }
+.clock { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.marks { padding: 8px 12px; border-radius: 8px; background: var(--work-soft); color: var(--work); font-weight: 600; }
+
+/* timeline */
+.tl { position: relative; height: 40px; border-radius: 8px; background: var(--accent-soft); cursor: pointer; touch-action: none; }
+.tl .sep { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; }
+.tl .mk { position: absolute; top: 6px; bottom: 6px; min-width: 4px; border-radius: 3px; opacity: .9; }
+.tl .mk.sel { top: 1px; bottom: 1px; outline: 2px solid var(--ink); }
+.tl .pending { position: absolute; top: 0; bottom: 0; background: rgba(180,83,9,.25); border-left: 2px solid var(--warn); }
+.tl .head { position: absolute; top: -3px; bottom: -3px; width: 3px; margin-left: -1px; background: var(--ink); border-radius: 2px; pointer-events: none; }
+.tl-labels { display: flex; font-size: 12px; color: var(--muted); }
+.tl-labels span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* tag buttons */
+.tags { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 760px) { .tags { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tagbtn { min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: #fff; font-weight: 600; text-align: left; }
+.tagbtn:hover { border-color: #AFC0DA; }
+.tagbtn:active, .tagbtn.flash { background: var(--accent-soft); }
+.tagbtn .key { width: 24px; height: 24px; flex: none; border-radius: 6px; background: var(--ground); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--muted); }
+.tagbtn .win { margin-left: auto; font-size: 11px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.tags.choose .tagbtn { border-color: var(--warn); box-shadow: 0 0 0 2px var(--work-soft); }
+.dot { width: 12px; height: 12px; border-radius: 6px; flex: none; }
+
+/* clips */
+.cliplist { display: flex; flex-direction: column; gap: 8px; max-height: calc(100vh - 220px); overflow: auto; }
+.clip { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; background: #fff; }
+.clip.sel { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.clip .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.pill { padding: 2px 8px; border-radius: 10px; font-weight: 600; font-size: 12px; }
+.pill.do { background: var(--accent-soft); color: var(--accent-dark); }
+.pill.work { background: var(--work-soft); color: var(--work); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { min-width: 44px; min-height: 36px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff; font-weight: 600; font-size: 13px; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.seg .btn[data-flag="work"][aria-pressed="true"] { border-color: var(--warn); background: var(--work-soft); color: var(--work); }
+.editor { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 4px; display: flex; flex-direction: column; gap: 10px; }
+
+/* settings */
+table.cats { width: 100%; border-collapse: collapse; }
+table.cats th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 6px; }
+table.cats td { padding: 6px; border-top: 1px solid var(--line); vertical-align: middle; }
+table.cats input[type=number] { width: 70px; }
+table.cats input[type=color] { width: 44px; height: 36px; border: 1px solid var(--line); border-radius: 8px; padding: 2px; background: #fff; }
+.tablewrap { overflow-x: auto; }
+
+/* dialog + toast */
+dialog { border: none; border-radius: var(--radius); padding: 0; max-width: 520px; width: calc(100% - 32px); box-shadow: 0 20px 60px rgba(14,26,43,.3); }
+dialog::backdrop { background: rgba(14,26,43,.45); }
+.dlg { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.toasts { position: fixed; right: 24px; bottom: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 10; width: max-content; max-width: calc(100% - 32px); }
+.toast { background: var(--ink); color: #fff; padding: 10px 14px; border-radius: 10px; display: flex; align-items: center; gap: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+.toast.err { background: #991B1B; }
+.toast button { background: none; border: 1px solid #fff6; color: #fff; border-radius: 6px; padding: 4px 10px; font-weight: 600; }
+kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: #fff; }
+.empty { text-align: center; padding: 24px; color: var(--muted); }
+
+/* clip editor */
+.stage { position: relative; background: #0B1220; border-radius: var(--radius); overflow: hidden; }
+.stage video { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.stage canvas { position: relative; display: block; width: 100%; height: auto; touch-action: none; background: #0B1220; }
+.stage.draw canvas { cursor: crosshair; }
+.stage.zoomed canvas { cursor: grab; }
+.exporting { position: absolute; inset: 0; background: rgba(11,18,32,.72); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; font-weight: 600; }
+.exporting .bar { width: min(420px, 70%); height: 10px; border-radius: 5px; background: #22324A; overflow: hidden; }
+.exporting .bar div { height: 100%; width: 0; background: #3B6FF0; }
+.trim { position: relative; height: 48px; border-radius: 8px; background: var(--accent-soft); cursor: pointer; touch-action: none; margin: 4px 8px; }
+.trim .range { position: absolute; top: 0; bottom: 0; background: #C9D8F7; border-top: 3px solid var(--accent); border-bottom: 3px solid var(--accent); }
+.trim .handle { position: absolute; top: -5px; bottom: -5px; width: 18px; margin-left: -9px; border-radius: 6px; background: var(--accent); cursor: ew-resize; border: none; padding: 0; }
+.trim .handle::after { content: ''; position: absolute; left: 7px; top: 14px; bottom: 14px; width: 4px; border-left: 1px solid #fff9; border-right: 1px solid #fff9; }
+.trim .spd { position: absolute; top: 8px; bottom: 8px; background: #FDE2C4; border-left: 2px solid var(--warn); border-right: 2px solid var(--warn); color: #7C2D12; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; pointer-events: none; overflow: hidden; }
+.trim .frz { position: absolute; top: 15px; width: 18px; height: 18px; margin-left: -9px; transform: rotate(45deg); background: #FACC15; border: 2px solid var(--ink); pointer-events: none; }
+.trim .head { position: absolute; top: -5px; bottom: -5px; width: 3px; margin-left: -1px; background: var(--ink); border-radius: 2px; pointer-events: none; }
+.trim-scale { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin: 0 8px; }
+.tool[aria-pressed="true"] { border: 2px solid var(--accent); background: var(--accent-soft); color: var(--accent-dark); }
+.swatch { width: 40px; height: 40px; border-radius: 20px; border: 1px solid #94A3B8; padding: 0; }
+.swatch[aria-pressed="true"] { border: 3px solid var(--ink); }
+.spdrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; }
+.saved { font-size: 12px; color: var(--muted); }
+#stage .zoombar { top: 12px; bottom: auto; right: 12px; }
+#stage #e-ov-mode { right: auto; left: 50%; transform: translateX(-50%); top: 12px; }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg width="34" height="34" viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="16" cy="18.5" rx="12" ry="6" fill="#1D4ED8"/><ellipse cx="16" cy="14" rx="12" ry="6" fill="#3B6FF0"/></svg>
+    <div><div class="brand-name">Bulldogs Watch Party</div><div class="brand-sub">U10 Blue · video clips · <span id="brand-version"></span></div></div>
+  </div>
+  <nav class="nav" aria-label="Main">
+    <a href="#games" data-nav="games">Games</a>
+    <a href="#settings" data-nav="settings">Settings</a>
+  </nav>
+  <div class="who" id="who"></div>
+</header>
+
+<main id="view-games" class="hidden">
+  <div class="cols">
+    <section class="col-main card stack" aria-labelledby="new-game-h">
+      <div>
+        <h1 id="new-game-h">New game</h1>
+        <p class="muted" style="margin:4px 0 0">Add the LiveBarn downloads for one game. They play as one timeline and never leave this computer.</p>
+      </div>
+      <div class="drop" id="drop">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1D4ED8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        <strong>Drag video files here</strong>
+        <button type="button" class="btn outline" id="pick-files">Or choose files</button>
+        <input type="file" id="file-input" accept="video/*,.mp4,.mov,.webm,.mkv" multiple class="hidden">
+      </div>
+      <div class="stack" id="parts-wrap" hidden>
+        <div class="row spread"><h3>Parts, in play order</h3><span class="small muted">Sorted by LiveBarn start time</span></div>
+        <div class="stack" id="parts" style="gap:8px"></div>
+        <span class="small muted" id="parts-total"></span>
+      </div>
+      <div class="grid2">
+        <label class="field">Game date<input type="date" id="g-date"></label>
+        <label class="field">Opponent<input type="text" id="g-opp" placeholder="e.g. Oakville" autocomplete="off"></label>
+        <label class="field">Rink<input type="text" id="g-rink" autocomplete="off"></label>
+        <label class="field">Result (optional)<input type="text" id="g-result" placeholder="e.g. W 4–2" autocomplete="off"></label>
+      </div>
+      <div class="row" style="justify-content:flex-end">
+        <button type="button" class="btn" id="g-clear">Clear</button>
+        <button type="button" class="btn primary" id="g-start" disabled>Start tagging</button>
+      </div>
+    </section>
+    <aside class="col-side card stack" aria-labelledby="recent-h">
+      <div class="row spread"><h2 id="recent-h">Games</h2>
+        <div class="row">
+          <button type="button" class="btn small" id="import-backup">Import backup</button>
+          <input type="file" id="backup-input" accept=".json,application/json" class="hidden">
+        </div>
+      </div>
+      <div class="stack" id="games" style="gap:8px"></div>
+      <span class="small muted">Games and clips are saved in this browser on this computer. Use "Backup" to keep a copy until Google Drive is connected.</span>
+    </aside>
+  </div>
+</main>
+
+<main id="view-tag" class="hidden">
+  <div class="cols">
+    <section class="col-main">
+      <div class="row spread" style="align-items:baseline">
+        <h1 id="t-title"></h1>
+        <span class="small muted" id="t-sub"></span>
+      </div>
+      <div class="videobox" id="videobox">
+        <div class="vframe" id="vframe"><video id="video" playsinline preload="auto"></video></div>
+        <span class="overlay-tl" id="ov-time">Part 1 · 0:00</span>
+        <span class="overlay-tr hidden" id="ov-tag"></span>
+        <span class="overlay-bl hidden" id="ov-zoom">Drag to move · double-click to fit</span>
+        <div class="zoombar" role="group" aria-label="Zoom">
+          <button type="button" id="z-out" aria-label="Zoom out" title="Zoom out (−)">−</button>
+          <span id="z-level" aria-live="polite">1×</span>
+          <button type="button" id="z-in" aria-label="Zoom in" title="Zoom in (+)">+</button>
+          <button type="button" id="z-fit" title="Fit whole rink (0)">Fit</button>
+        </div>
+        <div class="relink hidden" id="relink">
+          <strong id="relink-msg">Reconnect this game's video files</strong>
+          <span class="small" id="relink-names" style="color:#C7D2E3"></span>
+          <div class="row" style="justify-content:center">
+            <button type="button" class="btn primary" id="relink-handles" hidden>Reconnect videos</button>
+            <button type="button" class="btn" id="relink-pick">Choose the files</button>
+          </div>
+          <input type="file" id="relink-input" accept="video/*,.mp4,.mov,.webm,.mkv" multiple class="hidden">
+        </div>
+      </div>
+      <div class="row">
+        <button type="button" class="btn" id="b-back" aria-label="Back 5 seconds" title="Back 5 s (←)">−5s</button>
+        <button type="button" class="btn iconbtn primary" id="b-play" aria-label="Play" title="Play / pause (Space)">
+          <svg id="ic-play" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M5 3l10 6-10 6z" fill="#fff"/></svg>
+          <svg id="ic-pause" class="hidden" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="4" y="3" width="3.5" height="12" rx="1" fill="#fff"/><rect x="10.5" y="3" width="3.5" height="12" rx="1" fill="#fff"/></svg>
+        </button>
+        <button type="button" class="btn" id="b-fwd" aria-label="Forward 5 seconds" title="Forward 5 s (→)">+5s</button>
+        <label class="row small" style="gap:6px"><span class="muted">Speed</span>
+          <select id="b-rate" style="min-height:44px"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="4">4×</option></select>
+        </label>
+        <button type="button" class="btn outline" id="b-in" title="Mark start (I)">Mark start <kbd>I</kbd></button>
+        <button type="button" class="btn outline" id="b-out" title="Mark end (O)">Mark end <kbd>O</kbd></button>
+        <span class="clock" id="clock">0:00 / 0:00</span>
+      </div>
+      <div class="marks hidden" id="marks-banner" role="status"></div>
+      <div class="card stack" style="gap:8px">
+        <div class="tl" id="tl" role="slider" tabindex="0" aria-label="Game timeline" aria-valuemin="0" aria-valuenow="0"></div>
+        <div class="tl-labels" id="tl-labels"></div>
+      </div>
+      <div class="card stack">
+        <div class="row spread">
+          <h2>Tag this moment</h2>
+          <button type="button" class="btn small" id="b-manual">New clip from times…</button>
+        </div>
+        <span class="small muted" id="tag-hint">Tap a category (or press <kbd>1</kbd>–<kbd>9</kbd>) to grab a clip using that category's window. For exact start and end, press <kbd>I</kbd> then <kbd>O</kbd>, then pick a category.</span>
+        <div class="tags" id="tags"></div>
+        <span class="small muted">Keys: <kbd>Space</kbd> play/pause · <kbd>←</kbd><kbd>→</kbd> 5 s · <kbd>Shift</kbd>+<kbd>←</kbd><kbd>→</kbd> 1 s · <kbd>+</kbd><kbd>−</kbd> zoom · <kbd>0</kbd> fit · <kbd>Esc</kbd> cancel marks. Scroll on the video to zoom where the pointer is; drag to move.</span>
+      </div>
+    </section>
+    <aside class="col-side card stack">
+      <div class="row spread" style="align-items:baseline">
+        <h2>Clips this game</h2>
+        <span class="small muted" id="clip-count"></span>
+      </div>
+      <label class="row small" style="gap:6px"><span class="muted">Show</span>
+        <select id="clip-filter" style="min-height:36px" aria-label="Filter clips by category"></select>
+      </label>
+      <div class="cliplist" id="clips"></div>
+      <div class="row">
+        <button type="button" class="btn small" id="b-backup">Backup this game</button>
+        <a href="#games" class="btn small" style="text-decoration:none">All games</a>
+      </div>
+      <span class="small muted">Exporting clips to video and sharing to Google Drive come in the next milestones.</span>
+    </aside>
+  </div>
+</main>
+
+<main id="view-edit" class="hidden">
+  <div class="row spread" style="margin-bottom:16px">
+    <div class="row" style="gap:12px">
+      <a class="btn small" id="e-back" href="#games" style="text-decoration:none">← Back to game</a>
+      <h1 id="e-title" style="font-size:26px"></h1>
+    </div>
+    <div class="row">
+      <span class="saved" id="e-saved" role="status"></span>
+      <button type="button" class="btn small" id="e-prev">◀ Previous clip</button>
+      <button type="button" class="btn small" id="e-next">Next clip ▶</button>
+    </div>
+  </div>
+  <div class="cols">
+    <section class="col-main">
+      <div class="stage" id="stage">
+        <video id="e-video" playsinline preload="auto" muted></video>
+        <canvas id="e-canvas" width="1280" height="568" aria-label="Clip preview. When drawing, drag on the picture to add a drawing."></canvas>
+        <span class="overlay-tl" id="e-ov"></span>
+        <span class="overlay-tr hidden" id="e-ov-mode"></span>
+        <div class="zoombar" role="group" aria-label="Clip zoom">
+          <button type="button" id="ez-out" aria-label="Zoom out">−</button>
+          <span id="ez-level">1×</span>
+          <button type="button" id="ez-in" aria-label="Zoom in">+</button>
+          <button type="button" id="ez-fit">Fit</button>
+        </div>
+        <div class="exporting hidden" id="e-exporting" role="status">
+          <div>Making the MP4… <span id="e-pct">0%</span></div>
+          <div class="bar"><div id="e-bar"></div></div>
+          <span class="small" style="font-weight:400;color:#C7D2E3">It plays through the clip once — keep this tab open.</span>
+          <button type="button" class="btn small" id="e-cancel">Cancel</button>
+        </div>
+      </div>
+      <div class="row">
+        <button type="button" class="btn primary" id="e-play" title="Preview the finished clip (Space)"><span id="e-play-label">▶ Preview finished clip</span></button>
+        <button type="button" class="btn" id="e-back1" title="Back 1 s (←)">−1s</button>
+        <button type="button" class="btn" id="e-fwd1" title="Forward 1 s (→)">+1s</button>
+        <button type="button" class="btn" id="e-frame-b" aria-label="Back one frame" title="Back one frame (,)">‹ frame</button>
+        <button type="button" class="btn" id="e-frame-f" aria-label="Forward one frame" title="Forward one frame (.)">frame ›</button>
+        <span class="clock" id="e-clock"></span>
+      </div>
+      <div class="card stack" style="gap:8px">
+        <div class="row spread"><h2>Trim</h2><span class="small muted" id="e-len"></span></div>
+        <div class="trim" id="e-trim"></div>
+        <div class="trim-scale"><span id="e-wa"></span><span id="e-wb"></span></div>
+        <div class="row">
+          <label class="row small" style="gap:6px"><strong>Start</strong><input type="text" class="time" id="e-start" autocomplete="off"></label>
+          <button type="button" class="btn small" id="e-start-now">Start = playhead</button>
+          <label class="row small" style="gap:6px;margin-left:12px"><strong>End</strong><input type="text" class="time" id="e-end" autocomplete="off"></label>
+          <button type="button" class="btn small" id="e-end-now">End = playhead</button>
+        </div>
+        <span class="small muted">Drag the blue handles to trim. Click the bar to move the playhead. Orange = speed change, yellow diamond = freeze.</span>
+      </div>
+      <div class="grid2" style="align-items:start">
+        <div class="card stack"><h2>Freeze and draw</h2><div class="stack" id="e-freeze"></div></div>
+        <div class="card stack"><h2>Slow motion / speed up</h2><div class="stack" id="e-speeds" style="gap:8px"></div></div>
+      </div>
+    </section>
+    <aside class="col-side card stack">
+      <h2>Clip details</h2>
+      <label class="field">Category<select id="e-cat"></select></label>
+      <div class="stack" style="gap:6px">
+        <span style="font-weight:600;font-size:13px">Players</span>
+        <div class="chips" id="e-chips"></div>
+        <input type="text" id="e-players" placeholder="Numbers, e.g. 7, 12" aria-label="Player numbers">
+      </div>
+      <div class="seg" role="group" aria-label="Message" id="e-flag">
+        <button type="button" class="btn small" data-flag="do">Do this</button>
+        <button type="button" class="btn small" data-flag="work">Work on this</button>
+      </div>
+      <label class="field">Note<input type="text" id="e-note" maxlength="140" placeholder="One line for players and parents"></label>
+      <div class="row"><strong style="font-size:13px">Zoom</strong><span class="small" id="e-zoom-text"></span><span class="small muted">Scroll or drag on the picture to change</span></div>
+      <label style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:13px"><input type="checkbox" id="e-title-on" style="width:20px;height:20px;flex:none">Add title bar (category, game, players, note)</label>
+      <div class="stack" style="gap:6px;border-top:1px solid var(--line);padding-top:12px">
+        <button type="button" class="btn primary" id="e-export">Export MP4</button>
+        <span class="small muted" id="e-export-note"></span>
+      </div>
+      <button type="button" class="btn small danger" id="e-delete" style="align-self:flex-start">Delete clip</button>
+    </aside>
+  </div>
+</main>
+
+<main id="view-settings" class="hidden">
+  <div class="stack" style="max-width:980px; margin:0 auto">
+    <section class="card stack">
+      <h1>Settings</h1>
+      <label class="field" style="max-width:360px">Your name (shown on clips you make)
+        <input type="text" id="s-coach" placeholder="e.g. Coach Cristian" autocomplete="name">
+      </label>
+    </section>
+    <section class="card stack" aria-labelledby="cats-h">
+      <div class="row spread"><h2 id="cats-h">Categories</h2><span class="small muted">The first 9 shown get keys 1–9</span></div>
+      <p class="small muted" style="margin:0">Before / after = seconds kept either side of a tap for that category. Changes apply to new clips only. Hidden categories lose their button but keep their clips.</p>
+      <div class="tablewrap"><table class="cats">
+        <thead><tr><th scope="col">Key</th><th scope="col">Colour</th><th scope="col">Name</th><th scope="col">Before (s)</th><th scope="col">After (s)</th><th scope="col">Shown</th><th scope="col"><span class="hidden">Actions</span></th></tr></thead>
+        <tbody id="cat-rows"></tbody>
+      </table></div>
+      <form class="row" id="cat-add">
+        <input type="text" id="cat-new" placeholder="New category name" aria-label="New category name" class="grow" style="max-width:320px">
+        <button type="submit" class="btn outline">Add category</button>
+      </form>
+    </section>
+    <section class="card stack" aria-labelledby="roster-h">
+      <h2 id="roster-h">Roster</h2>
+      <p class="small muted" style="margin:0">Jersey numbers appear as quick buttons when you tag players on a clip. Names stay on this computer.</p>
+      <div class="chips" id="roster"></div>
+      <form class="row" id="roster-add">
+        <input type="text" id="r-num" placeholder="#" aria-label="Jersey number" style="width:80px" inputmode="numeric">
+        <input type="text" id="r-name" placeholder="Name (optional)" aria-label="Player name" style="max-width:240px">
+        <button type="submit" class="btn outline">Add player</button>
+      </form>
+    </section>
+    <section class="card stack" aria-labelledby="about-h">
+      <h2 id="about-h">About</h2>
+      <div class="row" style="gap:16px">
+        <span><strong>Bulldogs Watch Party</strong> <span id="app-version"></span></span>
+        <span class="small muted" id="app-released"></span>
+      </div>
+      <span class="small muted">Games and clips are stored in this browser (data format v<span id="app-schema"></span>). What's new in each version is in CHANGELOG.md.</span>
+    </section>
+  </div>
+</main>
+
+<dialog id="dlg-manual" aria-labelledby="dm-h">
+  <form class="dlg" method="dialog" id="dm-form">
+    <h2 id="dm-h">New clip from times</h2>
+    <p class="small muted" style="margin:0">Game time across all parts, as m:ss or h:mm:ss.</p>
+    <div class="grid2">
+      <label class="field">Start<input type="text" id="dm-start" class="time" autocomplete="off"></label>
+      <label class="field">End<input type="text" id="dm-end" class="time" autocomplete="off"></label>
+    </div>
+    <div class="row">
+      <button type="button" class="btn small" id="dm-start-now">Start = now</button>
+      <button type="button" class="btn small" id="dm-end-now">End = now</button>
+    </div>
+    <label class="field">Category<select id="dm-cat"></select></label>
+    <span class="small" id="dm-err" style="color:#B91C1C" role="alert"></span>
+    <div class="row" style="justify-content:flex-end">
+      <button type="button" class="btn" id="dm-cancel">Cancel</button>
+      <button type="submit" class="btn primary" id="dm-ok" value="ok">Create clip</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="core.js"></script>
+<script src="vendor/mp4-muxer.js"></script>
+<script src="render.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

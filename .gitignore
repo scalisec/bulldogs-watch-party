@@ -1,0 +1,11 @@
+# never commit game video or exported clips
+*.mp4
+*.mov
+*.m4v
+*.webm
+*.mkv
+# test output
+shots/
+node_modules/
+.DS_Store
+Thumbs.db
