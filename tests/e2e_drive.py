@@ -33,13 +33,15 @@ GAPI = """
 window.gapi = { load(name, o) { setTimeout(o.callback, 0); } };
 window.google = window.google || {};
 google.picker = {
+  Feature: { MULTISELECT_ENABLED: 'multi' },
   ViewId: { DOCS: 'docs' }, Action: { PICKED: 'picked', CANCEL: 'cancel' },
   DocsView: function () { this.setMimeTypes = () => this; this.setQuery = () => this; this.setIncludeFolders = () => this; },
   PickerBuilder: function () {
     let cb; const b = this;
     ['setTitle', 'addView', 'setOAuthToken', 'setDeveloperKey', 'setAppId'].forEach((m) => { b[m] = () => b; });
     b.setCallback = (f) => { cb = f; return b; };
-    b.build = () => ({ setVisible() { setTimeout(() => cb({ action: 'picked', docs: [{ id: window.__fakePickId }] }), 10); } });
+    b.enableFeature = () => b;
+    b.build = () => ({ setVisible() { setTimeout(() => cb({ action: 'picked', docs: (window.__fakePickDocs || [{ id: window.__fakePickId, name: 'Watch Party team data.json' }]) }), 10); } });
   }
 };"""
 
@@ -57,9 +59,9 @@ def meta(f):
     return {'id': f['id'], 'name': f['name'], 'version': str(f['version']), 'modifiedTime': '2026-10-20T00:00:00Z', 'trashed': False,
             'parents': f['parents'], 'lastModifyingUser': {'emailAddress': f['lastBy'], 'displayName': f['lastBy'].split('@')[0]}}
 
-def new_file(user, name, mime, parents, content=''):
+def new_file(user, name, mime, parents, content='', description=''):
     fid = 'f%d' % next(ids)
-    drive[fid] = {'id': fid, 'name': name, 'mime': mime, 'parents': parents or [], 'owner': user, 'perms': set(), 'content': content, 'version': 1, 'lastBy': user}
+    drive[fid] = {'id': fid, 'name': name, 'mime': mime, 'parents': parents or [], 'owner': user, 'perms': set(), 'content': content, 'version': 1, 'lastBy': user, 'description': description, 'trashed': False}
     return drive[fid]
 
 def handle(route):
@@ -78,9 +80,21 @@ def handle(route):
     p = u.path
     if p == '/drive/v3/about':
         return reply({'user': {'emailAddress': user, 'displayName': user.split('@')[0].title()}})
+    if p == '/drive/v3/files' and req.method == 'GET':
+        # drive.file: only files this user's app created
+        qq = q.get('q', [''])[0]
+        import re
+        nm = re.search(r"name = '((?:[^'\\]|\\.)*)'", qq)
+        mt = re.search(r"mimeType = '([^']*)'", qq)
+        out = [meta(f) for f in drive.values() if f['owner'] == user and not f['trashed']
+               and (not nm or f['name'] == nm.group(1).replace("\\'", "'")) and (not mt or f['mime'] == mt.group(1))]
+        return reply({'files': out})
     if p == '/drive/v3/files' and req.method == 'POST':
         b = json.loads(req.post_data)
-        f = new_file(user, b['name'], b.get('mimeType'), b.get('parents'))
+        if b.get('parents'):
+            par = drive.get(b['parents'][0])
+            if not par or not can_access(user, par): return reply({'error': {'message': 'File not found: ' + b['parents'][0]}}, 404)
+        f = new_file(user, b['name'], b.get('mimeType'), b.get('parents'), description=b.get('description', ''))
         return reply({'id': f['id'], 'name': f['name']})
     if p == '/upload/drive/v3/files' and req.method == 'POST':
         ctype = req.headers['content-type']
@@ -94,12 +108,16 @@ def handle(route):
     if p.startswith('/drive/v3/files/') and len(segs) == 5:
         f = drive.get(segs[4])
         if not f or not can_access(user, f): return reply({'error': {'message': 'File not found'}}, 404)
-        if q.get('alt') == ['media']: return reply(None, text=f['content'])
+        if q.get('alt') == ['media']:
+            if isinstance(f['content'], bytes):
+                route.fulfill(status=200, headers={'Access-Control-Allow-Origin': '*', 'Content-Type': f['mime'] or 'video/mp4'}, body=f['content']); return
+            return reply(None, text=f['content'])
         return reply(meta(f))
     if p.startswith('/upload/drive/v3/files/') and req.method == 'PATCH':
         f = drive.get(segs[5])
         if not f or not can_access(user, f): return reply({'error': {'message': 'File not found'}}, 404)
-        f['content'] = req.post_data
+        ct = req.headers.get('content-type', '')
+        f['content'] = req.post_data_buffer if not ct.startswith('application/json') else req.post_data
         f['version'] += 1
         f['lastBy'] = user
         return reply(meta(f))

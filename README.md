@@ -1,4 +1,4 @@
-# Bulldogs Watch Party — milestones 1, 2 and 3a
+# Bulldogs Watch Party — milestones 1, 2 and 3
 
 Watch a LiveBarn game on your PC, tag clips for the U10 Blue team, and turn clips into finished MP4 videos with drawings, slow motion and zoom.
 
@@ -106,13 +106,31 @@ The roster, categories, coaches, opponents, rinks, and team name and season are 
 
 Each coach's own name (shown on their clips) stays on their device.
 
+## Clip library and Review (milestone 3b)
+
+- **Mark the game:** on the game screen press **P** at the start and end of each period, **G** for a goal for and **Shift+G** for a goal against. Clips then get their period and the score automatically, and clips containing a goal are tagged with it.
+- **Tag clips:** in the clip editor, set events (any number), zone, situation, star, custom tags, or **Private (only me)**.
+- **Save to Drive:** when exporting, tick where the MP4 goes.
+  - Team clips: this computer, Team, Coaches only, or the tagged players' family folders.
+  - Private clips: your private Drive folder.
+- **Review screen:**
+  - Choose Team / Private / Both, search, and combine filters (AND between groups, OR within a group).
+  - Save a view for all coaches, and **Play all** as a playlist.
+  - Tags can be edited while watching.
+- **Where things live:**
+  - Team clips' tags are in **Bulldogs Watch Party › _App › Watch Party clip library.json**, shared with coaches only.
+  - Private clips are in **My Watch Party clips (private)** in your own Drive, shared with no one.
+- **Other coaches:** when they open the shared team data, they pick both the team data and the clip library files.
+- **Still to confirm:** whether other coaches' copies of the app can save into the team folders, given the app's narrow Google permission. This will be checked when the first coach joins.
+
 ## Reopening a game later
 
 Video files can't be saved inside the browser. When you reopen a game, click **Reconnect videos**, or choose the same files again.
 
 ## Tests
 
-- `node --test tests/` runs the core logic tests (49).
+- `node --test tests/` runs the core logic tests (61).
+- `python3 tests/e2e_library.py <screenshot-dir> <media-dir>` tests marks, tags, Drive uploads, the shared and private libraries and Review with two coaches and a phone against a simulated Drive (45 checks).
 - `python3 tests/e2e_drive.py <screenshot-dir>` tests shared team data with two coaches against a simulated Google Drive (23 checks).
 - `python3 tests/e2e.py <screenshot-dir> <media-dir>` runs the browser test (74 checks). It covers tagging, zoom, the editor, drawing, slow motion, preview, MP4 export, and recording a breakdown with a simulated microphone.
 
@@ -122,5 +140,4 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 
 ## Coming next
 
-- **Milestone 3b:** share exported clips to Drive folders (team, coaches, each player's family) and a shared clip library.
 - **Milestone 4:** tablet and phone layouts.

@@ -170,6 +170,34 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
 .swatch[aria-pressed="true"] { border: 3px solid var(--ink); }
 .spdrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; }
 .saved { font-size: 12px; color: var(--muted); }
+.autodot { display: inline-block; width: 8px; height: 8px; border-radius: 4px; background: #16A34A; vertical-align: middle; }
+.chip .autodot { margin-right: 4px; }
+.mark { display: inline-flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 600; background: #F1F5F9; }
+.mark.gf { background: #DCFCE7; color: #166534; } .mark.ga { background: #FEE2E2; color: #991B1B; }
+.mark button { width: 24px; height: 24px; border-radius: 12px; border: none; background: #0001; font-weight: 700; }
+.tl .gmk { position: absolute; top: -4px; width: 4px; height: 48px; margin-left: -2px; border-radius: 2px; pointer-events: none; }
+.tl .pband { position: absolute; bottom: 0; height: 4px; background: #0E1A2B33; pointer-events: none; }
+.evb { padding: 1px 7px; border-radius: 9px; font-size: 11px; font-weight: 700; background: #F1F5F9; color: #334155; white-space: nowrap; }
+.evb.good { background: #DCFCE7; color: #166534; } .evb.bad { background: #FEE2E2; color: #991B1B; }
+.scope { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; background: var(--ground); border-radius: 10px; padding: 4px; }
+.scope button { min-height: 40px; border: none; border-radius: 8px; background: transparent; font-weight: 500; color: var(--muted); }
+.scope button[aria-pressed="true"] { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(14,26,43,.12); }
+.fh { font-family: Inter, system-ui, sans-serif; font-size: 12px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: var(--muted); }
+.vbtn { display: flex; justify-content: space-between; align-items: center; gap: 6px; min-height: 36px; padding: 0 6px 0 10px; border: none; border-radius: 8px; background: transparent; text-align: left; }
+.vbtn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-dark); font-weight: 600; }
+.rvgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.rvcard { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.rvcard.now { border: 2px solid var(--accent); }
+.rvcard .where { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); border-top: 1px solid #E6EAF0; padding-top: 6px; margin-top: 2px; }
+.wdot { width: 8px; height: 8px; border-radius: 4px; flex: none; }
+.rvplay { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 16px; }
+@media (max-width: 900px) { .rvplay { grid-template-columns: minmax(0, 1fr); } }
+.rvstage { position: relative; background: #0B1220; border-radius: 10px; overflow: hidden; aspect-ratio: 2.26 / 1; display: flex; align-items: center; justify-content: center; color: #C7D2E3; text-align: center; padding: 0; }
+.rvstage video, .rvstage iframe { width: 100%; height: 100%; border: 0; display: block; background: #0B1220; }
+.rvstage .vwrap { width: 100%; height: 100%; overflow: hidden; }
+.rvstage .vwrap video { transform-origin: 0 0; }
+.rvstage .msg { padding: 24px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.lockpill { background: #FEF3C7; color: #78350F; }
 .syncbadge { font-size: 12px; color: var(--on-navy); text-decoration: none; }
 .syncbadge.ok::before { content: '\25CF '; color: #4ADE80; }
 .syncbadge.warn { color: #FDBA74; }
@@ -193,6 +221,7 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
   </div>
   <nav class="nav" aria-label="Main">
     <a href="#games" data-nav="games">Games</a>
+    <a href="#review" data-nav="review">Review</a>
     <a href="#settings" data-nav="settings">Settings</a>
   </nav>
   <div class="row" style="gap:12px"><a href="#settings" id="sync-badge" class="syncbadge"></a><div class="who" id="who"></div></div>
@@ -221,6 +250,8 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
         <label class="field">Opponent<input type="text" id="g-opp" placeholder="e.g. Oakville" autocomplete="off" list="dl-opp"><datalist id="dl-opp"></datalist></label>
         <label class="field">Rink<input type="text" id="g-rink" autocomplete="off" list="dl-rink"><datalist id="dl-rink"></datalist></label>
         <label class="field">Result (optional)<input type="text" id="g-result" placeholder="e.g. W 4–2" autocomplete="off"></label>
+        <label class="field">Game type<select id="g-type"><option value="">Not set</option><option value="league">League</option><option value="tournament">Tournament</option><option value="exhibition">Exhibition</option><option value="playoff">Playoff</option></select></label>
+        <label class="field">Home or away<select id="g-ha"><option value="">Not set</option><option value="home">Home</option><option value="away">Away</option></select></label>
       </div>
       <div class="row" style="justify-content:flex-end">
         <button type="button" class="btn" id="g-clear">Clear</button>
@@ -286,6 +317,22 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
       <div class="card stack" style="gap:8px">
         <div class="tl" id="tl" role="slider" tabindex="0" aria-label="Game timeline" aria-valuemin="0" aria-valuenow="0"></div>
         <div class="tl-labels" id="tl-labels"></div>
+      </div>
+      <div class="card stack" id="marks-card" style="gap:10px">
+        <div class="row spread">
+          <h2>Periods and goals</h2>
+          <div class="row">
+            <button type="button" class="btn small" id="b-period" title="Period start / end (P)">Period start <kbd>P</kbd></button>
+            <button type="button" class="btn small" id="b-goal-for" title="Goal for (G)" style="color:#166534">Goal for <kbd>G</kbd></button>
+            <button type="button" class="btn small" id="b-goal-against" title="Goal against (Shift+G)" style="color:#991B1B">Goal against <kbd>Shift+G</kbd></button>
+          </div>
+        </div>
+        <div class="chips" id="marks-list"></div>
+        <div class="row small" style="gap:12px">
+          <span class="muted">Game type</span><select id="t-gtype" style="min-height:36px"></select>
+          <span class="muted">Home / away</span><select id="t-gha" style="min-height:36px"></select>
+          <span class="muted" style="flex:1 1 240px">Mark periods and goals once per game: every clip then knows its period and the score, and clips containing a goal are tagged with it.</span>
+        </div>
       </div>
       <div class="card stack">
         <div class="row spread">
@@ -390,14 +437,78 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
         <button type="button" class="btn small" data-flag="work">Work on this</button>
       </div>
       <label class="field">Note<input type="text" id="e-note" maxlength="140" placeholder="One line for players and parents"></label>
+      <div class="stack" style="gap:6px">
+        <span style="font-weight:600;font-size:13px">Events <span class="small muted" style="font-weight:400">· <span class="autodot"></span> = from your goal marks</span></span>
+        <div class="chips" id="e-events"></div>
+      </div>
+      <div class="grid2" style="gap:8px">
+        <label class="field">Zone<select id="e-zone"><option value="">Not set</option><option value="off">Offensive</option><option value="neu">Neutral</option><option value="def">Defensive</option></select></label>
+        <label class="field">Situation<select id="e-sit"><option value="even">Even strength</option><option value="pp">Power play</option><option value="pk">Penalty kill</option></select></label>
+      </div>
+      <div class="stack" style="gap:6px">
+        <span style="font-weight:600;font-size:13px">Custom tags</span>
+        <div class="chips" id="e-tags"></div>
+        <form class="row" id="e-tag-add"><input type="text" id="e-tag-new" placeholder="Add a tag, e.g. Silver Stick" aria-label="New tag" list="dl-tags" class="grow"><datalist id="dl-tags"></datalist><button type="submit" class="btn small outline">Add</button></form>
+      </div>
+      <div class="row" style="gap:10px">
+        <button type="button" class="btn small" id="e-star" aria-pressed="false">☆ Star</button>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px"><input type="checkbox" id="e-private" role="switch" style="width:20px;height:20px">Private (only me)</label>
+      </div>
+      <span class="small muted" id="e-auto"></span>
       <div class="row"><strong style="font-size:13px">Zoom</strong><span class="small" id="e-zoom-text"></span><span class="small muted">Scroll or drag on the picture to change</span></div>
       <label style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:13px"><input type="checkbox" id="e-title-on" style="width:20px;height:20px;flex:none">Add title bar (category, game, players, note)</label>
       <div class="stack" style="gap:6px;border-top:1px solid var(--line);padding-top:12px">
+        <div class="stack" style="gap:4px" id="e-dests"></div>
         <button type="button" class="btn primary" id="e-export">Export MP4</button>
         <span class="small muted" id="e-export-note"></span>
       </div>
       <button type="button" class="btn small danger" id="e-delete" style="align-self:flex-start">Delete clip</button>
     </aside>
+  </div>
+</main>
+
+<main id="view-review" class="hidden">
+  <div class="cols">
+    <aside class="col-side card stack" aria-label="Filters" style="flex:1 1 300px;max-width:340px;gap:14px" id="rv-filters">
+      <label class="row" style="border:1px solid #C3CCD9;border-radius:8px;padding:0 10px;gap:8px;min-height:44px;flex-wrap:nowrap">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4A5568" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <input type="text" id="rv-q" placeholder="Search notes and tags" aria-label="Search notes and tags" style="border:none;outline:none;flex:1 1 auto;min-width:0;min-height:40px;padding:0">
+      </label>
+      <div class="scope" role="group" aria-label="Which clips" id="rv-scope">
+        <button type="button" data-scope="team">Team</button>
+        <button type="button" data-scope="private">🔒 Private</button>
+        <button type="button" data-scope="both">Both</button>
+      </div>
+      <div class="stack" style="gap:4px"><h3 class="fh">Saved views</h3><div class="stack" id="rv-views" style="gap:2px"></div></div>
+      <div id="rv-groups" class="stack" style="gap:14px"></div>
+      <span class="small muted" id="rv-lib-status"></span>
+    </aside>
+    <section class="col-main" aria-label="Results">
+      <div class="row spread" style="align-items:flex-end">
+        <div class="stack" style="gap:2px"><h1 id="rv-title">All clips</h1><span class="small muted" id="rv-count"></span></div>
+        <div class="row">
+          <button type="button" class="btn" id="rv-save">Save view</button>
+          <button type="button" class="btn primary" id="rv-play">▶ Play all</button>
+        </div>
+      </div>
+      <div class="row" id="rv-active"></div>
+      <div class="card stack hidden" id="rv-player-card" style="gap:10px">
+        <div class="row spread">
+          <div class="stack" style="gap:0"><span class="small muted" id="rv-pl-title"></span><h2 id="rv-pl-now"></h2></div>
+          <div class="row">
+            <button type="button" class="btn small" id="rv-prev">◀ Previous</button>
+            <button type="button" class="btn small" id="rv-next">Next ▶</button>
+            <label class="row small" style="gap:6px"><input type="checkbox" id="rv-auto" checked style="width:18px;height:18px">Auto-play next</label>
+            <button type="button" class="btn small" id="rv-close">Close</button>
+          </div>
+        </div>
+        <div class="rvplay">
+          <div class="rvstage" id="rv-stage"></div>
+          <div class="stack" id="rv-tags" style="gap:10px"></div>
+        </div>
+      </div>
+      <div class="rvgrid" id="rv-results"></div>
+    </section>
   </div>
 </main>
 

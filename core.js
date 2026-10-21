@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '0.5.0';
+  const APP_VERSION = '0.6.0';
   const APP_RELEASED = '2026-10-20';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
@@ -244,6 +244,14 @@
       speeds: [],
       freeze: null,
       titleBar: true,
+      events: (fields.events || []).filter((e) => EVENT_IDS.includes(e)),
+      hiddenAuto: [],
+      zone: '',
+      situation: 'even',
+      starred: false,
+      tags: [],
+      private: !!fields.private,
+      drive: [],
       createdAt: fields.now || Date.now()
     };
   }
@@ -570,6 +578,13 @@
     if ('note' in patch) next.note = String(patch.note || '').slice(0, 140);
     if ('zoom' in patch) next.zoom = isZoomed(patch.zoom) ? normalizeZoom(patch.zoom) : null;
     if ('titleBar' in patch) next.titleBar = !!patch.titleBar;
+    if ('events' in patch) next.events = (patch.events || []).filter((e) => EVENT_IDS.includes(e));
+    if ('hiddenAuto' in patch) next.hiddenAuto = (patch.hiddenAuto || []).filter((e) => EVENT_IDS.includes(e));
+    if ('zone' in patch) next.zone = ZONES.some((z) => z[0] === patch.zone) ? patch.zone : '';
+    if ('situation' in patch) next.situation = SITUATIONS.some((z) => z[0] === patch.situation) ? patch.situation : 'even';
+    if ('starred' in patch) next.starred = !!patch.starred;
+    if ('tags' in patch) next.tags = normalizeTags(patch.tags);
+    if ('private' in patch) next.private = !!patch.private;
     if ('speeds' in patch) {
       const err = validateSpeeds(patch.speeds, next.start, next.end);
       if (err) throw new Error(err);
@@ -751,6 +766,330 @@
     return { data: merged, push: !same(merged, theirs), conflicts };
   }
 
+  // ---------- clip library (milestone 3b) ----------
+  const EVENTS = [
+    { id: 'goal_for', label: 'Goal for', kind: 'good' },
+    { id: 'goal_against', label: 'Goal against', kind: 'bad' },
+    { id: 'shot_for', label: 'Shot for' },
+    { id: 'shot_against', label: 'Shot against' },
+    { id: 'save', label: 'Save' },
+    { id: 'turnover', label: 'Turnover' },
+    { id: 'takeaway', label: 'Takeaway' },
+    { id: 'penalty_for', label: 'Penalty for' },
+    { id: 'penalty_against', label: 'Penalty against' },
+    { id: 'faceoff_won', label: 'Faceoff won' },
+    { id: 'faceoff_lost', label: 'Faceoff lost' }
+  ];
+  const EVENT_IDS = EVENTS.map((e) => e.id);
+  const GAME_TYPES = [['league', 'League'], ['tournament', 'Tournament'], ['exhibition', 'Exhibition'], ['playoff', 'Playoff']];
+  const HOME_AWAY = [['home', 'Home'], ['away', 'Away']];
+  const ZONES = [['off', 'Offensive'], ['neu', 'Neutral'], ['def', 'Defensive']];
+  const SITUATIONS = [['even', 'Even strength'], ['pp', 'Power play'], ['pk', 'Penalty kill']];
+  const label = (list, id) => { const x = list.find((p) => p[0] === id); return x ? x[1] : ''; };
+  function eventLabel(id) { const e = EVENTS.find((x) => x.id === id); return e ? e.label : id; }
+
+  // --- game marks: periods and goals ---
+  function gameMarks(game) {
+    const m = game.marks || {};
+    return { periods: (m.periods || []).slice().sort((a, b) => a.start - b.start), goals: (m.goals || []).slice().sort((a, b) => a.t - b.t) };
+  }
+
+  /** P key: starts the next period, or ends the open one. Returns { marks, did: 'start'|'end', n }. */
+  function togglePeriod(game, t) {
+    const m = gameMarks(game);
+    const open = m.periods.find((p) => p.end == null);
+    if (open) {
+      if (t <= open.start) throw new Error('A period must end after it starts');
+      open.end = round1(t);
+      return { marks: m, did: 'end', n: open.n };
+    }
+    const last = m.periods[m.periods.length - 1];
+    if (last && t < last.end) throw new Error('That’s inside period ' + last.n + '. Delete its marks to redo them.');
+    const n = m.periods.length + 1;
+    m.periods.push({ n, start: round1(t), end: null });
+    return { marks: m, did: 'start', n };
+  }
+
+  function addGoal(game, t, side) {
+    const m = gameMarks(game);
+    m.goals.push({ id: uid('goal'), t: round1(t), side: side === 'against' ? 'against' : 'for' });
+    m.goals.sort((a, b) => a.t - b.t);
+    return m;
+  }
+
+  function removeGoal(game, id) { const m = gameMarks(game); m.goals = m.goals.filter((g) => g.id !== id); return m; }
+  function removePeriod(game, n) {
+    const m = gameMarks(game);
+    m.periods = m.periods.filter((p) => p.n !== n).map((p, i) => Object.assign({}, p, { n: i + 1 }));
+    return m;
+  }
+
+  function periodName(n) { return n === 4 ? 'OT' : n > 4 ? 'OT' + (n - 3) : 'P' + n; }
+
+  /** What the app works out on its own for a clip: period, time into it, score before the clip, goals inside it. */
+  function clipAuto(game, clip) {
+    const m = gameMarks(game || {});
+    const per = m.periods.filter((p) => clip.start >= p.start - 0.01 && (p.end == null || clip.start <= p.end + 0.01)).pop() || null;
+    let f = 0, a = 0;
+    for (const g of m.goals) if (g.t < clip.start - 0.01) { if (g.side === 'for') f += 1; else a += 1; }
+    const inside = m.goals.filter((g) => g.t >= clip.start - 0.01 && g.t <= clip.end + 0.01);
+    const events = [...new Set(inside.map((g) => (g.side === 'for' ? 'goal_for' : 'goal_against')))];
+    const state = !m.goals.length && !per ? null : f > a ? 'leading' : f < a ? 'trailing' : 'tied';
+    return { period: per ? per.n : null, periodTime: per ? round1(clip.start - per.start) : null, score: { for: f, against: a }, state, events };
+  }
+
+  /** Events shown on the clip: the coach's own picks plus automatic goal events (unless the coach removed them). */
+  function clipEvents(game, clip) {
+    const hidden = clip.hiddenAuto || [];
+    const auto = clipAuto(game, clip).events.filter((e) => !hidden.includes(e));
+    return EVENT_IDS.filter((e) => (clip.events || []).includes(e) || auto.includes(e));
+  }
+
+  function toggleEvent(game, clip, ev) {
+    if (!EVENT_IDS.includes(ev)) throw new Error('Unknown event');
+    const auto = clipAuto(game, clip).events;
+    const events = (clip.events || []).slice();
+    const hiddenAuto = (clip.hiddenAuto || []).slice();
+    const showing = clipEvents(game, clip).includes(ev);
+    if (showing) {
+      const i = events.indexOf(ev); if (i >= 0) events.splice(i, 1);
+      if (auto.includes(ev) && !hiddenAuto.includes(ev)) hiddenAuto.push(ev);
+    } else {
+      const h = hiddenAuto.indexOf(ev);
+      if (h >= 0 && auto.includes(ev)) hiddenAuto.splice(h, 1); else events.push(ev);
+    }
+    return { events, hiddenAuto };
+  }
+
+  function normalizeTags(list) {
+    return [...new Set((list || []).map((x) => cleanText(x, 40)).filter(Boolean))].slice(0, 20);
+  }
+
+  function clipFeatures(clip) {
+    return {
+      drawing: !!(clip.freeze && clip.freeze.shapes && clip.freeze.shapes.length) || !!(clip.rec && clip.rec.shapes && clip.rec.shapes.length),
+      slow: !!(clip.speeds && clip.speeds.length) || !!(clip.rec && clip.rec.rate < 1 && clip.rec.voice),
+      zoom: !!clip.zoom || !!(clip.rec && (clip.rec.zoomKeys || []).some((k) => k[1] > 1.01)),
+      voice: !!(clip.rec && clip.rec.voice)
+    };
+  }
+
+  /** Flat, searchable record of a clip for the shared (or private) library. */
+  function libraryEntry(game, clip, categories, coach) {
+    const cat = (categories || []).find((c) => c.id === clip.categoryId);
+    const auto = clipAuto(game, clip);
+    return {
+      id: clip.id,
+      gameId: game.id,
+      game: { date: game.date || '', opponent: game.opponent || '', rink: game.rink || '', type: game.gameType || '', homeAway: game.homeAway || '', result: game.result || '', title: gameTitle(game) },
+      categoryId: clip.categoryId,
+      category: cat ? cat.name : '',
+      color: cat ? cat.color : '#64748B',
+      events: clipEvents(game, clip),
+      players: (clip.players || []).slice(),
+      flag: clip.flag || 'do',
+      note: clip.note || '',
+      zone: clip.zone || '',
+      situation: clip.situation || 'even',
+      starred: !!clip.starred,
+      tags: normalizeTags(clip.tags),
+      private: !!clip.private,
+      start: clip.start,
+      end: clip.end,
+      period: auto.period,
+      periodTime: auto.periodTime,
+      score: auto.score,
+      state: auto.state,
+      features: clipFeatures(clip),
+      drive: (clip.drive || []).map((d) => ({ folder: d.folder, fileId: d.fileId, name: d.name })),
+      by: clip.by || coach || '',
+      owner: coach || clip.by || '',
+      createdAt: clip.createdAt || 0
+    };
+  }
+
+  /** Tag fields another coach may edit from the Review screen; copied back into the owner's clip on sync. */
+  const SHARED_TAG_FIELDS = ['categoryId', 'events', 'players', 'flag', 'note', 'zone', 'situation', 'starred', 'tags'];
+
+  function emptyFilters() {
+    return { q: '', categories: [], events: [], players: [], periods: [], flags: [], gameIds: [], gameType: '', homeAway: '', zone: '', situation: '', state: '', tags: [], inDrive: false };
+  }
+
+  function normalizeFilters(f) {
+    const e = emptyFilters();
+    const src = f || {};
+    const out = {};
+    for (const k of Object.keys(e)) out[k] = Array.isArray(e[k]) ? (Array.isArray(src[k]) ? src[k].map(String) : []) : (k === 'inDrive' ? !!src[k] : cleanText(src[k], 60));
+    return out;
+  }
+
+  function filterCount(f) {
+    const n = normalizeFilters(f);
+    let c = n.q ? 1 : 0;
+    for (const k of Object.keys(n)) if (Array.isArray(n[k]) && n[k].length) c += 1;
+    for (const k of ['gameType', 'homeAway', 'zone', 'situation', 'state']) if (n[k]) c += 1;
+    if (n.inDrive) c += 1;
+    return c;
+  }
+
+  /** AND between filter groups, OR inside a group. */
+  function entryMatches(entry, filters) {
+    const f = normalizeFilters(filters);
+    const any = (want, have) => !want.length || want.some((w) => have.includes(w));
+    if (!any(f.categories, [entry.categoryId])) return false;
+    if (!any(f.events, entry.events || [])) return false;
+    if (!any(f.players, entry.players || [])) return false;
+    if (!any(f.periods, entry.period != null ? [String(entry.period)] : [])) return false;
+    const flags = [entry.flag, entry.starred ? 'starred' : null].filter(Boolean);
+    if (!any(f.flags, flags)) return false;
+    if (!any(f.gameIds, [entry.gameId])) return false;
+    if (!any(f.tags, entry.tags || [])) return false;
+    if (f.gameType && entry.game.type !== f.gameType) return false;
+    if (f.homeAway && entry.game.homeAway !== f.homeAway) return false;
+    if (f.zone && entry.zone !== f.zone) return false;
+    if (f.situation && entry.situation !== f.situation) return false;
+    if (f.state && entry.state !== f.state) return false;
+    if (f.inDrive && !(entry.drive || []).length) return false;
+    if (f.q) {
+      const hay = [entry.note, entry.category, entry.game.title, entry.game.opponent, entry.game.rink, entry.by,
+        ...(entry.tags || []), ...(entry.events || []).map(eventLabel), ...(entry.players || []).map((p) => '#' + p)].join(' ').toLowerCase();
+      if (!f.q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => hay.includes(w))) return false;
+    }
+    return true;
+  }
+
+  function sortEntries(list, how) {
+    const key = (e) => (e.game.date || '') + String(e.start).padStart(8, '0');
+    const out = list.slice().sort((a, b) => key(a).localeCompare(key(b)) || a.start - b.start);
+    return how === 'newest' ? out.reverse() : out;
+  }
+
+  /** Words describing a filter set, used as a default saved-view name. */
+  function describeFilters(f, categories) {
+    const n = normalizeFilters(f);
+    const bits = [];
+    if (n.categories.length) bits.push(n.categories.map((id) => ((categories || []).find((c) => c.id === id) || {}).name || 'category').join(' or '));
+    if (n.events.length) bits.push(n.events.map(eventLabel).join(' or '));
+    if (n.players.length) bits.push(n.players.map((p) => '#' + p).join(' '));
+    if (n.periods.length) bits.push(n.periods.map((p) => periodName(Number(p))).join('/'));
+    if (n.flags.length) bits.push(n.flags.map((x) => (x === 'do' ? 'Do this' : x === 'work' ? 'Work on this' : 'Starred')).join(' or '));
+    if (n.tags.length) bits.push(n.tags.join(', '));
+    if (n.q) bits.push('“' + n.q + '”');
+    return bits.join(' · ') || 'All clips';
+  }
+
+  function addView(views, name, filters) {
+    const nm = cleanText(name, 60);
+    if (!nm) throw new Error('Give the view a name');
+    return (views || []).filter((v) => v.name.toLowerCase() !== nm.toLowerCase()).concat([{ id: uid('view'), name: nm, filters: normalizeFilters(filters) }]);
+  }
+  function removeView(views, id) { return (views || []).filter((v) => v.id !== id); }
+
+  // --- library files in Drive (team: _App; private: the coach's own folder) ---
+  function normalizeLibrary(d) {
+    const src = d || {};
+    const entries = {};
+    for (const [k, v] of Object.entries(src.entries || {})) if (v && v.id === k && v.game) entries[k] = v;
+    const views = (Array.isArray(src.views) ? src.views : []).filter((v) => v && v.id && v.name).map((v) => ({ id: v.id, name: v.name, filters: normalizeFilters(v.filters) }));
+    const folders = {};
+    for (const [k, v] of Object.entries(src.folders || {})) if (typeof v === 'string' && v) folders[k] = v;
+    return { entries, views, folders };
+  }
+
+  function libraryFileText(lib, kind, by) {
+    const L = normalizeLibrary(lib);
+    return JSON.stringify({ app: 'bulldogs-watch-party', kind: kind === 'private' ? 'private-library' : 'library', schema: 1, updatedAt: new Date().toISOString(), updatedBy: by || '', entries: L.entries, views: L.views, folders: L.folders });
+  }
+
+  function parseLibraryFile(text, kind) {
+    let d;
+    try { d = JSON.parse(text); } catch (e) { throw new Error('The clip library file is damaged'); }
+    const want = kind === 'private' ? 'private-library' : 'library';
+    if (!d || d.app !== 'bulldogs-watch-party' || d.kind !== want) throw new Error('That file isn’t a Watch Party ' + (kind === 'private' ? 'private ' : '') + 'clip library');
+    return normalizeLibrary(d);
+  }
+
+  function mergeLibrary(base, mine, theirs) {
+    const B = normalizeLibrary(base || theirs), M = normalizeLibrary(mine), T = normalizeLibrary(theirs);
+    const conflicts = [];
+    const lab = (e) => 'clip “' + (e.category || 'clip') + ' ' + formatTime(e.start) + ' ' + (e.game && e.game.title || '') + '”';
+    const ents = mergeKeyed(Object.values(B.entries), Object.values(M.entries), Object.values(T.entries), (e) => e.id, lab, conflicts);
+    const views = mergeKeyed(B.views, M.views, T.views, (v) => v.id, (v) => 'saved view “' + v.name + '”', conflicts);
+    const entries = {};
+    for (const e of ents) entries[e.id] = e;
+    return { merged: { entries, views, folders: Object.assign({}, M.folders, T.folders) }, conflicts };
+  }
+
+  function syncLibraryStep(o) {
+    const theirs = normalizeLibrary(o.theirs);
+    if (!o.dirty) return { data: theirs, push: false, conflicts: [] };
+    const mine = normalizeLibrary(o.mine);
+    if (!o.base) {
+      const merged = { entries: Object.assign({}, theirs.entries, mine.entries), views: dedupeBy(theirs.views.concat(mine.views), (v) => v.id), folders: Object.assign({}, mine.folders, theirs.folders) };
+      return { data: merged, push: !same(merged, theirs), conflicts: [] };
+    }
+    const { merged, conflicts } = mergeLibrary(o.base, mine, theirs);
+    return { data: merged, push: !same(merged, theirs), conflicts };
+  }
+
+  /** Build this device's view of a library: entries from my local clips (fresh), plus everyone else's from the last sync. */
+  function buildMyLibrary(cache, games, categories, coach, privateSide, deletedIds) {
+    const L = normalizeLibrary(cache);
+    const mineIds = new Set();
+    const entries = {};
+    for (const g of games) for (const c of g.clips || []) {
+      if (!!c.private !== !!privateSide) continue;
+      mineIds.add(c.id);
+      entries[c.id] = libraryEntry(g, c, categories, coach);
+    }
+    const localIds = new Set();
+    for (const g of games) for (const c of g.clips || []) localIds.add(c.id);
+    const gone = new Set(deletedIds || []);
+    for (const [id, e] of Object.entries(L.entries)) {
+      if (mineIds.has(id) || gone.has(id)) continue;
+      if (localIds.has(id)) continue; // my clip that moved to the other library
+      entries[id] = e;
+    }
+    return { entries, views: L.views, folders: L.folders };
+  }
+
+  /** Copy tag edits other coaches made (via Review) back into my local clip. */
+  function applyEntryTags(clip, entry, base) {
+    if (!entry) return clip;
+    const out = Object.assign({}, clip);
+    let changed = false;
+    for (const k of SHARED_TAG_FIELDS) {
+      if (k === 'events') continue;
+      if (base && same(entry[k], base[k])) continue;
+      if (!same(out[k], entry[k]) && entry[k] !== undefined) { out[k] = clone(entry[k]); changed = true; }
+    }
+    if (!base || !same(entry.events, base.events)) {
+      // events in the library are the visible set; store them as the coach's picks
+      if (!same(entry.events, out.events)) { out.events = (entry.events || []).filter((e) => EVENT_IDS.includes(e)); out.hiddenAuto = []; changed = true; }
+    }
+    return changed ? out : clip;
+  }
+
+  /** Drive folder names for clip destinations. */
+  function folderName(dest, roster) {
+    if (dest === 'team') return 'Team clips';
+    if (dest === 'coaches') return 'Coaches only';
+    if (dest === 'private') return 'My private clips';
+    const m = /^player:(\d{1,2})$/.exec(dest || '');
+    if (m) {
+      const p = (roster || []).find((x) => x.number === m[1]);
+      return '#' + m[1] + (p && p.name ? ' ' + p.name : '');
+    }
+    throw new Error('Unknown folder');
+  }
+
+  function destLabel(dest, roster) {
+    if (dest === 'team') return 'Team';
+    if (dest === 'coaches') return 'Coaches';
+    if (dest === 'private') return 'My private folder';
+    return folderName(dest, roster) + ' family';
+  }
+
   // ---------- games ----------
   function newGame(fields) {
     const parts = orderParts(fields.parts || []).map((p) => ({
@@ -765,6 +1104,9 @@
       opponent: String(fields.opponent || '').trim(),
       rink: String(fields.rink || guess.rink || '').trim(),
       result: String(fields.result || '').trim(),
+      gameType: GAME_TYPES.some((x) => x[0] === fields.gameType) ? fields.gameType : '',
+      homeAway: HOME_AWAY.some((x) => x[0] === fields.homeAway) ? fields.homeAway : '',
+      marks: { periods: [], goals: [] },
       parts,
       clips: [],
       createdAt: fields.now || Date.now()
@@ -804,7 +1146,8 @@
       version: SCHEMA_VERSION,
       settings: { coachName: '', team: Object.assign({}, DEFAULT_TEAM), coaches: [], categories: defaultCategories(), roster: [], opponents: [], rinks: [] },
       games: [],
-      sync: null
+      sync: null,
+      lib: { team: { entries: {}, views: [] }, priv: { entries: {}, views: [] }, teamSync: null, privSync: null, deleted: [], scope: 'team' }
     };
   }
 
@@ -820,6 +1163,22 @@
     for (const k of ['coaches', 'opponents', 'rinks']) if (!Array.isArray(s.settings[k])) s.settings[k] = [];
     if (!Array.isArray(s.games)) s.games = [];
     if (!s.sync || typeof s.sync !== 'object') s.sync = null;
+    const L = Object.assign({}, base.lib, s.lib || {});
+    L.team = normalizeLibrary(L.team); L.priv = normalizeLibrary(L.priv);
+    if (!Array.isArray(L.deleted)) L.deleted = [];
+    if (!['team', 'private', 'both'].includes(L.scope)) L.scope = 'team';
+    s.lib = L;
+    for (const g of s.games) {
+      if (!g.marks) g.marks = { periods: [], goals: [] };
+      for (const c of g.clips || []) {
+        if (!Array.isArray(c.events)) c.events = [];
+        if (!Array.isArray(c.hiddenAuto)) c.hiddenAuto = [];
+        if (!Array.isArray(c.tags)) c.tags = [];
+        if (!Array.isArray(c.drive)) c.drive = [];
+        if (c.situation == null) c.situation = 'even';
+        if (c.zone == null) c.zone = '';
+      }
+    }
     s.version = SCHEMA_VERSION;
     return s;
   }
@@ -878,7 +1237,11 @@
     newGame, gameTitle, formatDate, gameTimeline, matchFiles,
     defaultState, migrate, createStore, exportBackup, importBackup,
     TEAM_SECTIONS, DEFAULT_TEAM, teamSnapshot, normalizeTeamData, applyTeamData, teamFileText, parseTeamFile,
-    addCoach, removeCoach, addListItem, removeListItem, mergeTeam, syncStep
+    addCoach, removeCoach, addListItem, removeListItem, mergeTeam, syncStep,
+    EVENTS, EVENT_IDS, GAME_TYPES, HOME_AWAY, ZONES, SITUATIONS, label, eventLabel, gameMarks, togglePeriod, addGoal, removeGoal, removePeriod, periodName,
+    clipAuto, clipEvents, toggleEvent, normalizeTags, clipFeatures, libraryEntry, SHARED_TAG_FIELDS, emptyFilters, normalizeFilters, filterCount, entryMatches,
+    sortEntries, describeFilters, addView, removeView, normalizeLibrary, libraryFileText, parseLibraryFile, mergeLibrary, syncLibraryStep, buildMyLibrary,
+    applyEntryTags, folderName, destLabel
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = WP;

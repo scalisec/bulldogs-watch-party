@@ -602,3 +602,180 @@ test('migrate adds shared-team fields to older saved data', () => {
   assert.equal(s.sync, null);
   assert.equal(s.settings.roster.length, 1);
 });
+
+// ---------- milestone 3b: tagging model and clip library ----------
+const libGame = () => {
+  const g = WP.newGame({ opponent: 'Rangers', gameType: 'league', homeAway: 'home', parts: [{ name: REAL, size: 1, duration: 3000 }] });
+  return g;
+};
+
+test('period marks: P starts, then ends, then starts the next', () => {
+  const g = libGame();
+  let r = WP.togglePeriod(g, 60); g.marks = r.marks;
+  assert.equal(r.did, 'start'); assert.equal(r.n, 1);
+  r = WP.togglePeriod(g, 900); g.marks = r.marks;
+  assert.equal(r.did, 'end');
+  assert.throws(() => WP.togglePeriod(g, 800), /inside period 1/);
+  r = WP.togglePeriod(g, 1000); g.marks = r.marks;
+  assert.equal(r.n, 2);
+  assert.throws(() => WP.togglePeriod(g, 990), /end after it starts/);
+  g.marks = WP.removePeriod(g, 1);
+  assert.deepEqual(g.marks.periods.map((p) => [p.n, p.start]), [[1, 1000]], 'remaining periods renumber');
+  assert.equal(WP.periodName(4), 'OT');
+});
+
+test('auto tags: period, time into it, score before, goal events inside the clip', () => {
+  const g = libGame();
+  g.marks = { periods: [{ n: 1, start: 60, end: 900 }, { n: 2, start: 1000, end: null }], goals: [] };
+  g.marks = WP.addGoal(g, 300, 'for');
+  g.marks = WP.addGoal(g, 1100, 'against');
+  g.marks = WP.addGoal(g, 1200, 'for');
+  const c = WP.makeClip({ start: 1190, end: 1205, categoryId: 'cat_1', total: 3000 });
+  const a = WP.clipAuto(g, c);
+  assert.equal(a.period, 2);
+  assert.equal(a.periodTime, 190);
+  assert.deepEqual(a.score, { for: 1, against: 1 });
+  assert.equal(a.state, 'tied');
+  assert.deepEqual(a.events, ['goal_for']);
+  assert.deepEqual(WP.clipEvents(g, c), ['goal_for']);
+  const early = WP.makeClip({ start: 10, end: 20, categoryId: 'cat_1', total: 3000 });
+  assert.equal(WP.clipAuto(g, early).period, null, 'before the first period mark');
+  assert.equal(WP.clipAuto(libGame(), early).state, null, 'no marks = no score state');
+});
+
+test('events: coach picks plus automatic goals; removing an auto goal sticks', () => {
+  const g = libGame();
+  g.marks = WP.addGoal(g, 100, 'for');
+  let c = WP.makeClip({ start: 90, end: 105, categoryId: 'cat_1', total: 3000 });
+  c = WP.updateClip(c, WP.toggleEvent(g, c, 'takeaway'), 3000);
+  assert.deepEqual(WP.clipEvents(g, c), ['goal_for', 'takeaway']);
+  c = WP.updateClip(c, WP.toggleEvent(g, c, 'goal_for'), 3000);
+  assert.deepEqual(WP.clipEvents(g, c), ['takeaway'], 'auto goal removed by the coach');
+  assert.deepEqual(c.hiddenAuto, ['goal_for']);
+  c = WP.updateClip(c, WP.toggleEvent(g, c, 'goal_for'), 3000);
+  assert.deepEqual(WP.clipEvents(g, c), ['goal_for', 'takeaway'], 'and put back');
+  c = WP.updateClip(c, WP.toggleEvent(g, c, 'faceoff_won'), 3000);
+  assert.ok(WP.clipEvents(g, c).includes('faceoff_won'));
+  assert.throws(() => WP.toggleEvent(g, c, 'nope'), /Unknown event/);
+});
+
+test('clip tag fields validate', () => {
+  let c = WP.makeClip({ start: 1, end: 5, categoryId: 'cat_1', total: 60, private: true });
+  assert.equal(c.private, true);
+  assert.equal(c.situation, 'even');
+  c = WP.updateClip(c, { zone: 'off', situation: 'pp', starred: 1, tags: [' Silver Stick ', 'Silver Stick', ''], private: false }, 60);
+  assert.deepEqual([c.zone, c.situation, c.starred, c.tags, c.private], ['off', 'pp', true, ['Silver Stick'], false]);
+  c = WP.updateClip(c, { zone: 'moon', situation: 'x' }, 60);
+  assert.deepEqual([c.zone, c.situation], ['', 'even']);
+});
+
+test('library entry carries game, tags, auto fields and features', () => {
+  const g = libGame();
+  g.marks = { periods: [{ n: 1, start: 0, end: null }], goals: [{ id: 'g1', t: 50, side: 'for' }] };
+  const c = WP.updateClip(WP.makeClip({ start: 45, end: 55, categoryId: 'cat_1', players: ['7'], note: 'Nice', total: 3000, by: 'Cristian' }), { starred: true, zone: 'off', tags: ['Silver Stick'] }, 3000);
+  c.freeze = { at: 50, hold: 3, shapes: [{ type: 'arrow', color: '#FACC15', pts: [[0, 0], [1, 1]] }] };
+  const e = WP.libraryEntry(g, c, WP.defaultCategories(), 'Cristian');
+  assert.equal(e.category, 'Breakouts');
+  assert.equal(e.game.title, 'Oct 18, 2026 vs Rangers');
+  assert.equal(e.game.type, 'league');
+  assert.deepEqual(e.events, ['goal_for']);
+  assert.equal(e.period, 1);
+  assert.equal(e.features.drawing, true);
+  assert.equal(e.starred, true);
+  assert.equal(e.owner, 'Cristian');
+});
+
+test('filters: AND between groups, OR inside a group, search words', () => {
+  const g = libGame();
+  const cats = WP.defaultCategories();
+  const mk = (f) => WP.libraryEntry(g, WP.updateClip(WP.makeClip(Object.assign({ start: 1, end: 5, categoryId: 'cat_1', total: 3000 }, f)), f.patch || {}, 3000), cats, 'C');
+  const a = mk({ events: ['goal_for'], players: ['7'], note: 'great breakout' });
+  const b = mk({ categoryId: 'cat_5', events: ['faceoff_lost'], players: ['12'] });
+  const c = mk({ events: ['goal_against'], players: ['7', '12'], patch: { starred: true } });
+  const pick = (f) => [a, b, c].filter((e) => WP.entryMatches(e, f)).map((e) => [a, b, c].indexOf(e));
+  assert.deepEqual(pick({}), [0, 1, 2]);
+  assert.deepEqual(pick({ categories: ['cat_1'], events: ['goal_for'] }), [0]);
+  assert.deepEqual(pick({ events: ['goal_for', 'goal_against'] }), [0, 2]);
+  assert.deepEqual(pick({ players: ['12'] }), [1, 2]);
+  assert.deepEqual(pick({ flags: ['starred'] }), [2]);
+  assert.deepEqual(pick({ q: 'great #7' }), [0]);
+  assert.deepEqual(pick({ q: 'faceoff lost' }), [1]);
+  assert.deepEqual(pick({ gameType: 'tournament' }), []);
+  assert.equal(WP.filterCount({ categories: ['cat_1'], events: ['goal_for'], q: 'x' }), 3);
+  assert.equal(WP.describeFilters({ categories: ['cat_1'], events: ['goal_for'] }, cats), 'Breakouts · Goal for');
+});
+
+test('saved views', () => {
+  let v = WP.addView([], 'Goals against', { events: ['goal_against'] });
+  v = WP.addView(v, 'goals against', { events: ['goal_against'], periods: ['3'] });
+  assert.equal(v.length, 1, 'same name replaces');
+  assert.deepEqual(v[0].filters.periods, ['3']);
+  assert.throws(() => WP.addView(v, ' ', {}), /name/);
+  assert.equal(WP.removeView(v, v[0].id).length, 0);
+});
+
+test('library file round trip, merge and sync', () => {
+  const g = libGame();
+  const cats = WP.defaultCategories();
+  const e1 = WP.libraryEntry(g, WP.makeClip({ start: 1, end: 5, categoryId: 'cat_1', total: 3000 }), cats, 'A');
+  const e2 = WP.libraryEntry(g, WP.makeClip({ start: 9, end: 15, categoryId: 'cat_2', total: 3000 }), cats, 'B');
+  const base = { entries: { [e1.id]: e1 }, views: [] };
+  const text = WP.libraryFileText(base, 'team', 'a@x.com');
+  assert.deepEqual(WP.parseLibraryFile(text), WP.normalizeLibrary(base));
+  assert.throws(() => WP.parseLibraryFile(text, 'private'), /private clip library/);
+  // A edits e1 note, B adds e2: both survive
+  const mine = { entries: { [e1.id]: Object.assign({}, e1, { note: 'edited' }) }, views: WP.addView([], 'Mine', {}) };
+  const theirs = { entries: { [e1.id]: e1, [e2.id]: e2 }, views: [] };
+  const r = WP.syncLibraryStep({ base, mine, theirs, dirty: true });
+  assert.equal(r.data.entries[e1.id].note, 'edited');
+  assert.ok(r.data.entries[e2.id]);
+  assert.equal(r.data.views.length, 1);
+  assert.equal(r.push, true);
+  // deletion on my side removes it
+  const del = WP.syncLibraryStep({ base: theirs, mine: { entries: { [e2.id]: e2 }, views: [] }, theirs, dirty: true });
+  assert.deepEqual(Object.keys(del.data.entries), [e2.id]);
+});
+
+test('buildMyLibrary: my clips fresh, others kept, private split, deleted dropped', () => {
+  const g = libGame();
+  const cats = WP.defaultCategories();
+  const mineClip = WP.makeClip({ start: 1, end: 5, categoryId: 'cat_1', total: 3000 });
+  const privClip = WP.makeClip({ start: 7, end: 9, categoryId: 'cat_1', total: 3000, private: true });
+  g.clips = [mineClip, privClip];
+  const other = WP.libraryEntry(Object.assign(libGame(), { id: 'other' }), WP.makeClip({ start: 2, end: 6, categoryId: 'cat_2', total: 3000 }), cats, 'B');
+  const gone = WP.libraryEntry(g, WP.makeClip({ start: 3, end: 6, categoryId: 'cat_2', total: 3000 }), cats, 'A');
+  const team = WP.buildMyLibrary({ entries: { [other.id]: other, [gone.id]: gone, [privClip.id]: WP.libraryEntry(g, privClip, cats, 'A') }, views: [] }, [g], cats, 'A', false, [gone.id]);
+  assert.deepEqual(Object.keys(team.entries).sort(), [mineClip.id, other.id].sort(), 'private clip moved out, deleted clip dropped');
+  const priv = WP.buildMyLibrary({ entries: {} }, [g], cats, 'A', true, []);
+  assert.deepEqual(Object.keys(priv.entries), [privClip.id]);
+});
+
+test('applyEntryTags copies other coaches’ tag edits into my clip', () => {
+  const g = libGame();
+  const cats = WP.defaultCategories();
+  const clip = WP.makeClip({ start: 1, end: 5, categoryId: 'cat_1', total: 3000, note: 'old' });
+  const base = WP.libraryEntry(g, clip, cats, 'A');
+  const edited = Object.assign({}, base, { note: 'new', starred: true, events: ['takeaway'] });
+  const out = WP.applyEntryTags(clip, edited, base);
+  assert.equal(out.note, 'new');
+  assert.equal(out.starred, true);
+  assert.deepEqual(out.events, ['takeaway']);
+  assert.equal(WP.applyEntryTags(clip, base, base), clip, 'no change, same object');
+});
+
+test('folder names for destinations', () => {
+  const roster = [{ number: '7', name: 'Sam' }, { number: '12', name: '' }];
+  assert.equal(WP.folderName('team'), 'Team clips');
+  assert.equal(WP.folderName('player:7', roster), '#7 Sam');
+  assert.equal(WP.folderName('player:12', roster), '#12');
+  assert.equal(WP.destLabel('player:7', roster), '#7 Sam family');
+  assert.throws(() => WP.folderName('x'), /Unknown folder/);
+});
+
+test('migrate adds library state and clip tag fields to older data', () => {
+  const s = WP.migrate({ games: [{ id: 'g', parts: [], clips: [{ id: 'c', start: 1, end: 2 }] }] });
+  assert.equal(s.lib.scope, 'team');
+  assert.deepEqual(s.games[0].marks, { periods: [], goals: [] });
+  assert.deepEqual(s.games[0].clips[0].events, []);
+  assert.equal(s.games[0].clips[0].situation, 'even');
+});

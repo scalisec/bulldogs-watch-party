@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.6.0 — 2026-10-21 (milestone 3b: clip library)
+
+- **Periods and goals:**
+  - On the game screen, **P** marks each period start and end. **G** marks a goal for, **Shift+G** a goal against. They show on the timeline and in a list you can delete from.
+  - Game type and home/away are set on the game form and the game screen.
+- **Automatic tags:** every clip gets its period, time into the period, the score just before it, and leading/tied/trailing. Clips containing a goal mark get Goal for / Goal against automatically; you can remove them.
+- **New clip tags:**
+  - Events: any number of goal for/against, shot for/against, save, turnover, takeaway, penalty for/against, faceoff won/lost.
+  - Zone, situation, star, and custom tags.
+  - **Private (only me)** for personal clips.
+- **Save to Google Drive on export:**
+  - Team clips can go to the Team, Coaches only, and players' family folders. The app creates the folders under Bulldogs Watch Party, with Players › #7 Sam etc.
+  - Private clips go to a separate **My Watch Party clips (private)** folder.
+  - Drive descriptions are neutral (category, game, period).
+- **Clip library:** a shared, coaches-only library file in _App holds every team clip's tags. A private library in your private folder holds your private clips.
+  - Both sync automatically.
+  - Other coaches' tag edits flow back to the coach who made the clip. Deleted clips leave the library.
+  - Your other devices find your files without picking.
+- **Review screen:**
+  - Team / Private / Both (starts on Team, then remembers your choice per device).
+  - Search, and filters for category, events, players, period, Do/Work/Starred, score, zone, situation, custom tags, game, game type and home/away.
+  - Shared saved views.
+  - Play all as a playlist with auto-play next, playing from Drive or from the game files on this PC.
+  - Edit tags while watching, Copy link, Open in Drive.
+
 ## 0.5.0 — 2026-10-20 (milestone 3a)
 
 - **Team data shared through Google Drive.** Team name and season, coaches, roster, categories (with their before/after windows), opponents and rinks.

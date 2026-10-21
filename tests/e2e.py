@@ -186,6 +186,8 @@ with sync_playwright() as p:
     ed = page.evaluate('window.__bwp.editor.d')
     check(ed['start'] == 13 and ed['end'] == 24, 'trim by typing a start time')
     # drag the end handle left
+    page.wait_for_timeout(300)
+    page.wait_for_selector('#e-trim .handle[data-h="end"]', state='visible')
     hb = page.locator('#e-trim .handle[data-h="end"]').bounding_box()
     tb = page.locator('#e-trim').bounding_box()
     page.mouse.move(hb['x'] + hb['width'] / 2, hb['y'] + hb['height'] / 2)
@@ -342,7 +344,7 @@ with sync_playwright() as p:
     page.fill('#r-num', '7'); page.fill('#r-name', 'Sam'); page.click('text=Add player')
     page.screenshot(path=SHOTS + '/4-settings.png', full_page=True)
     check('only works on the web version' in page.text_content('#team-sync'), 'opened from a file, the team data card points to the web version')
-    check(page.text_content('#app-version') == 'v0.5.0' and 'v0.5.0' in page.text_content('#brand-version'), 'version shows in Settings and the header')
+    check(page.text_content('#app-version') == 'v0.6.0' and 'v0.6.0' in page.text_content('#brand-version'), 'version shows in Settings and the header')
     st = page.evaluate('window.__bwp.state.settings')
     fo = [c for c in st['categories'] if c['name'] == 'Faceoffs'][0]
     check(fo['before'] == 2 and fo['after'] == 6, 'faceoff window saved 2/6')

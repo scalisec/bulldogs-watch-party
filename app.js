@@ -18,8 +18,12 @@
   let filterCat = 'all';
 
   // ---------- helpers ----------
-  function save() {
+  function saveQuiet() {
     try { store.save(S); } catch (e) { toast('Could not save: ' + e.message, { err: true }); }
+  }
+  function save() {
+    saveQuiet();
+    if (typeof libChanged === 'function') libChanged();
   }
 
   function el(tag, attrs, ...kids) {
@@ -88,13 +92,14 @@
 
   // ---------- routing ----------
   function show(view) {
-    for (const v of ['games', 'tag', 'edit', 'settings']) $('view-' + v).classList.toggle('hidden', v !== view);
+    for (const v of ['games', 'tag', 'edit', 'review', 'settings']) $('view-' + v).classList.toggle('hidden', v !== view);
     if (view !== 'edit') closeEditor();
     for (const a of document.querySelectorAll('[data-nav]')) {
       const on = a.dataset.nav === view || ((view === 'tag' || view === 'edit') && a.dataset.nav === 'games');
       if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     }
     if (view !== 'tag' && player) player.pause();
+    if (view !== 'review' && R.idx >= 0) stopReviewPlayer();
     window.scrollTo(0, 0);
   }
 
@@ -103,6 +108,7 @@
     if (view === 'tag' && id) { if (openGame(id)) show('tag'); }
     else if (view === 'edit' && id && sub) { show('edit'); if (!openEditor(id, sub)) return; }
     else if (view === 'settings') { renderSettings(); show('settings'); }
+    else if (view === 'review') { show('review'); renderReview(); }
     else { renderGames(); show('games'); }
   }
 
@@ -175,7 +181,7 @@
 
   function clearDraft() {
     session.draftParts = [];
-    for (const id of ['g-date', 'g-opp', 'g-rink', 'g-result']) $(id).value = '';
+    for (const id of ['g-date', 'g-opp', 'g-rink', 'g-result', 'g-type', 'g-ha']) $(id).value = '';
     renderParts();
   }
 
@@ -185,7 +191,7 @@
     try {
       game = WP.newGame({
         parts: parts.map((p) => ({ name: p.file.name, size: p.file.size, duration: p.duration, lastModified: p.file.lastModified })),
-        date: $('g-date').value, opponent: $('g-opp').value, rink: $('g-rink').value, result: $('g-result').value
+        date: $('g-date').value, opponent: $('g-opp').value, rink: $('g-rink').value, result: $('g-result').value, gameType: $('g-type').value, homeAway: $('g-ha').value
       });
     } catch (e) { toast(e.message, { err: true }); return; }
     S.games.push(game);
@@ -502,6 +508,7 @@
     $('t-title').textContent = WP.gameTitle(G);
     $('t-sub').textContent = [G.rink, G.result, G.parts.length + (G.parts.length === 1 ? ' part' : ' parts') + ' · ' + WP.formatTime(TL.total)].filter(Boolean).join(' · ');
     renderTags();
+    renderMarks();
     renderTimelineStatic();
     renderClips();
     updateMarks();
@@ -538,6 +545,9 @@
         style: 'left:' + pct(c.start) + '%;width:' + Math.max(0.3, pct(c.end - c.start)) + '%;background:' + (cat ? cat.color : '#64748B')
       }));
     }
+    const gm = WP.gameMarks(G);
+    for (const p of gm.periods) tl.append(el('div', { class: 'pband', title: WP.periodName(p.n), style: 'left:' + pct(p.start) + '%;width:' + Math.max(0.3, pct((p.end != null ? p.end : TL.total) - p.start)) + '%' }));
+    for (const g of gm.goals) tl.append(el('div', { class: 'gmk', title: (g.side === 'for' ? 'Goal for ' : 'Goal against ') + WP.formatTime(g.t), style: 'left:' + pct(g.t) + '%;background:' + (g.side === 'for' ? '#16A34A' : '#DC2626') }));
     tl.append(el('div', { class: 'pending hidden', id: 'tl-pending' }));
     tl.append(el('div', { class: 'head', id: 'tl-head' }));
     $('tl-labels').replaceChildren(...TL.durations.map((d, i) => el('span', { style: 'flex:' + d + ' 1 0' }, TL.durations.length > 1 ? 'Part ' + (i + 1) : 'Full game')));
@@ -625,13 +635,14 @@
     const clip = G.clips.find((c) => c.id === id);
     if (!clip) return;
     G.clips = G.clips.filter((c) => c.id !== id);
+    if (!S.lib.deleted.includes(id)) S.lib.deleted.push(id);
     if (selectedClipId === id) selectedClipId = null;
     if (openEditorId === id) openEditorId = null;
     save();
     renderTimelineStatic();
     renderClips();
     onTick();
-    if (!quiet) toast('Clip deleted', { action: { label: 'Undo', fn: () => { G.clips.push(clip); save(); renderTimelineStatic(); renderClips(); onTick(); } } });
+    if (!quiet) toast('Clip deleted', { action: { label: 'Undo', fn: () => { G.clips.push(clip); S.lib.deleted = S.lib.deleted.filter((x) => x !== clip.id); save(); renderTimelineStatic(); renderClips(); onTick(); } } });
   }
 
   function onCategory(cat) {
@@ -763,6 +774,7 @@
         WP.hasRec(c) ? el('span', { class: 'pill recpill' }, '\u25CF Breakdown' + (c.rec.voice ? ' + voice' : '')) : (c.zoom ? el('span', { class: 'pill zoompill' }, zoomLabel(c.zoom)) : null),
         c.by ? el('span', {}, 'by ' + c.by) : null
       ),
+      (WP.clipEvents(G, c).length || autoLine(G, c) || c.private || c.starred) ? el('div', { class: 'meta' }, ...evBadges(G, c), autoLine(G, c) ? el('span', {}, autoLine(G, c)) : '', c.starred ? el('span', { style: 'color:#CA8A04' }, '\u2605') : '', c.private ? el('span', { class: 'pill lockpill' }, '\uD83D\uDD12 Private') : '') : null,
       c.note ? el('div', { class: 'small' }, c.note) : null,
       el('div', { class: 'row' },
         el('button', { type: 'button', class: 'btn small', onclick: () => { selectedClipId = c.id; renderTimelineStatic(); renderClips(); applyZoom(c.zoom); player && player.playRange(c.start, c.end); } }, '▶ Play clip'),
@@ -947,6 +959,7 @@
     $('stage').classList.toggle('zoomed', !!d.zoom && E.mode !== 'draw');
     $('stage').classList.toggle('draw', E.mode === 'draw');
     $('e-title-on').checked = d.titleBar !== false;
+    renderEditorTags();
     $('e-export-note').textContent = d.exported
       ? 'Last exported ' + new Date(d.exported.at).toLocaleString() + ' as “' + d.exported.name + '”'
       : 'Makes a ' + E.W + '×' + E.H + ' MP4 on this computer. Drive sharing comes in milestone 3.';
@@ -1392,8 +1405,10 @@
     const d = E.d;
     const cat = catById(d.categoryId);
     const name = WP.exportFileName(d, cat, G);
+    const dests = chosenDests(d);
+    if (!destPick.local && !dests.length) { toast('Choose where to save the MP4 (this computer or a Drive folder)', { err: true }); return; }
     let handle = null;
-    if (window.showSaveFilePicker && !navigator.webdriver) {
+    if (destPick.local && window.showSaveFilePicker && !navigator.webdriver) {
       try {
         handle = await window.showSaveFilePicker({ suggestedName: name, types: [{ description: 'MP4 video', accept: { 'video/mp4': ['.mp4'] } }] });
       } catch (e) {
@@ -1426,12 +1441,20 @@
         const w = await handle.createWritable();
         await w.write(res.blob);
         await w.close();
-      } else downloadBlob(name, res.blob);
-      window.__bwp.lastExport = { name: finalName, size: res.blob.size, codec: res.codec, h264: res.h264, audio: res.audio, frames: res.frames, duration: res.duration, blob: res.blob };
+      } else if (destPick.local) downloadBlob(name, res.blob);
+      if (dests.length) {
+        $('e-pct').textContent = 'uploading to Drive\u2026';
+        try {
+          const up = await uploadToDrive(d, res.blob, name, dests, (dest) => { $('e-pct').textContent = 'uploading to ' + WP.destLabel(dest, S.settings.roster) + '\u2026'; });
+          commit({ drive: up.list }, true);
+          toast('Saved to Drive: ' + up.done.map((x) => WP.destLabel(x, S.settings.roster)).join(', '), { ms: 7000 });
+        } catch (err) { toast('Drive upload failed: ' + err.message, { err: true, ms: 10000 }); }
+      }
+      window.__bwp.lastExport = { dests, name: finalName, size: res.blob.size, codec: res.codec, h264: res.h264, audio: res.audio, frames: res.frames, duration: res.duration, blob: res.blob };
       E.mode = 'idle';
       commit({ exported: { at: Date.now(), name: finalName, size: res.blob.size, codec: res.codec } });
       const mb = (res.blob.size / 1e6).toFixed(1);
-      toast('Saved “' + finalName + '” (' + mb + ' MB)' + (res.h264 ? '' : ' — this browser made VP9 video, which may not play on iPhones. Use Chrome or Edge on Windows for H.264.'), { ms: 8000 });
+      if (destPick.local) toast('Saved “' + finalName + '” (' + mb + ' MB)' + (res.h264 ? '' : ' — this browser made VP9 video, which may not play on iPhones. Use Chrome or Edge on Windows for H.264.'), { ms: 8000 });
     } catch (e) {
       if (e.name === 'AbortError') toast('Export cancelled');
       else toast('Export failed: ' + e.message, { err: true, ms: 8000 });
@@ -1492,6 +1515,9 @@
     else if (k === '+' || k === '=') { e.preventDefault(); applyZoom(WP.zoomAt(zoom, 1.25)); }
     else if (k === '-' || k === '_') { e.preventDefault(); applyZoom(WP.zoomAt(zoom, 1 / 1.25)); }
     else if (k === '0') { e.preventDefault(); applyZoom(WP.FIT); }
+    else if (k === 'p' || k === 'P') { e.preventDefault(); markPeriod(); }
+    else if (k === 'g') { e.preventDefault(); markGoal('for'); }
+    else if (k === 'G') { e.preventDefault(); markGoal('against'); }
     else if (/^[1-9]$/.test(k)) {
       const cat = WP.categoryForKey(S.settings.categories, k);
       if (cat) { e.preventDefault(); onCategory(cat); }
@@ -1650,6 +1676,7 @@
         S.sync.account = who.email;
         await syncNow(true);
       } else renderTeamCard();
+      libSyncAll(true);
     } catch (e) { toast(e.message, { err: true }); renderTeamCard(); }
   }
 
@@ -1668,6 +1695,7 @@
       save();
       Team.busy = false;
       toast('Team data created in your Google Drive (Bulldogs Watch Party › _App)');
+      libSyncAll(true);
       if (S.settings.coaches.length > 1) await shareWithCoaches();
     } catch (e) { toast('Couldn’t create team data: ' + e.message, { err: true, ms: 8000 }); }
     finally { Team.busy = false; renderTeamCard(); renderSyncBadge(); }
@@ -1698,23 +1726,53 @@
       await ensureSignedIn();
       const who = Team.account ? { email: Team.account } : await WPDrive.whoAmI();
       Team.account = who.email;
-      const id = await WPDrive.pickFile();
-      if (!id) return;
+      let id = null;
+      let owner = false;
+      let libId = null;
+      const mineFound = await WPDrive.findByName('Watch Party team data.json');
+      if (mineFound.length) { id = mineFound[0].id; owner = true; }
+      else {
+        const picked = await WPDrive.pickFile({ multi: true });
+        if (!picked || !picked.length) return;
+        const t = picked.find((x) => /team data/i.test(x.name || '')) || picked[0];
+        const l = picked.find((x) => /clip library/i.test(x.name || ''));
+        id = t.id;
+        libId = l ? l.id : null;
+      }
       Team.busy = true; renderTeamCard();
       const meta = await WPDrive.getMeta(id);
       const data = WP.parseTeamFile(await WPDrive.readText(id));
       S.settings = WP.applyTeamData(S.settings, data);
-      S.sync = { fileId: id, folderId: null, appFolderId: (meta.parents || [])[0] || null, version: meta.version, base: data, dirty: false, account: who.email, owner: false, lastSyncAt: Date.now(), lastBy: meta.lastModifyingUser ? (meta.lastModifyingUser.displayName || meta.lastModifyingUser.emailAddress) : '' };
+      let rootId = null;
+      if (owner && meta.parents && meta.parents[0]) { try { rootId = ((await WPDrive.getMeta(meta.parents[0])).parents || [])[0] || null; } catch (e) { rootId = null; } }
+      if (libId) S.lib.teamSync = { fileId: libId, version: null, base: null };
+      S.sync = { fileId: id, folderId: rootId, appFolderId: (meta.parents || [])[0] || null, version: meta.version, base: data, dirty: false, account: who.email, owner, lastSyncAt: Date.now(), lastBy: meta.lastModifyingUser ? (meta.lastModifyingUser.displayName || meta.lastModifyingUser.emailAddress) : '' };
       Team.lastErr = null;
       save();
-      toast('Connected to the team’s shared roster and categories');
+      toast(owner ? 'Found your team data in Google Drive' : 'Connected to the team’s shared roster and categories' + (libId ? ' and clip library' : ''));
+      libSyncAll(true);
     } catch (e) { toast('Couldn’t open team data: ' + e.message, { err: true, ms: 8000 }); }
     finally { Team.busy = false; renderTeamCard(); renderSyncBadge(); refreshAfterSync(); }
+  }
+
+  async function openSharedLibrary() {
+    try {
+      await ensureSignedIn();
+      const picked = await WPDrive.pickFile({ query: 'Watch Party clip library', title: 'Pick \u201cWatch Party clip library\u201d (Bulldogs Watch Party \u203a _App)' });
+      if (!picked) return;
+      S.lib.teamSync = { fileId: picked, version: null, base: null };
+      save();
+      await libSyncAll(true);
+      toast('Connected to the team clip library');
+    } catch (e) { toast('Couldn\u2019t open the clip library: ' + e.message, { err: true }); }
+    renderTeamCard();
   }
 
   function disconnectTeam() {
     if (!confirm('Stop syncing team data on this device? The roster and categories stay here; nothing is deleted from Google Drive.')) return;
     S.sync = null;
+    S.lib.teamSync = null;
+    S.lib.privSync = null;
     Team.lastErr = null;
     WPDrive.signOut();
     save();
@@ -1756,6 +1814,8 @@
         el('span', { class: 'small muted' }, (S.sync.lastSyncAt ? 'Last synced ' + ago(S.sync.lastSyncAt) : '') + (S.sync.lastBy ? ' · last change by ' + S.sync.lastBy : '') + ' · ' + S.sync.account + (S.sync.owner ? ' (owner)' : ''))));
       if (!WPDrive.hasToken()) actions.push(btn('Sign in to sync', connectGoogle, 'primary'));
       else actions.push(btn('Sync now', () => syncNow(true), 'primary'));
+      lines.push(el('span', { class: 'small muted' }, S.lib.teamSync ? 'Clip library: ' + (LIB.err ? 'problem — ' + LIB.err : 'connected' + (S.lib.teamSync.lastSyncAt ? ', synced ' + ago(S.lib.teamSync.lastSyncAt) : '')) + ' · ' + Object.keys(S.lib.team.entries).length + ' team clips' : S.sync.owner ? 'Clip library: created on next sync' : 'Clip library: not opened yet on this device'));
+      if (!S.lib.teamSync && !S.sync.owner) actions.push(btn('Open shared clip library', openSharedLibrary));
       if (S.sync.owner) actions.push(btn('Share with coaches', shareWithCoaches));
       actions.push(btn('Stop syncing on this device', disconnectTeam, 'danger'));
     }
@@ -1805,6 +1865,591 @@
     if (S.sync && WPDrive.hasToken() && !Team.busy && (!S.sync.lastSyncAt || Date.now() - S.sync.lastSyncAt > 60000)) syncNow(false);
   });
 
+
+  // =====================================================================
+  // PERIODS, GOALS AND CLIP TAGS (milestone 3b)
+  // =====================================================================
+  const sameJ = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  function selectOpts(sel, list, value, blank) {
+    sel.replaceChildren(...(blank ? [el('option', { value: '' }, blank)] : []), ...list.map(([v, l]) => el('option', { value: v }, l)));
+    sel.value = value || '';
+  }
+
+  function renderMarks() {
+    if (!G) return;
+    const m = WP.gameMarks(G);
+    const open = m.periods.find((p) => p.end == null);
+    $('b-period').replaceChildren(open ? 'Period ' + WP.periodName(open.n) + ' end ' : 'Period ' + WP.periodName(m.periods.length + 1) + ' start ', el('kbd', {}, 'P'));
+    const items = [];
+    for (const p of m.periods) {
+      items.push(el('span', { class: 'mark' }, WP.periodName(p.n) + ' ' + WP.formatTime(p.start) + '–' + (p.end != null ? WP.formatTime(p.end) : '…'),
+        el('button', { type: 'button', 'aria-label': 'Delete ' + WP.periodName(p.n) + ' marks', onclick: () => { G.marks = WP.removePeriod(G, p.n); marksChanged(); } }, '✕')));
+    }
+    let f = 0, a = 0;
+    for (const g of m.goals) {
+      if (g.side === 'for') f += 1; else a += 1;
+      items.push(el('span', { class: 'mark ' + (g.side === 'for' ? 'gf' : 'ga') },
+        el('button', { type: 'button', style: 'width:auto;padding:0 4px;background:none', title: 'Go to this goal', onclick: () => player && player.seek(Math.max(0, g.t - 3)) }, (g.side === 'for' ? 'Goal for ' : 'Goal against ') + WP.formatTime(g.t) + ' (' + f + '–' + a + ')'),
+        el('button', { type: 'button', 'aria-label': 'Delete goal at ' + WP.formatTime(g.t), onclick: () => { G.marks = WP.removeGoal(G, g.id); marksChanged(); } }, '✕')));
+    }
+    $('marks-list').replaceChildren(...(items.length ? items : [el('span', { class: 'small muted' }, 'No periods or goals marked yet.')]));
+    selectOpts($('t-gtype'), WP.GAME_TYPES, G.gameType, 'Not set');
+    selectOpts($('t-gha'), WP.HOME_AWAY, G.homeAway, 'Not set');
+  }
+
+  function marksChanged() {
+    save();
+    renderMarks();
+    renderTimelineStatic();
+    renderClips();
+    onTick();
+  }
+
+  function markPeriod() {
+    if (!player) return;
+    try {
+      const r = WP.togglePeriod(G, player.time());
+      G.marks = r.marks;
+      marksChanged();
+      toast(WP.periodName(r.n) + (r.did === 'start' ? ' started' : ' ended') + ' at ' + WP.formatTime(player.time()));
+    } catch (e) { toast(e.message, { err: true }); }
+  }
+
+  function markGoal(side) {
+    if (!player) return;
+    const t = player.time();
+    G.marks = WP.addGoal(G, t, side);
+    const m = WP.gameMarks(G);
+    const f = m.goals.filter((g) => g.side === 'for').length;
+    const a = m.goals.length - f;
+    marksChanged();
+    const id = m.goals.find((g) => Math.abs(g.t - Math.round(t * 10) / 10) < 0.01 && g.side === side).id;
+    toast((side === 'for' ? 'Goal for' : 'Goal against') + ' at ' + WP.formatTime(t) + ' — score ' + f + '–' + a, { action: { label: 'Undo', fn: () => { G.marks = WP.removeGoal(G, id); marksChanged(); } } });
+  }
+
+  $('b-period').addEventListener('click', markPeriod);
+  $('b-goal-for').addEventListener('click', () => markGoal('for'));
+  $('b-goal-against').addEventListener('click', () => markGoal('against'));
+  $('t-gtype').addEventListener('change', (e) => { G.gameType = e.target.value; save(); renderTagView(); });
+  $('t-gha').addEventListener('change', (e) => { G.homeAway = e.target.value; save(); renderTagView(); });
+
+  function evBadges(game, clip, events) {
+    const evs = events || WP.clipEvents(game, clip);
+    return evs.map((id) => { const ev = WP.EVENTS.find((x) => x.id === id) || {}; return el('span', { class: 'evb' + (ev.kind ? ' ' + ev.kind : '') }, WP.eventLabel(id)); });
+  }
+
+  function autoLine(game, clip) {
+    const a = WP.clipAuto(game, clip);
+    const bits = [];
+    if (a.period) bits.push(WP.periodName(a.period) + ' ' + WP.formatTime(a.periodTime));
+    if (a.state) bits.push(a.state + ' ' + a.score.for + '–' + a.score.against);
+    return bits.join(' · ');
+  }
+
+  // ---- editor: tags ----
+  function renderEditorTags() {
+    if (!E || !G) return;
+    const d = E.d;
+    const auto = WP.clipAuto(G, d);
+    const shown = WP.clipEvents(G, d);
+    $('e-events').replaceChildren(...WP.EVENTS.map((ev) => el('button', {
+      type: 'button', class: 'chip', 'aria-pressed': String(shown.includes(ev.id)),
+      title: auto.events.includes(ev.id) ? 'From your goal marks' : null,
+      onclick: () => commit(WP.toggleEvent(G, E.d, ev.id))
+    }, auto.events.includes(ev.id) ? el('span', { class: 'autodot' }) : '', ev.label)));
+    $('e-zone').value = d.zone || '';
+    $('e-sit').value = d.situation || 'even';
+    $('e-tags').replaceChildren(...(d.tags || []).map((t) => el('button', { type: 'button', class: 'chip', 'aria-label': 'Remove tag ' + t, onclick: () => commit({ tags: d.tags.filter((x) => x !== t) }) }, t + ' ✕')));
+    $('dl-tags').replaceChildren(...allTags().map((t) => el('option', { value: t })));
+    $('e-star').setAttribute('aria-pressed', String(!!d.starred));
+    $('e-star').textContent = d.starred ? '★ Starred' : '☆ Star';
+    $('e-private').checked = !!d.private;
+    const al = autoLine(G, d);
+    $('e-auto').textContent = al ? 'Automatic: ' + al + '. From your period and goal marks.' : 'Mark periods and goals on the game screen and the period and score fill in here.';
+    renderDests();
+  }
+
+  function allTags() {
+    const set = new Set();
+    for (const g of S.games) for (const c of g.clips) for (const t of c.tags || []) set.add(t);
+    for (const k of ['team', 'priv']) for (const e of Object.values(S.lib[k].entries)) for (const t of e.tags || []) set.add(t);
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }
+
+  $('e-zone').addEventListener('change', (e) => commit({ zone: e.target.value }));
+  $('e-sit').addEventListener('change', (e) => commit({ situation: e.target.value }));
+  $('e-star').addEventListener('click', () => commit({ starred: !E.d.starred }));
+  $('e-private').addEventListener('change', (e) => {
+    const goingPrivate = e.target.checked;
+    if (goingPrivate && (E.d.drive || []).some((x) => x.folder !== 'private')) toast('This clip is already in team Drive folders. Making it private removes it from the team library; delete the team copies in Drive if you don’t want them there.', { ms: 9000 });
+    commit({ private: goingPrivate });
+  });
+  $('e-tag-add').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const v = $('e-tag-new').value.trim();
+    if (!v) return;
+    $('e-tag-new').value = '';
+    commit({ tags: (E.d.tags || []).concat([v]) });
+  });
+
+  // ---- editor: where the export goes ----
+  const destPick = { local: true, team: false, coaches: false, players: false, private: false };
+
+  function driveReady(priv) {
+    if (!WPDrive.configured() || !WPDrive.webOrigin()) return 'Saving to Google Drive works on the web version once you sign in (Settings).';
+    if (!WPDrive.hasToken()) return 'Sign in with Google in Settings to also save clips to Drive.';
+    if (!priv && !S.sync) return 'Set up team data in Settings to save to the team’s Drive folders.';
+    return null;
+  }
+
+  function renderDests() {
+    if (!E) return;
+    const d = E.d;
+    const box = $('e-dests');
+    const cb = (key, text, disabled) => {
+      const i = el('input', { type: 'checkbox', style: 'width:18px;height:18px;flex:none', disabled: !!disabled, onchange: (e) => { destPick[key] = e.target.checked; } });
+      i.checked = !!destPick[key] && !disabled;
+      return el('label', { style: 'display:flex;align-items:center;gap:8px;font-size:13px' }, i, text);
+    };
+    const why = driveReady(d.private);
+    const rows = [el('span', { style: 'font-weight:600;font-size:13px' }, 'Save the MP4 to'), cb('local', 'This computer')];
+    if (d.private) rows.push(cb('private', '🔒 My private Drive folder', !!why));
+    else {
+      rows.push(cb('team', 'Drive: Team (players and families)', !!why));
+      rows.push(cb('coaches', 'Drive: Coaches only', !!why));
+      const fam = d.players.length ? 'Drive: family folder of ' + d.players.map((p) => '#' + p).join(', ') : 'Drive: family folders (tag players first)';
+      rows.push(cb('players', fam, !!why || !d.players.length));
+    }
+    if (why) rows.push(el('span', { class: 'small muted' }, why));
+    if ((d.drive || []).length) rows.push(el('span', { class: 'small muted' }, 'In Drive: ' + d.drive.map((x) => WP.destLabel(x.folder, S.settings.roster)).join(', ')));
+    box.replaceChildren(...rows);
+  }
+
+  function chosenDests(d) {
+    if (driveReady(d.private)) return [];
+    if (d.private) return destPick.private ? ['private'] : [];
+    const out = [];
+    if (destPick.team) out.push('team');
+    if (destPick.coaches) out.push('coaches');
+    if (destPick.players) for (const p of d.players) out.push('player:' + p);
+    return out;
+  }
+
+  async function ensureDestFolder(dest) {
+    if (dest === 'private') { await ensurePrivateLibrary(); return S.lib.privSync.folderId; }
+    const folders = S.lib.team.folders || (S.lib.team.folders = {});
+    if (folders[dest]) return folders[dest];
+    const root = (S.sync && S.sync.folderId) || folders.root;
+    if (!root) throw new Error('the team’s Drive folders haven’t been set up yet. The head coach sets them up by saving one clip to Drive.');
+    let parent = root;
+    if (dest.startsWith('player:')) {
+      if (!folders.players) { folders.players = (await WPDrive.createFolder('Players (one folder per family)', root)).id; }
+      parent = folders.players;
+    }
+    folders[dest] = (await WPDrive.createFolder(WP.folderName(dest, S.settings.roster), parent)).id;
+    folders.root = root;
+    save();
+    return folders[dest];
+  }
+
+  async function uploadToDrive(d, blob, name, dests, onStep) {
+    const cat = catById(d.categoryId);
+    const auto = WP.clipAuto(G, d);
+    const desc = [cat ? cat.name : 'Clip', WP.gameTitle(G), auto.period ? WP.periodName(auto.period) : ''].filter(Boolean).join(' · ') + ' — Bulldogs Watch Party';
+    let list = (d.drive || []).slice();
+    const done = [];
+    for (const dest of dests) {
+      if (onStep) onStep(dest);
+      const folderId = await ensureDestFolder(dest);
+      const f = await WPDrive.uploadBlob(name, folderId, blob, desc);
+      list = list.filter((x) => x.folder !== dest).concat([{ folder: dest, fileId: f.id, name: f.name || name, at: Date.now() }]);
+      done.push(dest);
+    }
+    return { list, done };
+  }
+
+  // =====================================================================
+  // CLIP LIBRARY IN DRIVE (team: _App; private: the coach's own folder)
+  // =====================================================================
+  const LIB = { busy: false, again: false, err: null };
+  const TEAM_LIB_NAME = 'Watch Party clip library.json';
+  const PRIV_FOLDER_NAME = 'My Watch Party clips (private)';
+  const PRIV_LIB_NAME = 'My private clip library.json';
+  let libTimer = 0;
+
+  function libChanged() {
+    clearTimeout(libTimer);
+    if (!WPDrive.hasToken() || (!S.lib.teamSync && !S.lib.privSync)) return;
+    libTimer = setTimeout(() => libSyncAll(false), 2500);
+  }
+
+  function myLibrary(kind) {
+    return WP.buildMyLibrary(S.lib[kind], S.games, S.settings.categories, S.settings.coachName, kind === 'priv', S.lib.deleted);
+  }
+
+  async function ensureTeamLibrary() {
+    if (S.lib.teamSync || !S.sync) return;
+    if (!S.sync.owner) return; // other coaches pick it with the team data
+    const found = await WPDrive.findByName(TEAM_LIB_NAME);
+    if (found.length) {
+      S.lib.teamSync = { fileId: found[0].id, version: null, base: null };
+    } else {
+      const lib = myLibrary('team');
+      lib.folders = Object.assign({}, lib.folders, { root: S.sync.folderId });
+      const f = await WPDrive.createFile(TEAM_LIB_NAME, S.sync.appFolderId, WP.libraryFileText(lib, 'team', S.sync.account));
+      S.lib.team = WP.normalizeLibrary(lib);
+      S.lib.teamSync = { fileId: f.id, version: f.version, base: WP.normalizeLibrary(lib) };
+    }
+    save();
+  }
+
+  async function ensurePrivateLibrary() {
+    if (S.lib.privSync) return;
+    const found = await WPDrive.findByName(PRIV_LIB_NAME);
+    if (found.length) {
+      S.lib.privSync = { fileId: found[0].id, folderId: (found[0].parents || [])[0] || null, version: null, base: null };
+    } else {
+      const folders = await WPDrive.findByName(PRIV_FOLDER_NAME, WPDrive.FOLDER);
+      const folderId = folders.length ? folders[0].id : (await WPDrive.createFolder(PRIV_FOLDER_NAME)).id;
+      const lib = myLibrary('priv');
+      const f = await WPDrive.createFile(PRIV_LIB_NAME, folderId, WP.libraryFileText(lib, 'private', ''));
+      S.lib.priv = WP.normalizeLibrary(lib);
+      S.lib.privSync = { fileId: f.id, folderId, version: f.version, base: WP.normalizeLibrary(lib) };
+    }
+    save();
+  }
+
+  async function libSync(kind) {
+    const cfg = kind === 'team' ? S.lib.teamSync : S.lib.privSync;
+    if (!cfg || !cfg.fileId) return;
+    const fileKind = kind === 'team' ? 'team' : 'private';
+    const meta = await WPDrive.getMeta(cfg.fileId);
+    if (meta.trashed) throw new Error('the clip library file is in the Google Drive trash');
+    const theirs = String(meta.version) === String(cfg.version) && cfg.base ? cfg.base : WP.parseLibraryFile(await WPDrive.readText(cfg.fileId), fileKind);
+    // other coaches' tag edits to my clips come back into my clips
+    if (cfg.base) {
+      for (const g of S.games) {
+        g.clips = g.clips.map((c) => {
+          if (!!c.private !== (kind === 'priv')) return c;
+          const te = theirs.entries[c.id];
+          const be = cfg.base.entries[c.id];
+          return te && be && !sameJ(te, be) ? WP.applyEntryTags(c, te, be) : c;
+        });
+      }
+    }
+    const step = WP.syncLibraryStep({ base: cfg.base, mine: myLibrary(kind), theirs, dirty: true });
+    S.lib[kind] = WP.normalizeLibrary(step.data);
+    let version = meta.version;
+    if (step.push) version = (await WPDrive.updateText(cfg.fileId, WP.libraryFileText(S.lib[kind], fileKind, S.sync && S.sync.account))).version;
+    cfg.base = WP.normalizeLibrary(step.data);
+    cfg.version = version;
+    cfg.lastSyncAt = Date.now();
+    if (step.conflicts.length) toast('Clip library: another coach changed the same thing at the same time (' + step.conflicts.slice(0, 3).join(', ') + '). Their version was kept.', { err: true, ms: 10000 });
+  }
+
+  async function libSyncAll(interactive) {
+    if (!WPDrive.hasToken()) return;
+    if (LIB.busy) { LIB.again = true; return; }
+    LIB.busy = true;
+    try {
+      await ensureTeamLibrary();
+      await ensurePrivateLibrary();
+      if (S.lib.teamSync) await libSync('team');
+      await libSync('priv');
+      const keep = new Set([...Object.keys(S.lib.team.entries), ...Object.keys(S.lib.priv.entries)]);
+      S.lib.deleted = S.lib.deleted.filter((id) => keep.has(id));
+      LIB.err = null;
+      saveQuiet();
+    } catch (e) {
+      LIB.err = e.message;
+      if (interactive || e.code !== 0) toast('Clip library: ' + e.message, { err: true, ms: 7000 });
+    } finally {
+      LIB.busy = false;
+      if (!$('view-review').classList.contains('hidden')) renderReview();
+      if (!$('view-settings').classList.contains('hidden')) renderTeamCard();
+      if (LIB.again) { LIB.again = false; libSyncAll(false); }
+    }
+  }
+
+  // =====================================================================
+  // REVIEW SCREEN
+  // =====================================================================
+  const R = { filters: WP.emptyFilters(), viewId: null, queue: [], idx: -1, cleanup: null, sort: 'oldest' };
+
+  function scopeEntries() {
+    const team = Object.values(myLibrary('team').entries);
+    const priv = Object.values(myLibrary('priv').entries).map((e) => Object.assign({}, e, { private: true }));
+    const sc = S.lib.scope;
+    return sc === 'private' ? priv : sc === 'both' ? team.concat(priv) : team;
+  }
+
+  function localClip(id) {
+    for (const g of S.games) { const c = g.clips.find((x) => x.id === id); if (c) return { game: g, clip: c }; }
+    return null;
+  }
+
+  function lenSum(list) { return list.reduce((s, e) => s + (e.end - e.start), 0); }
+
+  function whereInfo(e) {
+    if (e.private) return { color: '#B45309', text: '🔒 Private' + ((e.drive || []).length ? ' · in my Drive folder' : ' · on this device only') };
+    if ((e.drive || []).length) return { color: '#16A34A', text: 'In Drive · ' + e.drive.map((x) => WP.destLabel(x.folder, S.settings.roster)).join(', ') };
+    const mine = localClip(e.id);
+    return { color: '#F59E0B', text: mine ? 'On this PC (not in Drive yet)' : 'Only on ' + (e.owner || 'another coach') + '’s PC' };
+  }
+
+  function chipBtn(text, on, fn, extra) {
+    return el('button', { type: 'button', class: 'chip', 'aria-pressed': String(!!on), onclick: fn }, extra || '', text);
+  }
+
+  function toggleIn(key, val) {
+    const list = R.filters[key];
+    const i = list.indexOf(val);
+    if (i >= 0) list.splice(i, 1); else list.push(val);
+    R.viewId = null;
+    renderReview();
+  }
+
+  function setOne(key, val) { R.filters[key] = R.filters[key] === val ? '' : val; R.viewId = null; renderReview(); }
+
+  function renderReview() {
+    renderWho();
+    const all = scopeEntries();
+    for (const b of $('rv-scope').children) b.setAttribute('aria-pressed', String(b.dataset.scope === S.lib.scope));
+    if (document.activeElement !== $('rv-q')) $('rv-q').value = R.filters.q;
+    // saved views
+    const views = S.lib.team.views || [];
+    $('rv-views').replaceChildren(...(views.length ? views.map((v) => el('div', { class: 'row', style: 'gap:2px;flex-wrap:nowrap' },
+      el('button', { type: 'button', class: 'vbtn grow', 'aria-pressed': String(R.viewId === v.id), onclick: () => { R.filters = WP.normalizeFilters(v.filters); R.viewId = v.id; renderReview(); } },
+        el('span', {}, v.name), el('span', { class: 'small muted' }, String(all.filter((e) => WP.entryMatches(e, v.filters)).length))),
+      el('button', { type: 'button', class: 'btn small', style: 'min-height:32px;padding:0 8px', 'aria-label': 'Delete saved view ' + v.name, onclick: () => { if (!confirm('Delete the saved view “' + v.name + '” for all coaches?')) return; S.lib.team.views = WP.removeView(views, v.id); if (R.viewId === v.id) R.viewId = null; save(); renderReview(); } }, '✕')))
+      : [el('span', { class: 'small muted' }, 'None yet. Pick filters, then Save view.')]));
+    // filter groups
+    const F = R.filters;
+    const groups = [];
+    const group = (title, kids) => groups.push(el('div', { class: 'stack', style: 'gap:6px;border-top:1px solid #E6EAF0;padding-top:12px' }, el('h3', { class: 'fh' }, title), el('div', { class: 'chips' }, ...kids)));
+    const usedCats = new Set(all.map((e) => e.categoryId));
+    group('Category', S.settings.categories.filter((c) => !c.hidden || usedCats.has(c.id)).map((c) => chipBtn(c.name, F.categories.includes(c.id), () => toggleIn('categories', c.id), el('span', { class: 'dot', style: 'width:9px;height:9px;margin-right:6px;display:inline-block;background:' + c.color }))));
+    group('Events', WP.EVENTS.map((ev) => chipBtn(ev.label, F.events.includes(ev.id), () => toggleIn('events', ev.id))));
+    const nums = new Set(S.settings.roster.map((p) => p.number));
+    for (const e of all) for (const p of e.players) nums.add(p);
+    group('Players', [...nums].sort((a, b) => a - b).map((n) => chipBtn('#' + n, F.players.includes(n), () => toggleIn('players', n))));
+    group('Period', ['1', '2', '3', '4'].map((n) => chipBtn(WP.periodName(Number(n)), F.periods.includes(n), () => toggleIn('periods', n))));
+    group('Message', [['do', 'Do this'], ['work', 'Work on this'], ['starred', '★ Starred']].map(([v, l]) => chipBtn(l, F.flags.includes(v), () => toggleIn('flags', v))));
+    group('Score when it happened', [['leading', 'Leading'], ['tied', 'Tied'], ['trailing', 'Trailing']].map(([v, l]) => chipBtn(l, F.state === v, () => setOne('state', v))));
+    group('Zone', WP.ZONES.map(([v, l]) => chipBtn(l, F.zone === v, () => setOne('zone', v))));
+    group('Situation', WP.SITUATIONS.map(([v, l]) => chipBtn(l, F.situation === v, () => setOne('situation', v))));
+    const tags = allTags();
+    if (tags.length) group('Custom tags', tags.map((t) => chipBtn(t, F.tags.includes(t), () => toggleIn('tags', t))));
+    const games = new Map();
+    for (const e of all) games.set(e.gameId, e.game);
+    const gsel = el('select', { 'aria-label': 'Game', style: 'min-height:40px', onchange: (ev) => { R.filters.gameIds = ev.target.value ? [ev.target.value] : []; R.viewId = null; renderReview(); } },
+      el('option', { value: '' }, 'All games (' + games.size + ')'),
+      ...[...games.entries()].sort((a, b) => String(a[1].date).localeCompare(String(b[1].date))).map(([id, g]) => el('option', { value: id }, g.title)));
+    gsel.value = F.gameIds[0] || '';
+    const tsel = el('select', { 'aria-label': 'Game type', style: 'min-height:40px', onchange: (ev) => { R.filters.gameType = ev.target.value; R.viewId = null; renderReview(); } });
+    selectOpts(tsel, WP.GAME_TYPES, F.gameType, 'Any game type');
+    const hsel = el('select', { 'aria-label': 'Home or away', style: 'min-height:40px', onchange: (ev) => { R.filters.homeAway = ev.target.value; R.viewId = null; renderReview(); } });
+    selectOpts(hsel, WP.HOME_AWAY, F.homeAway, 'Home and away');
+    const driveCb = el('input', { type: 'checkbox', style: 'width:18px;height:18px', onchange: (ev) => { R.filters.inDrive = ev.target.checked; R.viewId = null; renderReview(); } });
+    driveCb.checked = F.inDrive;
+    groups.push(el('div', { class: 'stack', style: 'gap:6px;border-top:1px solid #E6EAF0;padding-top:12px' }, el('h3', { class: 'fh' }, 'Game'), gsel, el('div', { class: 'grid2', style: 'gap:6px' }, tsel, hsel),
+      el('label', { class: 'row small', style: 'gap:8px' }, driveCb, 'Only clips saved in Drive')));
+    $('rv-groups').replaceChildren(...groups);
+    // results
+    const list = WP.sortEntries(all.filter((e) => WP.entryMatches(e, F)), R.sort);
+    const view = views.find((v) => v.id === R.viewId);
+    $('rv-title').textContent = view ? view.name : WP.describeFilters(F, S.settings.categories);
+    const secs = Math.round(lenSum(list));
+    $('rv-count').textContent = list.length + (list.length === 1 ? ' clip' : ' clips') + ' · ' + Math.floor(secs / 60) + ' min ' + (secs % 60) + ' s · ' + ({ team: 'team library', private: 'my private clips', both: 'team and private' })[S.lib.scope];
+    const pills = [];
+    const pill = (text, fn) => pills.push(el('span', { class: 'mark', style: 'background:var(--accent-soft);color:var(--accent-dark)' }, text, el('button', { type: 'button', 'aria-label': 'Remove filter ' + text, onclick: fn }, '✕')));
+    for (const id of F.categories) pill('Category: ' + ((catById(id) || {}).name || id), () => toggleIn('categories', id));
+    for (const id of F.events) pill('Event: ' + WP.eventLabel(id), () => toggleIn('events', id));
+    for (const n of F.players) pill('#' + n, () => toggleIn('players', n));
+    for (const n of F.periods) pill(WP.periodName(Number(n)), () => toggleIn('periods', n));
+    for (const v of F.flags) pill(v === 'do' ? 'Do this' : v === 'work' ? 'Work on this' : 'Starred', () => toggleIn('flags', v));
+    for (const t of F.tags) pill('Tag: ' + t, () => toggleIn('tags', t));
+    for (const [k, lab] of [['state', 'Score'], ['zone', 'Zone'], ['situation', 'Situation'], ['gameType', 'Game type'], ['homeAway', 'Home/away']]) if (F[k]) pill(lab + ': ' + F[k], () => setOne(k, F[k]));
+    if (F.gameIds.length) pill('Game: ' + ((games.get(F.gameIds[0]) || {}).title || ''), () => { R.filters.gameIds = []; renderReview(); });
+    if (F.inDrive) pill('In Drive', () => { R.filters.inDrive = false; renderReview(); });
+    if (F.q) pill('“' + F.q + '”', () => { R.filters.q = ''; renderReview(); });
+    const sortSel = el('select', { 'aria-label': 'Sort', style: 'min-height:36px;margin-left:auto', onchange: (ev) => { R.sort = ev.target.value; renderReview(); } }, el('option', { value: 'oldest' }, 'Oldest game first'), el('option', { value: 'newest' }, 'Newest game first'));
+    sortSel.value = R.sort;
+    $('rv-active').replaceChildren(...pills, pills.length ? el('button', { type: 'button', class: 'btn small', onclick: () => { R.filters = WP.emptyFilters(); R.viewId = null; renderReview(); } }, 'Clear all') : el('span', { class: 'small muted' }, 'No filters — showing everything.'), sortSel);
+    $('rv-play').disabled = !list.length;
+    R.list = list;
+    const nowId = R.idx >= 0 && R.queue[R.idx] ? R.queue[R.idx].id : null;
+    $('rv-results').replaceChildren(...(list.length ? list.map((e, i) => {
+      const w = whereInfo(e);
+      const feats = Object.entries(e.features || {}).filter(([, v]) => v).map(([k]) => ({ drawing: 'Drawing', slow: 'Slow-mo', zoom: 'Zoom', voice: 'Voice' })[k]);
+      return el('button', { type: 'button', class: 'rvcard' + (e.id === nowId ? ' now' : ''), 'data-entry': e.id, onclick: () => startQueue(list, i) },
+        el('div', { class: 'row', style: 'gap:6px' }, el('span', { class: 'dot', style: 'background:' + (e.color || '#64748B') }), el('strong', {}, e.category || 'Clip'), ...evBadges(null, null, e.events), e.starred ? el('span', { style: 'color:#CA8A04', 'aria-label': 'Starred' }, '★') : ''),
+        el('span', { class: 'small' }, [e.game.title, WP.label(WP.GAME_TYPES, e.game.type), WP.label(WP.HOME_AWAY, e.game.homeAway)].filter(Boolean).join(' · ')),
+        el('span', { class: 'small muted' }, [e.period ? WP.periodName(e.period) + ' ' + WP.formatTime(e.periodTime) : 'game ' + WP.formatTime(e.start), e.state ? e.state + ' ' + e.score.for + '–' + e.score.against : '', Math.round(e.end - e.start) + ' s'].filter(Boolean).join(' · ')),
+        el('div', { class: 'row small', style: 'gap:6px' }, el('strong', {}, e.players.length ? e.players.map((p) => '#' + p).join(' ') : 'No players'), el('span', { class: 'pill ' + e.flag }, e.flag === 'work' ? 'Work on this' : 'Do this'), ...feats.map((f) => el('span', { class: 'pill zoompill' }, f))),
+        e.note ? el('span', { class: 'small' }, e.note) : '',
+        el('span', { class: 'where' }, el('span', { class: 'wdot', style: 'background:' + w.color }), w.text, el('span', { style: 'margin-left:auto' }, 'by ' + (e.by || '?'))));
+    }) : [el('div', { class: 'empty', style: 'grid-column:1/-1' }, all.length ? 'No clips match these filters.' : S.lib.scope === 'private' ? 'No private clips yet. Tick “Private (only me)” in the clip editor.' : 'No clips yet. Tag some on the game screen.')]));
+    const lib = S.lib.teamSync ? 'Team library ' + (LIB.err ? 'has a sync problem: ' + LIB.err : 'synced with Drive') : S.sync ? 'Team library not connected yet — see Settings.' : 'Sign in and set up team data in Settings to share clips with the other coaches.';
+    $('rv-lib-status').textContent = lib;
+    if (R.idx >= 0) renderReviewTags();
+  }
+
+  $('rv-scope').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-scope]');
+    if (!b) return;
+    S.lib.scope = b.dataset.scope;
+    saveQuiet();
+    renderReview();
+  });
+  $('rv-q').addEventListener('input', (e) => { R.filters.q = e.target.value; R.viewId = null; clearTimeout(R.qt); R.qt = setTimeout(renderReview, 200); });
+  $('rv-save').addEventListener('click', () => {
+    const name = prompt('Name this view (shared with all coaches):', WP.describeFilters(R.filters, S.settings.categories));
+    if (name == null) return;
+    try { S.lib.team.views = WP.addView(S.lib.team.views, name, R.filters); R.viewId = S.lib.team.views[S.lib.team.views.length - 1].id; save(); renderReview(); toast('View saved'); }
+    catch (err) { toast(err.message, { err: true }); }
+  });
+  $('rv-play').addEventListener('click', () => R.list && R.list.length && startQueue(R.list, 0));
+  $('rv-prev').addEventListener('click', () => playAt(R.idx - 1));
+  $('rv-next').addEventListener('click', () => playAt(R.idx + 1));
+  $('rv-close').addEventListener('click', stopReviewPlayer);
+
+  function startQueue(list, i) {
+    R.queue = list.slice();
+    R.qname = $('rv-title').textContent;
+    $('rv-player-card').classList.remove('hidden');
+    playAt(i);
+    $('rv-player-card').scrollIntoView({ block: 'nearest' });
+  }
+
+  function stopReviewPlayer() {
+    if (R.cleanup) { R.cleanup(); R.cleanup = null; }
+    R.idx = -1;
+    $('rv-player-card').classList.add('hidden');
+    $('rv-stage').replaceChildren();
+    renderReview();
+  }
+
+  function nextAfterEnd() { if ($('rv-auto').checked && R.idx < R.queue.length - 1) playAt(R.idx + 1); }
+
+  async function playAt(i) {
+    if (i < 0 || i >= R.queue.length) return;
+    if (R.cleanup) { R.cleanup(); R.cleanup = null; }
+    R.idx = i;
+    const e = R.queue[i];
+    const token = {};
+    R.token = token;
+    $('rv-pl-title').textContent = R.qname + ' · clip ' + (i + 1) + ' of ' + R.queue.length;
+    $('rv-pl-now').textContent = (e.category || 'Clip') + ' · ' + e.game.title;
+    $('rv-prev').disabled = i === 0;
+    $('rv-next').disabled = i >= R.queue.length - 1;
+    for (const c of document.querySelectorAll('.rvcard')) c.classList.toggle('now', c.dataset.entry === e.id);
+    renderReviewTags();
+    const stage = $('rv-stage');
+    const msg = (text, ...kids) => stage.replaceChildren(el('div', { class: 'msg' }, el('span', {}, text), ...kids));
+    msg('Loading…');
+    const file = (e.drive || [])[0];
+    if (file && WPDrive.hasToken()) {
+      try {
+        const blob = await WPDrive.downloadBlob(file.fileId);
+        if (R.token !== token) return;
+        const url = URL.createObjectURL(blob);
+        const v = el('video', { src: url, controls: true, autoplay: true, playsinline: true });
+        v.addEventListener('ended', nextAfterEnd);
+        stage.replaceChildren(v);
+        R.cleanup = () => { v.pause(); URL.revokeObjectURL(url); };
+        return;
+      } catch (err) {
+        if (R.token !== token) return;
+        stage.replaceChildren(el('iframe', { src: 'https://drive.google.com/file/d/' + encodeURIComponent(file.fileId) + '/preview', allow: 'autoplay', title: 'Clip from Google Drive' }));
+        return;
+      }
+    }
+    const loc = localClip(e.id);
+    if (loc) {
+      const files = session.files.get(loc.game.id);
+      if (!files) {
+        msg('This clip’s game video isn’t connected on this computer yet.', el('a', { class: 'btn small', href: '#tag/' + loc.game.id, style: 'text-decoration:none' }, 'Open the game to reconnect its videos'));
+        return;
+      }
+      const v = el('video', { playsinline: true });
+      const wrap = el('div', { class: 'vwrap' }, v);
+      stage.replaceChildren(wrap);
+      v.style.transform = WP.zoomTransform(loc.clip.zoom);
+      const p = createPlayer(v, files, WP.gameTimeline(loc.game), loc.game.id, () => {});
+      let started = false;
+      const iv = setInterval(() => { if (p.isPlaying()) started = true; else if (started) { clearInterval(iv); nextAfterEnd(); } }, 250);
+      R.cleanup = () => { clearInterval(iv); p.destroy(); };
+      await p.playRange(loc.clip.start, loc.clip.end);
+      return;
+    }
+    if (file) { msg('Sign in with Google (Settings) to play clips from Drive.'); return; }
+    msg('Only on ' + (e.owner || 'another coach') + '’s PC — not saved to Drive yet.');
+  }
+
+  function editEntry(e, patch) {
+    const loc = localClip(e.id);
+    if (loc) {
+      const next = WP.updateClip(loc.clip, patch, WP.gameTimeline(loc.game).total);
+      loc.game.clips = loc.game.clips.map((x) => (x.id === e.id ? next : x));
+      save();
+      const fresh = WP.libraryEntry(loc.game, next, S.settings.categories, S.settings.coachName);
+      if (patch.private !== undefined) fresh.private = next.private;
+      R.queue[R.idx] = fresh;
+    } else {
+      const lib = e.private ? S.lib.priv : S.lib.team;
+      const upd = Object.assign({}, lib.entries[e.id] || e, patch);
+      lib.entries[e.id] = upd;
+      save();
+      R.queue[R.idx] = upd;
+    }
+    renderReview();
+  }
+
+  function renderReviewTags() {
+    const e = R.queue[R.idx];
+    if (!e) return;
+    const loc = localClip(e.id);
+    const toggleEv = (id) => {
+      if (loc) editEntry(e, WP.toggleEvent(loc.game, loc.clip, id));
+      else editEntry(e, { events: e.events.includes(id) ? e.events.filter((x) => x !== id) : WP.EVENT_IDS.filter((x) => x === id || e.events.includes(x)) });
+    };
+    const catSel = el('select', { 'aria-label': 'Category', onchange: (ev) => { const c = catById(ev.target.value); editEntry(e, loc ? { categoryId: ev.target.value } : { categoryId: ev.target.value, category: c ? c.name : '', color: c ? c.color : e.color }); } },
+      ...S.settings.categories.map((c) => el('option', { value: c.id }, c.name)));
+    catSel.value = e.categoryId;
+    const nums = new Set(S.settings.roster.map((p) => p.number).concat(e.players));
+    const zsel = el('select', { 'aria-label': 'Zone', onchange: (ev) => editEntry(e, { zone: ev.target.value }) });
+    selectOpts(zsel, WP.ZONES, e.zone, 'Not set');
+    const ssel = el('select', { 'aria-label': 'Situation', onchange: (ev) => editEntry(e, { situation: ev.target.value }) });
+    selectOpts(ssel, WP.SITUATIONS, e.situation || 'even');
+    const note = el('input', { type: 'text', value: e.note || '', maxlength: '140', 'aria-label': 'Note', onchange: (ev) => editEntry(e, { note: ev.target.value }) });
+    const auto = [e.game.title, WP.label(WP.GAME_TYPES, e.game.type), e.period ? WP.periodName(e.period) + ' ' + WP.formatTime(e.periodTime) : '', e.state ? e.state + ' ' + e.score.for + '–' + e.score.against : ''].filter(Boolean).join(' · ');
+    const privCb = el('input', { type: 'checkbox', style: 'width:18px;height:18px', disabled: !loc, onchange: (ev) => editEntry(e, { private: ev.target.checked }) });
+    privCb.checked = !!e.private;
+    $('rv-tags').replaceChildren(
+      el('div', { class: 'row spread' }, el('h3', {}, 'Clip tags'),
+        el('button', { type: 'button', class: 'btn small', 'aria-pressed': String(!!e.starred), onclick: () => editEntry(e, { starred: !e.starred }) }, e.starred ? '★ Starred' : '☆ Star')),
+      el('span', { class: 'small muted' }, auto + ' · by ' + (e.by || '?')),
+      el('label', { class: 'field' }, 'Category', catSel),
+      el('div', { class: 'stack', style: 'gap:6px' }, el('span', { style: 'font-weight:600;font-size:13px' }, 'Events'), el('div', { class: 'chips' }, ...WP.EVENTS.map((ev) => chipBtn(ev.label, e.events.includes(ev.id), () => toggleEv(ev.id))))),
+      el('div', { class: 'stack', style: 'gap:6px' }, el('span', { style: 'font-weight:600;font-size:13px' }, 'Players'), el('div', { class: 'chips' }, ...[...nums].sort((a, b) => a - b).map((n) => chipBtn('#' + n, e.players.includes(n), () => editEntry(e, { players: e.players.includes(n) ? e.players.filter((x) => x !== n) : e.players.concat([n]).sort((a, b) => a - b) }))))),
+      el('div', { class: 'grid2', style: 'gap:8px' }, el('label', { class: 'field' }, 'Zone', zsel), el('label', { class: 'field' }, 'Situation', ssel)),
+      el('div', { class: 'seg' }, chipBtn('Do this', e.flag !== 'work', () => editEntry(e, { flag: 'do' })), chipBtn('Work on this', e.flag === 'work', () => editEntry(e, { flag: 'work' }))),
+      el('label', { class: 'field' }, 'Note', note),
+      el('label', { class: 'row small', style: 'gap:8px', title: loc ? null : 'Only the coach who made this clip can make it private' }, privCb, '🔒 Private (only me)'),
+      el('div', { class: 'row' },
+        (e.drive || []).length ? el('a', { class: 'btn small', href: 'https://drive.google.com/file/d/' + encodeURIComponent(e.drive[0].fileId) + '/view', target: '_blank', rel: 'noopener', style: 'text-decoration:none' }, 'Open in Drive') : '',
+        (e.drive || []).length ? el('button', { type: 'button', class: 'btn small', onclick: () => copyLink(e.drive[0].fileId) }, 'Copy link') : '',
+        loc ? el('a', { class: 'btn small', href: '#edit/' + loc.game.id + '/' + e.id, style: 'text-decoration:none' }, 'Open in clip editor') : ''),
+      el('span', { class: 'small muted' }, loc ? 'Changes save to this clip and the library.' : 'Changes save to the team library; ' + (e.owner || 'the coach who made it') + '’s copy updates when they next sync.'));
+  }
+
+  async function copyLink(fileId) {
+    const url = 'https://drive.google.com/file/d/' + fileId + '/view';
+    try { await navigator.clipboard.writeText(url); toast('Link copied — paste it into WhatsApp'); }
+    catch (e) { prompt('Copy this link:', url); }
+  }
+
   // keep other open tabs in sync
   window.addEventListener('storage', (e) => {
     if (e.key !== 'bulldogs-watch-party:v1') return;
@@ -1816,7 +2461,8 @@
   $('brand-version').textContent = 'v' + WP.APP_VERSION;
   renderSyncBadge();
   if (S.sync && WPDrive.hasToken()) setTimeout(() => syncNow(false), 300);
+  if (WPDrive.hasToken()) setTimeout(() => libSyncAll(false), 900);
   window.addEventListener('hashchange', route);
-  window.__bwp = { get state() { return S; }, get player() { return player; }, get editor() { return E; }, get team() { return Team; }, lastExport: null }; // for testing
+  window.__bwp = { get state() { return S; }, get player() { return player; }, get editor() { return E; }, get team() { return Team; }, get lib() { return LIB; }, get review() { return R; }, lastExport: null }; // for testing
   route();
 })();

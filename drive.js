@@ -88,6 +88,7 @@
       const e = new Error(msg); e.code = res.status; throw e;
     }
     if (as === 'text') return res.text();
+    if (as === 'blob') return res.blob();
     if (res.status === 204) return null;
     return res.json();
   }
@@ -119,6 +120,28 @@
     return call('PATCH', UPLOAD + '/files/' + encodeURIComponent(id) + '?uploadType=media&fields=' + encodeURIComponent(META), text, { 'Content-Type': 'application/json' });
   }
 
+  /** Files this app can see (ones it created on any of this coach's devices) with this exact name. */
+  async function findByName(name, mimeType) {
+    const esc = (v) => v.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const q = "name = '" + esc(name) + "' and trashed = false" + (mimeType ? " and mimeType = '" + mimeType + "'" : '');
+    const r = await call('GET', API + '/files?q=' + encodeURIComponent(q) + '&spaces=drive&orderBy=createdTime&fields=' + encodeURIComponent('files(' + META + ')'));
+    return r.files || [];
+  }
+
+  /** Upload a video (or any blob) in two steps: create the file, then send its bytes. */
+  async function uploadBlob(name, parentId, blob, description) {
+    const b = json({ name, parents: parentId ? [parentId] : undefined, mimeType: blob.type || 'video/mp4', description: description || undefined });
+    const f = await call('POST', API + '/files?fields=id,name', b.body, b.headers);
+    return call('PATCH', UPLOAD + '/files/' + encodeURIComponent(f.id) + '?uploadType=media&fields=' + encodeURIComponent('id,name,webViewLink'), blob, { 'Content-Type': blob.type || 'video/mp4' });
+  }
+
+  function downloadBlob(id) { return call('GET', API + '/files/' + encodeURIComponent(id) + '?alt=media', null, null, 'blob'); }
+
+  function trash(id) {
+    const b = json({ trashed: true });
+    return call('PATCH', API + '/files/' + encodeURIComponent(id) + '?fields=id', b.body, b.headers);
+  }
+
   async function share(id, email, message) {
     const b = json({ role: 'writer', type: 'user', emailAddress: email });
     const q = '?sendNotificationEmail=true' + (message ? '&emailMessage=' + encodeURIComponent(message) : '') + '&fields=id';
@@ -126,21 +149,24 @@
   }
 
   /** Let the coach pick the shared team data file (grants this app access to it). */
-  async function pickFile() {
+  async function pickFile(opts) {
+    const o = opts || {};
     const c = cfg();
     await loadScript('https://apis.google.com/js/api.js');
     await new Promise((res, rej) => root.gapi.load('picker', { callback: res, onerror: () => rej(new Error('Couldn’t open the Google file picker')) }));
     const P = root.google.picker;
     return new Promise((resolve) => {
-      const view = new P.DocsView(P.ViewId.DOCS).setMimeTypes('application/json').setQuery('Watch Party team data').setIncludeFolders(true);
-      const picker = new P.PickerBuilder()
-        .setTitle('Pick “Watch Party team data” (in the Bulldogs Watch Party › _App folder shared with you)')
+      const view = new P.DocsView(P.ViewId.DOCS).setMimeTypes('application/json').setQuery(o.query || 'Watch Party').setIncludeFolders(true);
+      const builder = new P.PickerBuilder();
+      if (o.multi && P.Feature && P.Feature.MULTISELECT_ENABLED) builder.enableFeature(P.Feature.MULTISELECT_ENABLED);
+      const picker = builder
+        .setTitle(o.title || 'Pick “Watch Party team data” and “Watch Party clip library” (Bulldogs Watch Party › _App, shared with you)')
         .addView(view)
         .setOAuthToken(token)
         .setDeveloperKey(c.googleApiKey)
         .setAppId(c.googleAppId)
         .setCallback((d) => {
-          if (d.action === P.Action.PICKED) resolve(d.docs && d.docs[0] ? d.docs[0].id : null);
+          if (d.action === P.Action.PICKED) resolve(o.multi ? (d.docs || []).map((x) => ({ id: x.id, name: x.name })) : (d.docs && d.docs[0] ? d.docs[0].id : null));
           else if (d.action === P.Action.CANCEL) resolve(null);
         })
         .build();
@@ -148,5 +174,5 @@
     });
   }
 
-  root.WPDrive = { SCOPE, configured, webOrigin, hasToken, signIn, signOut, whoAmI, createFolder, createFile, getMeta, readText, updateText, share, pickFile };
+  root.WPDrive = { SCOPE, FOLDER, configured, webOrigin, hasToken, signIn, signOut, whoAmI, createFolder, createFile, getMeta, readText, updateText, share, pickFile, findByName, uploadBlob, downloadBlob, trash };
 })(window);
