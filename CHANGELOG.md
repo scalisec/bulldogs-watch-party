@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0 — 2026-10-21 (code clean-up)
+
+No new features. The same app, reorganised so it's easier to change safely:
+- `app.js` (2,600 lines) is split into 12 files in `app/`, one per screen or job:
+  - `base`, `player`, `games`, `tag`, `editor`, `record`, `export`
+  - `settings`, `team-sync`, `library`, `review`, `main`
+- The files share one namespace, `window.App`. Each waits for the saved data to load (`App.ready`), then runs in page order. There's still no build step, and it still works when opened as a file.
+- Team data and the clip libraries now use one shared Drive sync routine (`WPDrive.syncJson`) instead of two near-copies.
+- Page styles moved from `index.html` to `styles.css`.
+
 ## 0.7.0 — 2026-10-21 (speed and reliability)
 
 - **No more storage limit:**

@@ -346,7 +346,7 @@ with sync_playwright() as p:
     page.fill('#r-num', '7'); page.fill('#r-name', 'Sam'); page.click('text=Add player')
     page.screenshot(path=SHOTS + '/4-settings.png', full_page=True)
     check('only works on the web version' in page.text_content('#team-sync'), 'opened from a file, the team data card points to the web version')
-    check(page.text_content('#app-version') == 'v0.7.0' and 'v0.7.0' in page.text_content('#brand-version'), 'version shows in Settings and the header')
+    check(page.text_content('#app-version') == 'v0.8.0' and 'v0.8.0' in page.text_content('#brand-version'), 'version shows in Settings and the header')
     st = page.evaluate('window.__bwp.state.settings')
     fo = [c for c in st['categories'] if c['name'] == 'Faceoffs'][0]
     check(fo['before'] == 2 and fo['after'] == 6, 'faceoff window saved 2/6')

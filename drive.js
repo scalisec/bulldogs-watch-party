@@ -186,6 +186,29 @@
     return call('POST', API + '/files/' + encodeURIComponent(id) + '/permissions' + q, b.body, b.headers);
   }
 
+  /**
+   * One round of three-way sync for a JSON file the coaches share (team data, clip libraries).
+   * cfg holds { fileId, version, base } — base is the last copy everyone agreed on.
+   * o.parse(text) -> data · o.mine() -> this device's data · o.merge({ base, mine, theirs }) -> { data, push, conflicts }
+   * o.apply(data) puts the merged data into the app · o.text() -> file text to write · o.normalize(data) -> new base.
+   * Drive is only read when its version changed, and only written when the merge says so.
+   */
+  async function syncJson(cfg, o) {
+    const meta = await getMeta(cfg.fileId);
+    if (meta.trashed) throw new Error(o.label + ' file is in the Google Drive trash');
+    const unchanged = String(meta.version) === String(cfg.version) && cfg.base;
+    const theirs = unchanged ? cfg.base : o.parse(await readText(cfg.fileId));
+    if (o.onTheirs) o.onTheirs(theirs);
+    const step = o.merge({ base: cfg.base, mine: o.mine(), theirs });
+    o.apply(step.data);
+    let version = meta.version;
+    if (step.push) version = (await updateText(cfg.fileId, o.text())).version;
+    cfg.base = o.normalize(step.data);
+    cfg.version = version;
+    cfg.lastSyncAt = Date.now();
+    return { conflicts: step.conflicts || [], pushed: !!step.push, meta };
+  }
+
   /** Let the coach pick the shared team data file (grants this app access to it). */
   async function pickFile(opts) {
     const o = opts || {};
@@ -212,5 +235,5 @@
     });
   }
 
-  root.WPDrive = { SCOPE, FOLDER, configured, webOrigin, hasToken, expiresIn, signIn, signOut, whoAmI, createFolder, createFile, getMeta, readText, updateText, share, pickFile, findByName, uploadBlob, copyFile, downloadBlob, trash };
+  root.WPDrive = { SCOPE, FOLDER, configured, webOrigin, hasToken, expiresIn, signIn, signOut, whoAmI, createFolder, createFile, getMeta, readText, updateText, share, pickFile, findByName, uploadBlob, copyFile, downloadBlob, trash, syncJson };
 })(window);

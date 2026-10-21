@@ -145,12 +145,36 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 ## Tests
 
 - `node --test tests/core.test.js` runs the core logic tests (65).
-- `python3 tests/e2e_v07.py <screenshot-dir>` tests the storage move, a 60-game season, Review paging, G/H keys, shortcuts and the update banner (23 checks).
+- `python3 tests/e2e_v07.py <screenshot-dir>` tests the storage move, a 60-game season, Review paging, G/H keys, shortcuts and the update banner (22 checks).
 - `python3 tests/e2e_library.py <screenshot-dir> <media-dir>` tests marks, tags, Drive uploads, the shared and private libraries and Review with two coaches and a phone against a simulated Drive (48 checks).
 - `python3 tests/e2e_drive.py <screenshot-dir>` tests shared team data with two coaches against a simulated Google Drive (23 checks).
 - `python3 tests/e2e.py <screenshot-dir> <media-dir>` runs the browser test (75 checks). It covers tagging, zoom, the editor, drawing, slow motion, preview, MP4 export, and recording a breakdown with a simulated microphone.
 
 GitHub runs the core tests, `e2e_drive.py` and `e2e_v07.py` on every push (`.github/workflows/tests.yml`). The two tests that need game video run locally only, so team footage never goes on GitHub.
+
+## How the code is organised
+
+| File | What it does |
+| --- | --- |
+| `core.js` | Pure logic: time, clips, zoom, speeds, recordings, team data and library merging (tested with Node) |
+| `storage.js` | Saving in the browser's database |
+| `render.js` | Drawing frames and exporting MP4s |
+| `drive.js` | Google sign-in and Drive calls, including the shared sync routine |
+| `app/base.js` | Shared helpers, saving, error reporting; loads the data and creates `App` |
+| `app/player.js` | Plays a game's parts as one video |
+| `app/games.js` | Games screen |
+| `app/tag.js` | Game screen: watch, zoom, tag, periods and goals |
+| `app/editor.js` | Clip editor: trim, freeze and draw, slow motion, details |
+| `app/record.js` | Record a breakdown |
+| `app/export.js` | Export and save to this computer or Drive |
+| `app/settings.js` | Settings screen |
+| `app/team-sync.js` | Shared team data in Drive |
+| `app/library.js` | Shared and private clip libraries |
+| `app/review.js` | Review screen |
+| `app/main.js` | Routing, keyboard, update banner, start-up |
+| `styles.css` | All page styles |
+
+Each `app/` file starts with the names it uses from earlier files (`const { … } = App`), and reaches later files as `App.name`. State that changes as you move around lives on `App`: the open game `App.G`, its timeline `App.TL`, its player `App.player`, and the open clip editor `App.E`.
 
 ## Included library
 
