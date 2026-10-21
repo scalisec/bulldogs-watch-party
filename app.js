@@ -1,10 +1,17 @@
-/* Bulldogs Watch Party — milestone 1 UI: import, watch and tag. Depends on core.js (window.WP). */
-(function () {
+/* Bulldogs Watch Party — the app's screens. Depends on core.js (WP), storage.js (WPStore), render.js and drive.js. */
+(async function () {
   'use strict';
 
   const $ = (id) => document.getElementById(id);
-  const store = WP.createStore(window.localStorage);
-  let S = store.load();
+  let lastSaveCount = 0;
+  const tabs = 'BroadcastChannel' in window ? new BroadcastChannel('bwp-tabs') : null;
+  const DB = WPStore.createDb({
+    onError: (e) => toast('Could not save: ' + (e && e.message ? e.message : e), { err: true, ms: 10000 }),
+    onSaved: (n) => { lastSaveCount = n; if (tabs) tabs.postMessage('saved'); }
+  });
+  const loaded = await DB.load();
+  let S = loaded.state;
+  WPStore.persist();
 
   // ---------- session (not saved) ----------
   const session = { files: new Map(), draftParts: [] }; // draftParts: [{file, handle, duration}]
@@ -18,9 +25,7 @@
   let filterCat = 'all';
 
   // ---------- helpers ----------
-  function saveQuiet() {
-    try { store.save(S); } catch (e) { toast('Could not save: ' + e.message, { err: true }); }
-  }
+  function saveQuiet() { DB.save(S); }
   function save() {
     saveQuiet();
     if (typeof libChanged === 'function') libChanged();
@@ -47,10 +52,34 @@
       t.append(el('button', { type: 'button', onclick: () => { o.action.fn(); t.remove(); } }, o.action.label));
     }
     const box = $('toasts');
-    box.replaceChildren();
+    // stack up to 3 so a quick second tag doesn't wipe out the first one's Undo
+    while (box.children.length >= 3) box.firstElementChild.remove();
     box.append(t);
     setTimeout(() => t.remove(), o.ms || (o.action ? 6000 : 3500));
   }
+
+  /** The app's own yes/no and type-a-name dialogs (instead of the browser's grey pop-ups). */
+  function ask(o) {
+    return new Promise((resolve) => {
+      const d = $('dlg-ask');
+      $('ask-h').textContent = o.title;
+      $('ask-msg').textContent = o.message || '';
+      $('ask-msg').classList.toggle('hidden', !o.message);
+      const inp = $('ask-input');
+      inp.classList.toggle('hidden', o.input == null);
+      inp.value = o.input || '';
+      $('ask-ok').textContent = o.ok || 'OK';
+      $('ask-ok').className = 'btn ' + (o.danger ? 'danger solid' : 'primary');
+      let done = false;
+      const finish = (v) => { if (done) return; done = true; d.close(); resolve(v); };
+      $('ask-cancel').onclick = () => finish(o.input != null ? null : false);
+      $('ask-form').onsubmit = (e) => { e.preventDefault(); finish(o.input != null ? inp.value.trim() || null : true); };
+      d.oncancel = (e) => { e.preventDefault(); finish(o.input != null ? null : false); };
+      d.showModal();
+      if (o.input != null) { inp.focus(); inp.select(); } else $('ask-ok').focus();
+    });
+  }
+  const askYes = (title, message, ok, danger) => ask({ title, message, ok, danger: danger !== false });
 
   function download(name, text) {
     const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
@@ -65,6 +94,21 @@
   function rangeText(c) { return WP.formatTime(c.start) + '–' + WP.formatTime(c.end); }
   function lenText(c) { return Math.round(c.end - c.start) + 's'; }
   function slug(s) { return String(s || 'game').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+
+  // ---------- unexpected errors: say so, and offer details to copy into a bug report ----------
+  let lastErrAt = 0;
+  function reportError(err) {
+    const msg = (err && (err.message || err.reason && err.reason.message)) || String(err || 'Unknown error');
+    if (/ResizeObserver loop|AbortError|Stopped/.test(msg) || Date.now() - lastErrAt < 4000) return;
+    lastErrAt = Date.now();
+    const details = JSON.stringify({ version: WP.APP_VERSION, when: new Date().toISOString(), screen: location.hash, message: msg,
+      stack: String((err && err.stack) || '').split('\n').slice(0, 6).join('\n'), browser: navigator.userAgent }, null, 2);
+    toast('Something went wrong: ' + msg, { err: true, ms: 12000, action: { label: 'Copy details', fn: () => {
+      (navigator.clipboard ? navigator.clipboard.writeText(details) : Promise.reject()).then(() => toast('Details copied \u2014 paste them into your notes'), () => prompt('Copy these details:', details));
+    } } });
+  }
+  window.addEventListener('error', (e) => reportError(e.error || e.message));
+  window.addEventListener('unhandledrejection', (e) => reportError(e.reason));
 
   // ---------- file handle storage (lets Chrome reopen videos without re-choosing) ----------
   const idb = {
@@ -108,7 +152,7 @@
     if (view === 'tag' && id) { if (openGame(id)) show('tag'); }
     else if (view === 'edit' && id && sub) { show('edit'); if (!openEditor(id, sub)) return; }
     else if (view === 'settings') { renderSettings(); show('settings'); }
-    else if (view === 'review') { show('review'); renderReview(); }
+    else if (view === 'review') { show('review'); renderReview(); libSyncIfStale(20000); }
     else { renderGames(); show('games'); }
   }
 
@@ -227,8 +271,8 @@
           el('button', { type: 'button', class: 'btn small', onclick: () => download('watch-party-' + slug(WP.gameTitle(g)) + '.json', WP.exportBackup(S, g.id)) }, 'Backup'),
           el('button', {
             type: 'button', class: 'btn small danger', 'aria-label': 'Delete ' + WP.gameTitle(g),
-            onclick: () => {
-              if (!confirm('Delete ' + WP.gameTitle(g) + ' and its ' + g.clips.length + ' clips from this computer? The video files are not touched.')) return;
+            onclick: async () => {
+              if (!(await askYes('Delete ' + WP.gameTitle(g) + '?', 'Its ' + g.clips.length + ' clips are removed from this computer. The video files and anything already in Drive are not touched.', 'Delete game'))) return;
               S.games = S.games.filter((x) => x.id !== g.id);
               save(); idb.del(g.id); session.files.delete(g.id);
               if (player && player.gameId === g.id) { player.destroy(); player = null; G = null; }
@@ -812,8 +856,21 @@
     E.player = createPlayer($('e-video'), files, TL, G.id, () => {});
     E.player.seek(clip.start).then(() => { if (E && E.clipId === clipId) renderEditor(); });
     renderEditor();
-    const loop = () => { if (!E) return; drawStage(); E.raf = requestAnimationFrame(loop); };
+    const loop = () => { if (!E) return; if (stageNeedsDraw()) drawStage(); E.raf = requestAnimationFrame(loop); };
     E.raf = requestAnimationFrame(loop);
+    return true;
+  }
+
+  /** Skip redrawing the editor picture when nothing changed (saves battery while paused). */
+  function stageNeedsDraw() {
+    if (E.mode !== 'idle' && E.mode !== 'draw') return true; // preview, record, countdown, export
+    if (E.player.isPlaying()) return true;
+    const v = $('e-video');
+    const dd = E.drawDraft;
+    const last = dd && dd.pts[dd.pts.length - 1];
+    const key = [v.currentTime, v.readyState, v.videoWidth, E.mode, E.d, E.d.zoom, dd, dd && dd.pts.length, last && last[0], last && last[1], E.W, E.H, E.holdActive, document.visibilityState];
+    if (E.lastKey && WP.sameSig(E.lastKey, key)) return false;
+    E.lastKey = key;
     return true;
   }
 
@@ -1049,7 +1106,7 @@
         el('span', { class: 'small' }, 'The export uses this recording. Slow-motion sections, freeze and the fixed zoom aren\u2019t used while it exists.'),
         el('div', { class: 'row' },
           el('button', { type: 'button', class: 'btn small', onclick: () => startPreview() }, '\u25B6 Play recording'),
-          el('button', { type: 'button', class: 'btn small danger', onclick: () => { if (!confirm('Delete this recording?')) return; idb.del('voice:' + d.id); commit({ rec: null }); } }, 'Delete recording')),
+          el('button', { type: 'button', class: 'btn small danger', onclick: async () => { if (!(await askYes('Delete this recording?', 'The zoom moves, drawings and voice-over you recorded are removed. Your freeze and slow-motion settings come back.', 'Delete recording'))) return; idb.del('voice:' + d.id); commit({ rec: null }); } }, 'Delete recording')),
         opts, startBtn);
     } else box.replaceChildren(rule, opts, startBtn);
   }
@@ -1274,12 +1331,13 @@
       range.style.width = (trimPct(b) - trimPct(a)) + '%';
       E.player.seek(v);
     });
-    const end = () => {
+    const end = async () => {
       if (!drag || !E) { drag = null; return; }
       const dd = drag;
       drag = null;
       if (dd.which === 'start' || dd.which === 'end') {
-        if (dd.value != null && okToRetrim()) commit({ [dd.which]: dd.value });
+        if (dd.value != null && (await okToRetrim()) && E) commit({ [dd.which]: dd.value });
+        if (!E) return;
         setWindow();
         renderEditor();
       } else renderFreezePanel();
@@ -1288,10 +1346,10 @@
     tr.addEventListener('pointercancel', end);
   })();
 
-  const okToRetrim = () => !WP.hasRec(E.d) || confirm('Changing the trim deletes the recorded breakdown. Continue?');
-  const setTrim = (key, v) => {
+  const okToRetrim = async () => !WP.hasRec(E.d) || askYes('Change the trim?', 'Changing the trim deletes the recorded breakdown.', 'Change trim');
+  const setTrim = async (key, v) => {
     if (!Number.isFinite(v)) { toast('Use m:ss, e.g. 4:09.5', { err: true }); renderEditor(); return; }
-    if (v !== E.d[key] && !okToRetrim()) { renderEditor(); return; }
+    if (v !== E.d[key] && !(await okToRetrim())) { renderEditor(); return; }
     if (commit({ [key]: v })) { setWindow(); renderEditor(); }
   };
   $('e-start').addEventListener('change', (e) => setTrim('start', WP.parseTime(e.target.value)));
@@ -1379,8 +1437,8 @@
   $('e-note').addEventListener('change', (e) => commit({ note: e.target.value }));
   for (const b of $('e-flag').children) b.addEventListener('click', () => commit({ flag: b.dataset.flag }));
   $('e-title-on').addEventListener('change', (e) => commit({ titleBar: e.target.checked }));
-  $('e-delete').addEventListener('click', () => {
-    if (!confirm('Delete this clip?')) return;
+  $('e-delete').addEventListener('click', async () => {
+    if (!(await askYes('Delete this clip?', 'You can undo this for a few seconds afterwards.', 'Delete clip'))) return;
     const id = E.clipId;
     const gid = G.id;
     closeEditor();
@@ -1405,6 +1463,9 @@
     const d = E.d;
     const cat = catById(d.categoryId);
     const name = WP.exportFileName(d, cat, G);
+    if (wantsDrive(d) && (S.sync || d.private)) {
+      try { await ensureDriveSession(true); } catch (e) { toast('Sign in to Google to save to Drive: ' + e.message, { err: true, ms: 8000 }); return; }
+    }
     const dests = chosenDests(d);
     if (!destPick.local && !dests.length) { toast('Choose where to save the MP4 (this computer or a Drive folder)', { err: true }); return; }
     let handle = null;
@@ -1442,14 +1503,7 @@
         await w.write(res.blob);
         await w.close();
       } else if (destPick.local) downloadBlob(name, res.blob);
-      if (dests.length) {
-        $('e-pct').textContent = 'uploading to Drive\u2026';
-        try {
-          const up = await uploadToDrive(d, res.blob, name, dests, (dest) => { $('e-pct').textContent = 'uploading to ' + WP.destLabel(dest, S.settings.roster) + '\u2026'; });
-          commit({ drive: up.list }, true);
-          toast('Saved to Drive: ' + up.done.map((x) => WP.destLabel(x, S.settings.roster)).join(', '), { ms: 7000 });
-        } catch (err) { toast('Drive upload failed: ' + err.message, { err: true, ms: 10000 }); }
-      }
+      if (dests.length) await sendToDrive(d, res.blob, name, dests);
       window.__bwp.lastExport = { dests, name: finalName, size: res.blob.size, codec: res.codec, h264: res.h264, audio: res.audio, frames: res.frames, duration: res.duration, blob: res.blob };
       E.mode = 'idle';
       commit({ exported: { at: Date.now(), name: finalName, size: res.blob.size, codec: res.codec } });
@@ -1497,8 +1551,19 @@
     else if (k === 'Escape') { exitDraw(); }
   }
 
+  // ---- shortcuts overlay (? key) ----
+  function keyCells(k) { return k.split(/( \/ | or | \+ | \u00b7 )/).map((bit) => (/^ (\/|or|\+|\u00b7) $/.test(bit) ? bit : el('kbd', {}, bit))); }
+  function openKeys() {
+    $('keys-body').replaceChildren(...WP.SHORTCUTS.map((sec) => el('div', { class: 'stack', style: 'gap:4px' }, el('h3', {}, sec.title),
+      el('table', { class: 'keystable' }, el('tbody', {}, ...sec.keys.map(([k, what]) => el('tr', {}, el('td', {}, ...keyCells(k)), el('td', {}, what))))))));
+    $('dlg-keys').showModal();
+  }
+  $('keys-open').addEventListener('click', openKeys);
+  $('keys-close').addEventListener('click', () => $('dlg-keys').close());
+
   // ---- keyboard ----
   document.addEventListener('keydown', (e) => {
+    if (e.key === '?' && !/^(input|select|textarea)$/i.test(e.target.tagName || '') && !document.querySelector('dialog[open]')) { e.preventDefault(); openKeys(); return; }
     if (!$('view-edit').classList.contains('hidden')) { editorKey(e); return; }
     if ($('view-tag').classList.contains('hidden') || !G) return;
     if ($('dlg-manual').open) return;
@@ -1516,8 +1581,8 @@
     else if (k === '-' || k === '_') { e.preventDefault(); applyZoom(WP.zoomAt(zoom, 1 / 1.25)); }
     else if (k === '0') { e.preventDefault(); applyZoom(WP.FIT); }
     else if (k === 'p' || k === 'P') { e.preventDefault(); markPeriod(); }
-    else if (k === 'g') { e.preventDefault(); markGoal('for'); }
-    else if (k === 'G') { e.preventDefault(); markGoal('against'); }
+    else if (k === 'g' || k === 'G') { e.preventDefault(); markGoal('for'); } // either case, so Caps Lock can't flip it
+    else if (k === 'h' || k === 'H') { e.preventDefault(); markGoal('against'); }
     else if (/^[1-9]$/.test(k)) {
       const cat = WP.categoryForKey(S.settings.categories, k);
       if (cat) { e.preventDefault(); onCategory(cat); }
@@ -1533,6 +1598,11 @@
     $('app-version').textContent = 'v' + WP.APP_VERSION;
     $('app-released').textContent = 'Released ' + WP.formatDate(WP.APP_RELEASED);
     $('app-schema').textContent = String(WP.SCHEMA_VERSION);
+    WPStore.usage().then((u) => {
+      if (!u) return;
+      $('app-storage').textContent = 'Storage on this device: ' + (u.used / 1e6).toFixed(1) + ' MB used' +
+        (u.persisted === true ? ' \u00b7 kept permanently' : u.persisted === false ? ' \u00b7 Chrome may clear it if the disk gets full \u2014 keep backups or Drive copies' : '');
+    });
     $('s-coach').value = S.settings.coachName;
     const keyed = WP.keyedCategories(S.settings.categories);
     const keyOf = (id) => (keyed.find((k) => k.id === id) || {}).key;
@@ -1607,6 +1677,7 @@
     if (!b) return;
     if (!S.sync) { b.textContent = ''; b.className = 'syncbadge'; return; }
     if (Team.busy) { b.textContent = 'Syncing team data…'; b.className = 'syncbadge'; return; }
+    if (!WPDrive.hasToken() && WPDrive.configured() && WPDrive.webOrigin()) { b.textContent = 'Signed out of Google \u2014 tap to sign in'; b.className = 'syncbadge warn clickable'; return; }
     if (Team.lastErr) { b.textContent = 'Team data: sync problem'; b.className = 'syncbadge warn'; return; }
     if (S.sync.dirty) { b.textContent = 'Team data: not synced yet'; b.className = 'syncbadge warn'; return; }
     b.textContent = 'Team data synced';
@@ -1768,8 +1839,8 @@
     renderTeamCard();
   }
 
-  function disconnectTeam() {
-    if (!confirm('Stop syncing team data on this device? The roster and categories stay here; nothing is deleted from Google Drive.')) return;
+  async function disconnectTeam() {
+    if (!(await askYes('Stop syncing on this device?', 'The roster and categories stay here; nothing is deleted from Google Drive.', 'Stop syncing'))) return;
     S.sync = null;
     S.lib.teamSync = null;
     S.lib.privSync = null;
@@ -1863,7 +1934,18 @@
   }
   window.addEventListener('focus', () => {
     if (S.sync && WPDrive.hasToken() && !Team.busy && (!S.sync.lastSyncAt || Date.now() - S.sync.lastSyncAt > 60000)) syncNow(false);
+    libSyncIfStale(60000);
+    renderSyncBadge();
   });
+  $('sync-badge').addEventListener('click', () => { if (S.sync && !WPDrive.hasToken()) connectGoogle(); });
+  setInterval(renderSyncBadge, 30000); // notice when the hour-long Google sign-in runs out
+
+  /** Pull other coaches' new clips if the library hasn't synced for a while. */
+  function libSyncIfStale(ms) {
+    if (!WPDrive.hasToken() || LIB.busy) return;
+    const last = Math.min((S.lib.teamSync && S.lib.teamSync.lastSyncAt) || 0, (S.lib.privSync && S.lib.privSync.lastSyncAt) || 0);
+    if (Date.now() - last > ms) libSyncAll(false);
+  }
 
 
   // =====================================================================
@@ -1993,11 +2075,14 @@
   });
 
   // ---- editor: where the export goes ----
-  const destPick = { local: true, team: false, coaches: false, players: false, private: false };
+  // where exports go: remembered on this device
+  const DEST_KEY = 'bwp-dest-pick';
+  const destPick = Object.assign({ local: true, team: false, coaches: false, players: false, private: false }, (() => { try { return JSON.parse(localStorage.getItem(DEST_KEY) || '{}'); } catch (e) { return {}; } })());
+  function saveDestPick() { try { localStorage.setItem(DEST_KEY, JSON.stringify(destPick)); } catch (e) { /* ignore */ } }
 
   function driveReady(priv) {
     if (!WPDrive.configured() || !WPDrive.webOrigin()) return 'Saving to Google Drive works on the web version once you sign in (Settings).';
-    if (!WPDrive.hasToken()) return 'Sign in with Google in Settings to also save clips to Drive.';
+    if (!WPDrive.hasToken() && !S.sync && !S.lib.privSync) return 'Sign in with Google in Settings to also save clips to Drive.';
     if (!priv && !S.sync) return 'Set up team data in Settings to save to the team’s Drive folders.';
     return null;
   }
@@ -2007,7 +2092,7 @@
     const d = E.d;
     const box = $('e-dests');
     const cb = (key, text, disabled) => {
-      const i = el('input', { type: 'checkbox', style: 'width:18px;height:18px;flex:none', disabled: !!disabled, onchange: (e) => { destPick[key] = e.target.checked; } });
+      const i = el('input', { type: 'checkbox', style: 'width:18px;height:18px;flex:none', disabled: !!disabled, onchange: (e) => { destPick[key] = e.target.checked; saveDestPick(); } });
       i.checked = !!destPick[key] && !disabled;
       return el('label', { style: 'display:flex;align-items:center;gap:8px;font-size:13px' }, i, text);
     };
@@ -2021,7 +2106,11 @@
       rows.push(cb('players', fam, !!why || !d.players.length));
     }
     if (why) rows.push(el('span', { class: 'small muted' }, why));
+    else if (!WPDrive.hasToken() && wantsDrive(d)) rows.push(el('span', { class: 'small muted' }, 'Your Google sign-in has run out \u2014 you\u2019ll be asked to sign in again when you export.'));
     if ((d.drive || []).length) rows.push(el('span', { class: 'small muted' }, 'In Drive: ' + d.drive.map((x) => WP.destLabel(x.folder, S.settings.roster)).join(', ')));
+    const failed = failedUploads.get(d.id);
+    if (failed) rows.push(el('div', { class: 'row', style: 'gap:8px' }, el('span', { class: 'small', style: 'color:var(--work)' }, 'Upload to ' + failed.dests.map((x) => WP.destLabel(x, S.settings.roster)).join(', ') + ' didn\u2019t finish.'),
+      el('button', { type: 'button', class: 'btn small primary', id: 'e-retry-upload', disabled: edBusy(), onclick: () => retryUpload(d.id) }, 'Retry upload')));
     box.replaceChildren(...rows);
   }
 
@@ -2043,30 +2132,88 @@
     if (!root) throw new Error('the team’s Drive folders haven’t been set up yet. The head coach sets them up by saving one clip to Drive.');
     let parent = root;
     if (dest.startsWith('player:')) {
-      if (!folders.players) { folders.players = (await WPDrive.createFolder('Players (one folder per family)', root)).id; }
+      if (!folders.players) { folders.players = (await WPDrive.createFolder('Players (one folder per family)', root)).id; DB.touch('lib:team'); }
       parent = folders.players;
     }
     folders[dest] = (await WPDrive.createFolder(WP.folderName(dest, S.settings.roster), parent)).id;
     folders.root = root;
+    DB.touch('lib:team');
     save();
     return folders[dest];
   }
 
+  /** Upload once, then let Google copy it into the other folders (no second upload).
+      On failure the error carries .partial = { list, done } so finished folders aren't forgotten. */
   async function uploadToDrive(d, blob, name, dests, onStep) {
     const cat = catById(d.categoryId);
     const auto = WP.clipAuto(G, d);
     const desc = [cat ? cat.name : 'Clip', WP.gameTitle(G), auto.period ? WP.periodName(auto.period) : ''].filter(Boolean).join(' · ') + ' — Bulldogs Watch Party';
     let list = (d.drive || []).slice();
     const done = [];
-    for (const dest of dests) {
-      if (onStep) onStep(dest);
-      const folderId = await ensureDestFolder(dest);
-      const f = await WPDrive.uploadBlob(name, folderId, blob, desc);
-      list = list.filter((x) => x.folder !== dest).concat([{ folder: dest, fileId: f.id, name: f.name || name, at: Date.now() }]);
-      done.push(dest);
+    let firstId = null;
+    try {
+      for (const dest of dests) {
+        if (onStep) onStep(dest, null);
+        const folderId = await ensureDestFolder(dest);
+        let f = null;
+        if (firstId) { try { f = await WPDrive.copyFile(firstId, name, folderId, desc); } catch (e) { if (e.code === 401 || e.code === 0) throw e; f = null; } }
+        if (!f) f = await WPDrive.uploadBlob(name, folderId, blob, desc, (p) => onStep && onStep(dest, p));
+        if (!firstId) firstId = f.id;
+        list = list.filter((x) => x.folder !== dest).concat([{ folder: dest, fileId: f.id, name: f.name || name, at: Date.now() }]);
+        done.push(dest);
+      }
+    } catch (e) {
+      e.partial = { list, done };
+      throw e;
     }
     return { list, done };
   }
+
+  // finished videos whose Drive upload failed, kept (this session) so they can be retried without exporting again
+  const failedUploads = new Map(); // clipId -> { blob, name, dests }
+
+  async function retryUpload(clipId) {
+    const f = failedUploads.get(clipId);
+    if (!f || !E || E.clipId !== clipId || edBusy()) return;
+    try { await ensureDriveSession(true); } catch (e) { toast(e.message, { err: true }); return; }
+    E.mode = 'export';
+    renderEditor();
+    $('e-exporting').classList.remove('hidden');
+    try { await sendToDrive(E.d, f.blob, f.name, f.dests); } finally {
+      if (E) { E.mode = 'idle'; $('e-exporting').classList.add('hidden'); renderEditor(); }
+    }
+  }
+
+  async function sendToDrive(d, blob, name, dests) {
+    const setUp = (dest, p) => {
+      $('e-pct').textContent = 'uploading to ' + WP.destLabel(dest, S.settings.roster) + (p != null ? ' ' + Math.round(p * 100) + '%' : '') + '\u2026';
+      if (p != null) $('e-bar').style.width = (p * 100) + '%';
+    };
+    try {
+      const up = await uploadToDrive(d, blob, name, dests, setUp);
+      failedUploads.delete(d.id);
+      commit({ drive: up.list }, true);
+      toast('Saved to Drive: ' + up.done.map((x) => WP.destLabel(x, S.settings.roster)).join(', '), { ms: 7000 });
+      return true;
+    } catch (err) {
+      const left = err.partial ? dests.filter((x) => !err.partial.done.includes(x)) : dests;
+      if (err.partial && err.partial.done.length) commit({ drive: err.partial.list }, true);
+      failedUploads.set(d.id, { blob, name, dests: left });
+      toast('Drive upload failed: ' + err.message + '. The video is kept \u2014 use \u201cRetry upload\u201d.', { err: true, ms: 12000 });
+      return false;
+    }
+  }
+
+  /** Make sure the Google sign-in is good for the next few minutes. Call it straight from a click. */
+  async function ensureDriveSession(needed) {
+    if (!needed || !WPDrive.configured() || !WPDrive.webOrigin()) return;
+    if (WPDrive.expiresIn() > 600) return;
+    const hint = (S.sync && S.sync.account) || Team.account || undefined;
+    await WPDrive.signIn(hint, WPDrive.expiresIn() > 0 || !!hint);
+    renderSyncBadge();
+  }
+
+  function wantsDrive(d) { return d.private ? destPick.private : (destPick.team || destPick.coaches || (destPick.players && d.players.length > 0)); }
 
   // =====================================================================
   // CLIP LIBRARY IN DRIVE (team: _App; private: the coach's own folder)
@@ -2129,12 +2276,16 @@
     // other coaches' tag edits to my clips come back into my clips
     if (cfg.base) {
       for (const g of S.games) {
-        g.clips = g.clips.map((c) => {
+        let changed = false;
+        const next = g.clips.map((c) => {
           if (!!c.private !== (kind === 'priv')) return c;
           const te = theirs.entries[c.id];
           const be = cfg.base.entries[c.id];
-          return te && be && !sameJ(te, be) ? WP.applyEntryTags(c, te, be) : c;
+          const out = te && be && !sameJ(te, be) ? WP.applyEntryTags(c, te, be) : c;
+          if (out !== c) changed = true;
+          return out;
         });
+        if (changed) g.clips = next;
       }
     }
     const step = WP.syncLibraryStep({ base: cfg.base, mine: myLibrary(kind), theirs, dirty: true });
@@ -2174,7 +2325,9 @@
   // =====================================================================
   // REVIEW SCREEN
   // =====================================================================
-  const R = { filters: WP.emptyFilters(), viewId: null, queue: [], idx: -1, cleanup: null, sort: 'oldest' };
+  const PAGE = 48; // cards shown at a time (a season can have well over a thousand clips)
+  const R = { filters: WP.emptyFilters(), viewId: null, queue: [], idx: -1, cleanup: null, sort: 'oldest', shown: PAGE, listKey: '' };
+  let localIdx = null; // clip id -> { game, clip }, rebuilt each time Review draws
 
   function scopeEntries() {
     const team = Object.values(myLibrary('team').entries);
@@ -2184,6 +2337,8 @@
   }
 
   function localClip(id) {
+    const hit = localIdx && localIdx.get(id);
+    if (hit && S.games.includes(hit.game) && hit.game.clips.includes(hit.clip)) return hit;
     for (const g of S.games) { const c = g.clips.find((x) => x.id === id); if (c) return { game: g, clip: c }; }
     return null;
   }
@@ -2213,7 +2368,11 @@
 
   function renderReview() {
     renderWho();
+    localIdx = new Map();
+    for (const g of S.games) for (const c of g.clips) localIdx.set(c.id, { game: g, clip: c });
     const all = scopeEntries();
+    const fc = WP.filterCount(R.filters);
+    $('rv-filter-toggle').textContent = (fc ? 'Filters (' + fc + ')' : 'Filters') + ' and saved views';
     for (const b of $('rv-scope').children) b.setAttribute('aria-pressed', String(b.dataset.scope === S.lib.scope));
     if (document.activeElement !== $('rv-q')) $('rv-q').value = R.filters.q;
     // saved views
@@ -2221,7 +2380,7 @@
     $('rv-views').replaceChildren(...(views.length ? views.map((v) => el('div', { class: 'row', style: 'gap:2px;flex-wrap:nowrap' },
       el('button', { type: 'button', class: 'vbtn grow', 'aria-pressed': String(R.viewId === v.id), onclick: () => { R.filters = WP.normalizeFilters(v.filters); R.viewId = v.id; renderReview(); } },
         el('span', {}, v.name), el('span', { class: 'small muted' }, String(all.filter((e) => WP.entryMatches(e, v.filters)).length))),
-      el('button', { type: 'button', class: 'btn small', style: 'min-height:32px;padding:0 8px', 'aria-label': 'Delete saved view ' + v.name, onclick: () => { if (!confirm('Delete the saved view “' + v.name + '” for all coaches?')) return; S.lib.team.views = WP.removeView(views, v.id); if (R.viewId === v.id) R.viewId = null; save(); renderReview(); } }, '✕')))
+      el('button', { type: 'button', class: 'btn small', style: 'min-height:32px;padding:0 8px', 'aria-label': 'Delete saved view ' + v.name, onclick: async () => { if (!(await askYes('Delete the saved view \u201c' + v.name + '\u201d?', 'It is removed for all coaches.', 'Delete view'))) return; S.lib.team.views = WP.removeView(views, v.id); if (R.viewId === v.id) R.viewId = null; save(); renderReview(); } }, '✕')))
       : [el('span', { class: 'small muted' }, 'None yet. Pick filters, then Save view.')]));
     // filter groups
     const F = R.filters;
@@ -2278,8 +2437,15 @@
     $('rv-active').replaceChildren(...pills, pills.length ? el('button', { type: 'button', class: 'btn small', onclick: () => { R.filters = WP.emptyFilters(); R.viewId = null; renderReview(); } }, 'Clear all') : el('span', { class: 'small muted' }, 'No filters — showing everything.'), sortSel);
     $('rv-play').disabled = !list.length;
     R.list = list;
+    const key = JSON.stringify([R.filters, S.lib.scope, R.sort]);
+    if (key !== R.listKey) { R.listKey = key; R.shown = PAGE; }
     const nowId = R.idx >= 0 && R.queue[R.idx] ? R.queue[R.idx].id : null;
-    $('rv-results').replaceChildren(...(list.length ? list.map((e, i) => {
+    const nowAt = nowId ? list.findIndex((x) => x.id === nowId) : -1;
+    if (nowAt >= R.shown) R.shown = Math.ceil((nowAt + 1) / PAGE) * PAGE; // keep the playing clip's card on screen
+    const more = list.length - R.shown;
+    $('rv-more-btn').classList.toggle('hidden', more <= 0);
+    $('rv-more-btn').textContent = 'Show ' + Math.min(PAGE, Math.max(0, more)) + ' more (' + Math.max(0, more) + ' left)';
+    $('rv-results').replaceChildren(...(list.length ? list.slice(0, R.shown).map((e, i) => {
       const w = whereInfo(e);
       const feats = Object.entries(e.features || {}).filter(([, v]) => v).map(([k]) => ({ drawing: 'Drawing', slow: 'Slow-mo', zoom: 'Zoom', voice: 'Voice' })[k]);
       return el('button', { type: 'button', class: 'rvcard' + (e.id === nowId ? ' now' : ''), 'data-entry': e.id, onclick: () => startQueue(list, i) },
@@ -2303,13 +2469,19 @@
     renderReview();
   });
   $('rv-q').addEventListener('input', (e) => { R.filters.q = e.target.value; R.viewId = null; clearTimeout(R.qt); R.qt = setTimeout(renderReview, 200); });
-  $('rv-save').addEventListener('click', () => {
-    const name = prompt('Name this view (shared with all coaches):', WP.describeFilters(R.filters, S.settings.categories));
+  $('rv-save').addEventListener('click', async () => {
+    const name = await ask({ title: 'Save this view', message: 'Saved views are shared with all coaches.', input: WP.describeFilters(R.filters, S.settings.categories), ok: 'Save view' });
     if (name == null) return;
     try { S.lib.team.views = WP.addView(S.lib.team.views, name, R.filters); R.viewId = S.lib.team.views[S.lib.team.views.length - 1].id; save(); renderReview(); toast('View saved'); }
     catch (err) { toast(err.message, { err: true }); }
   });
   $('rv-play').addEventListener('click', () => R.list && R.list.length && startQueue(R.list, 0));
+  $('rv-more-btn').addEventListener('click', () => { R.shown += PAGE; renderReview(); });
+  $('rv-filter-toggle').addEventListener('click', () => {
+    const open = !$('rv-more').classList.contains('open');
+    $('rv-more').classList.toggle('open', open);
+    $('rv-filter-toggle').setAttribute('aria-expanded', String(open));
+  });
   $('rv-prev').addEventListener('click', () => playAt(R.idx - 1));
   $('rv-next').addEventListener('click', () => playAt(R.idx + 1));
   $('rv-close').addEventListener('click', stopReviewPlayer);
@@ -2332,6 +2504,22 @@
 
   function nextAfterEnd() { if ($('rv-auto').checked && R.idx < R.queue.length - 1) playAt(R.idx + 1); }
 
+  // Drive clips already downloaded (or downloading): the next clip is fetched while the current one plays
+  const blobCache = new Map(); // fileId -> Promise<Blob>
+  function driveBlob(fileId) {
+    if (blobCache.has(fileId)) { const p = blobCache.get(fileId); blobCache.delete(fileId); blobCache.set(fileId, p); return p; }
+    const p = WPDrive.downloadBlob(fileId);
+    p.catch(() => blobCache.delete(fileId));
+    blobCache.set(fileId, p);
+    while (blobCache.size > 5) blobCache.delete(blobCache.keys().next().value);
+    return p;
+  }
+  function prefetchAfter(i) {
+    const n = R.queue[i + 1];
+    const f = n && (n.drive || [])[0];
+    if (f && WPDrive.hasToken()) driveBlob(f.fileId).catch(() => {});
+  }
+
   async function playAt(i) {
     if (i < 0 || i >= R.queue.length) return;
     if (R.cleanup) { R.cleanup(); R.cleanup = null; }
@@ -2351,8 +2539,9 @@
     const file = (e.drive || [])[0];
     if (file && WPDrive.hasToken()) {
       try {
-        const blob = await WPDrive.downloadBlob(file.fileId);
+        const blob = await driveBlob(file.fileId);
         if (R.token !== token) return;
+        prefetchAfter(i);
         const url = URL.createObjectURL(blob);
         const v = el('video', { src: url, controls: true, autoplay: true, playsinline: true });
         v.addEventListener('ended', nextAfterEnd);
@@ -2400,6 +2589,7 @@
       const lib = e.private ? S.lib.priv : S.lib.team;
       const upd = Object.assign({}, lib.entries[e.id] || e, patch);
       lib.entries[e.id] = upd;
+      DB.touch(e.private ? 'lib:priv' : 'lib:team');
       save();
       R.queue[R.idx] = upd;
     }
@@ -2450,19 +2640,49 @@
     catch (e) { prompt('Copy this link:', url); }
   }
 
-  // keep other open tabs in sync
-  window.addEventListener('storage', (e) => {
-    if (e.key !== 'bulldogs-watch-party:v1') return;
-    S = store.load();
-    if (G) { G = S.games.find((g) => g.id === G.id) || G; }
+  // keep other open tabs in sync (each tab saves to the same database)
+  if (tabs) tabs.onmessage = async () => {
+    if (DB.pending() || E) return; // this tab has its own unsaved edits or an open editor
+    S = (await DB.load()).state;
+    if (G) { G = S.games.find((g) => g.id === G.id) || G; TL = WP.gameTimeline(G); }
     route();
+  };
+  // write right away when the app is hidden or closed
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') DB.flush(); });
+  window.addEventListener('pagehide', () => DB.flush());
+  // warn before closing the tab in the middle of something
+  window.addEventListener('beforeunload', (e) => {
+    const busy = (E && (edBusy() || edRecording())) || DB.pending() || Team.busy || LIB.busy;
+    if (busy) { e.preventDefault(); e.returnValue = ''; }
   });
+  if (loaded.migrated) toast('Your games and clips were moved to the browser\u2019s database \u2014 no more storage limit.', { ms: 6000 });
 
   $('brand-version').textContent = 'v' + WP.APP_VERSION;
+
+  // ---- new version available? (GitHub Pages caches files for about 10 minutes, and phones can't press Ctrl+F5) ----
+  let lastUpdateCheck = 0;
+  async function checkForUpdate() {
+    if (location.protocol === 'file:' || Date.now() - lastUpdateCheck < 10 * 60000) return;
+    lastUpdateCheck = Date.now();
+    try {
+      const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) return;
+      const v = String((await r.json()).version || '');
+      if (v && WP.compareVersions(v, WP.APP_VERSION) > 0) {
+        $('update-text').textContent = 'A new version of Watch Party is ready (v' + v + ').' + (E && edBusy() ? ' Finish your export first.' : '');
+        $('update-banner').classList.remove('hidden');
+        $('update-go').onclick = async () => { await DB.flush(); location.replace(location.pathname + '?v=' + encodeURIComponent(v) + location.hash); };
+      }
+    } catch (e) { /* offline: try later */ }
+  }
+  $('update-later').addEventListener('click', () => $('update-banner').classList.add('hidden'));
+  window.addEventListener('focus', checkForUpdate);
+  setInterval(checkForUpdate, 30 * 60000);
+  setTimeout(checkForUpdate, 4000);
   renderSyncBadge();
   if (S.sync && WPDrive.hasToken()) setTimeout(() => syncNow(false), 300);
   if (WPDrive.hasToken()) setTimeout(() => libSyncAll(false), 900);
   window.addEventListener('hashchange', route);
-  window.__bwp = { get state() { return S; }, get player() { return player; }, get editor() { return E; }, get team() { return Team; }, get lib() { return LIB; }, get review() { return R; }, lastExport: null }; // for testing
+  window.__bwp = { get state() { return S; }, saveAll: () => DB.writeAll(), flush: () => DB.flush(), get lastSaveCount() { return lastSaveCount; }, get player() { return player; }, get editor() { return E; }, get team() { return Team; }, get lib() { return LIB; }, get review() { return R; }, lastExport: null }; // for testing
   route();
 })();

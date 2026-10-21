@@ -67,12 +67,12 @@ with sync_playwright() as p:
     # ---- periods and goals
     seek(A, 2); A.keyboard.press('p')
     seek(A, 20); A.keyboard.press('g')
-    seek(A, 35); A.keyboard.press('Shift+G')
+    seek(A, 35); A.keyboard.press('h')
     seek(A, 38); A.keyboard.press('p')
     seek(A, 41); A.keyboard.press('p')
     marks = A.evaluate('window.__bwp.state.games[0].marks')
     check([(x['n'], x['start'], x['end']) for x in marks['periods']] == [(1, 2, 38), (2, 41, None)], 'P marks period 1 start/end and period 2 start')
-    check([(x['side'], x['t']) for x in marks['goals']] == [('for', 20), ('against', 35)], 'G and Shift+G mark goals for and against')
+    check([(x['side'], x['t']) for x in marks['goals']] == [('for', 20), ('against', 35)], 'G and H mark goals for and against')
     check('P2 start' not in A.text_content('#b-period') and 'end' in A.text_content('#b-period'), 'period button now offers the end of P2')
     check(A.locator('#tl .gmk').count() == 2, 'goals show on the timeline')
     A.screenshot(path=SHOTS + '/L1-marks.png')
@@ -113,6 +113,7 @@ with sync_playwright() as p:
     check(len(vids) == 2 and all(isinstance(v['content'], bytes) and len(v['content']) > 100000 for v in vids), 'two MP4 copies uploaded (%s bytes)' % [len(v['content']) for v in vids])
     check(all('Breakouts' in v['description'] and 'P1' in v['description'] and 'wall' not in v['description'] for v in vids), 'Drive description is neutral: category, game, period (no note)')
     check(A.locator('.toast', has_text='Saved to Drive').count() == 1, 'toast confirms Drive save')
+    check(sum(1 for v in vids if v.get('copiedFrom')) == 1, 'second folder got a Google-side copy, not a second upload')
 
     # ---- a private clip: only in the private library and private folder
     A.click('#e-back'); A.wait_for_selector('#view-tag:not(.hidden)')
@@ -120,12 +121,28 @@ with sync_playwright() as p:
     A.locator('#clips .clip', has_text='Passing').locator('text=Edit').click()
     A.wait_for_selector('#view-edit:not(.hidden)')
     A.wait_for_timeout(600)
+    check(A.is_checked('#e-dests label:has-text("Team (players") input') and not A.is_checked('#e-dests label:has-text("This computer") input'), 'save choices are remembered for the next clip')
     A.check('#e-private')
     A.wait_for_timeout(150)
     check(A.is_visible('#e-dests label:has-text("private Drive folder")') and not A.is_visible('#e-dests label:has-text("Team (players")'), 'private clip offers only the private Drive folder')
     A.check('#e-dests label:has-text("private Drive folder") input')
+    # the first upload fails: the finished video is kept and "Retry upload" sends it without exporting again
+    failed_once = {'n': 0}
+    def flaky(route):
+        if route.request.method == 'PATCH' and route.request.headers.get('content-type', '').startswith('video') and failed_once['n'] == 0:
+            failed_once['n'] += 1
+            route.fulfill(status=503, headers={'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'}, body=json.dumps({'error': {'message': 'Backend Error'}}))
+        else:
+            route.fallback()
+    A.route('https://www.googleapis.com/upload/drive/v3/files/*', flaky)
     A.click('#e-export')
+    A.wait_for_selector('#e-retry-upload', timeout=60000)
+    check(A.locator('.toast', has_text='Retry upload').count() >= 1 and len([f for f in drive.values() if (f['name'] or '').endswith('.mp4') and f['parents'] == [pf[0]['id']]]) == 0, 'failed upload: video kept, Retry offered, no empty file left in Drive')
+    A.unroute('https://www.googleapis.com/upload/drive/v3/files/*', flaky)
+    frames_before = A.evaluate('window.__bwp.lastExport && window.__bwp.lastExport.frames')
+    A.click('#e-retry-upload')
     A.wait_for_function("window.__bwp.editor.mode === 'idle' && (window.__bwp.editor.d.drive || []).length === 1", timeout=60000)
+    check(not A.is_visible('#e-retry-upload'), 'retry uploaded the kept video (no new export)')
     pv = [f for f in drive.values() if (f['name'] or '').endswith('.mp4') and f['parents'] == [pf[0]['id']]]
     check(len(pv) == 1, 'private clip uploaded to the private folder')
     A.click('#e-back'); A.wait_for_selector('#view-tag:not(.hidden)')
@@ -158,8 +175,9 @@ with sync_playwright() as p:
     A.fill('#rv-q', 'zzz'); A.wait_for_timeout(300)
     check('0 clips' in A.text_content('#rv-count'), 'search with no match finds nothing')
     A.fill('#rv-q', ''); A.wait_for_timeout(300)
-    A.once('dialog', lambda dlg: dlg.accept('Goals off breakouts'))
     A.click('#rv-save')
+    A.wait_for_selector('#dlg-ask[open]')
+    A.fill('#ask-input', 'Goals off breakouts'); A.click('#ask-ok')
     check('Goals off breakouts' in A.text_content('#rv-views'), 'saved view appears in the list')
     A.click('#rv-play')
     A.wait_for_function("document.querySelector('#rv-stage video') && document.querySelector('#rv-stage video').src.startsWith('blob:')", timeout=10000)
@@ -220,8 +238,8 @@ with sync_playwright() as p:
     A.wait_for_timeout(500)
     A.locator('#clips .clip', has_text='Breakouts').locator('text=Edit').click()
     A.wait_for_selector('#view-edit:not(.hidden)')
-    A.once('dialog', lambda dlg: dlg.accept())
     A.click('#e-delete')
+    A.wait_for_selector('#dlg-ask[open]'); A.click('#ask-ok')
     A.wait_for_timeout(3400); idle(A)
     check(len(lib_json()['entries']) == 0, 'deleting a clip removes it from the team library')
 

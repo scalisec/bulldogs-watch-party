@@ -83,8 +83,12 @@ In the clip editor, tick **Voice-over** and/or **Record at half speed**, then cl
 | ← → | Back / forward 5 s (Shift: 1 s) |
 | 1–9 | Tag with that category |
 | I / O | Mark start / end |
+| P | Period start / end |
+| G / H | Goal for / goal against |
 | + / − / 0 | Zoom in / out / fit |
 | Esc | Cancel marks |
+
+Press **?** anywhere for the full list. `shortcuts.html` is a one-page version to print.
 
 ## Shared team data (milestone 3a)
 
@@ -108,7 +112,7 @@ Each coach's own name (shown on their clips) stays on their device.
 
 ## Clip library and Review (milestone 3b)
 
-- **Mark the game:** on the game screen press **P** at the start and end of each period, **G** for a goal for and **Shift+G** for a goal against. Clips then get their period and the score automatically, and clips containing a goal are tagged with it.
+- **Mark the game:** on the game screen press **P** at the start and end of each period, **G** for a goal for and **H** for a goal against. Clips then get their period and the score automatically, and clips containing a goal are tagged with it.
 - **Tag clips:** in the clip editor, set events (any number), zone, situation, star, custom tags, or **Private (only me)**.
 - **Save to Drive:** when exporting, tick where the MP4 goes.
   - Team clips: this computer, Team, Coaches only, or the tagged players' family folders.
@@ -123,16 +127,30 @@ Each coach's own name (shown on their clips) stays on their device.
 - **Other coaches:** when they open the shared team data, they pick both the team data and the clip library files.
 - **Still to confirm:** whether other coaches' copies of the app can save into the team folders, given the app's narrow Google permission. This will be checked when the first coach joins.
 
+## Where things are saved (v0.7)
+
+- Games, clips and settings are kept in the browser's database (IndexedDB) on each device. There's no practical size limit; the old single entry stopped at about 5 MB.
+- Only what changed is rewritten, so saving stays instant even with a full season.
+- Data saved by v0.6 or earlier moves over automatically the first time v0.7 opens.
+- **Settings › About** shows how much space is used, and whether Chrome has agreed to keep it permanently.
+
+## Updates
+
+When a new version is on the site, a yellow banner offers **Reload now**, so phones that can't press Ctrl+F5 still update. On a phone, Chrome's menu › **Add to Home screen** installs the app with its own icon.
+
 ## Reopening a game later
 
 Video files can't be saved inside the browser. When you reopen a game, click **Reconnect videos**, or choose the same files again.
 
 ## Tests
 
-- `node --test tests/` runs the core logic tests (61).
-- `python3 tests/e2e_library.py <screenshot-dir> <media-dir>` tests marks, tags, Drive uploads, the shared and private libraries and Review with two coaches and a phone against a simulated Drive (45 checks).
+- `node --test tests/core.test.js` runs the core logic tests (65).
+- `python3 tests/e2e_v07.py <screenshot-dir>` tests the storage move, a 60-game season, Review paging, G/H keys, shortcuts and the update banner (23 checks).
+- `python3 tests/e2e_library.py <screenshot-dir> <media-dir>` tests marks, tags, Drive uploads, the shared and private libraries and Review with two coaches and a phone against a simulated Drive (48 checks).
 - `python3 tests/e2e_drive.py <screenshot-dir>` tests shared team data with two coaches against a simulated Google Drive (23 checks).
-- `python3 tests/e2e.py <screenshot-dir> <media-dir>` runs the browser test (74 checks). It covers tagging, zoom, the editor, drawing, slow motion, preview, MP4 export, and recording a breakdown with a simulated microphone.
+- `python3 tests/e2e.py <screenshot-dir> <media-dir>` runs the browser test (75 checks). It covers tagging, zoom, the editor, drawing, slow motion, preview, MP4 export, and recording a breakdown with a simulated microphone.
+
+GitHub runs the core tests, `e2e_drive.py` and `e2e_v07.py` on every push (`.github/workflows/tests.yml`). The two tests that need game video run locally only, so team footage never goes on GitHub.
 
 ## Included library
 

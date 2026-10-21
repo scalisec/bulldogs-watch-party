@@ -40,9 +40,11 @@
   restoreToken();
 
   function hasToken() { return !!token && tokenExp > Date.now() + 30000; }
+  /** Seconds until the Google sign-in runs out (0 when signed out). Sign-ins last about an hour. */
+  function expiresIn() { return token ? Math.max(0, Math.round((tokenExp - Date.now()) / 1000)) : 0; }
 
   /** Ask Google for an access token. Must be called from a click (it may open a pop-up). */
-  async function signIn(hint) {
+  async function signIn(hint, quiet) {
     if (!configured()) throw new Error('Google sign-in isn’t set up yet');
     if (!webOrigin()) throw new Error('Google sign-in only works on the web version of the app');
     await loadScript('https://accounts.google.com/gsi/client');
@@ -59,7 +61,9 @@
         },
         error_callback: (e) => reject(new Error(e && e.type === 'popup_closed' ? 'Sign-in window was closed' : 'Google sign-in failed'))
       });
-      tokenClient.requestAccessToken(hint ? { login_hint: hint } : {});
+      const req = hint ? { login_hint: hint } : {};
+      if (quiet) req.prompt = ''; // already agreed before: no consent screen, just a quick refresh
+      tokenClient.requestAccessToken(req);
     });
   }
 
@@ -128,11 +132,45 @@
     return r.files || [];
   }
 
-  /** Upload a video (or any blob) in two steps: create the file, then send its bytes. */
-  async function uploadBlob(name, parentId, blob, description) {
+  /** Send bytes with XMLHttpRequest so we can show upload progress (fetch can't). */
+  function sendWithProgress(method, url, blob, contentType, onProgress) {
+    if (!hasToken()) { const e = new Error('Signed out of Google'); e.code = 401; return Promise.reject(e); }
+    return new Promise((resolve, reject) => {
+      const x = new XMLHttpRequest();
+      x.open(method, url);
+      x.setRequestHeader('Authorization', 'Bearer ' + token);
+      x.setRequestHeader('Content-Type', contentType);
+      if (onProgress && x.upload) x.upload.onprogress = (ev) => { if (ev.lengthComputable) onProgress(ev.loaded / ev.total); };
+      x.onerror = () => { const e = new Error('No connection to Google Drive'); e.code = 0; reject(e); };
+      x.onload = () => {
+        if (x.status === 401) { token = null; tokenExp = 0; const e = new Error('Signed out of Google'); e.code = 401; reject(e); return; }
+        if (x.status < 200 || x.status >= 300) {
+          let msg = 'Google Drive error ' + x.status;
+          try { const j = JSON.parse(x.responseText); if (j.error && j.error.message) msg = j.error.message; } catch (e) { /* ignore */ }
+          const e = new Error(msg); e.code = x.status; reject(e); return;
+        }
+        try { resolve(JSON.parse(x.responseText || 'null')); } catch (e) { resolve(null); }
+      };
+      x.send(blob);
+    });
+  }
+
+  /** Upload a video (or any blob) in two steps: create the file, then send its bytes (with progress 0..1). */
+  async function uploadBlob(name, parentId, blob, description, onProgress) {
     const b = json({ name, parents: parentId ? [parentId] : undefined, mimeType: blob.type || 'video/mp4', description: description || undefined });
     const f = await call('POST', API + '/files?fields=id,name', b.body, b.headers);
-    return call('PATCH', UPLOAD + '/files/' + encodeURIComponent(f.id) + '?uploadType=media&fields=' + encodeURIComponent('id,name,webViewLink'), blob, { 'Content-Type': blob.type || 'video/mp4' });
+    try {
+      return await sendWithProgress('PATCH', UPLOAD + '/files/' + encodeURIComponent(f.id) + '?uploadType=media&fields=' + encodeURIComponent('id,name,webViewLink'), blob, blob.type || 'video/mp4', onProgress);
+    } catch (e) {
+      call('DELETE', API + '/files/' + encodeURIComponent(f.id)).catch(() => {}); // don't leave an empty file behind
+      throw e;
+    }
+  }
+
+  /** Copy a file Google-side (no second upload). */
+  function copyFile(id, name, parentId, description) {
+    const b = json({ name, parents: parentId ? [parentId] : undefined, description: description || undefined });
+    return call('POST', API + '/files/' + encodeURIComponent(id) + '/copy?fields=id,name', b.body, b.headers);
   }
 
   function downloadBlob(id) { return call('GET', API + '/files/' + encodeURIComponent(id) + '?alt=media', null, null, 'blob'); }
@@ -174,5 +212,5 @@
     });
   }
 
-  root.WPDrive = { SCOPE, FOLDER, configured, webOrigin, hasToken, signIn, signOut, whoAmI, createFolder, createFile, getMeta, readText, updateText, share, pickFile, findByName, uploadBlob, downloadBlob, trash };
+  root.WPDrive = { SCOPE, FOLDER, configured, webOrigin, hasToken, expiresIn, signIn, signOut, whoAmI, createFolder, createFile, getMeta, readText, updateText, share, pickFile, findByName, uploadBlob, copyFile, downloadBlob, trash };
 })(window);

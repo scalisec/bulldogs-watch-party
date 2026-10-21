@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bulldogs Watch Party</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0E1A2B">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -54,6 +58,7 @@ main { max-width: 1440px; margin: 0 auto; padding: 24px; }
 .btn.primary:hover { background: var(--accent-dark); }
 .btn.outline { border-color: var(--accent); color: var(--accent); }
 .btn.danger { color: #B91C1C; }
+.btn.danger.solid { background: #B91C1C; border-color: #B91C1C; color: #fff; }
 .btn.small { min-height: 36px; padding: 0 10px; font-size: 13px; border-radius: 8px; }
 .btn[disabled] { opacity: .5; cursor: not-allowed; }
 .btn[aria-pressed="true"] { border: 2px solid var(--accent); background: var(--accent-soft); color: var(--accent-dark); }
@@ -185,6 +190,12 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
 .fh { font-family: Inter, system-ui, sans-serif; font-size: 12px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: var(--muted); }
 .vbtn { display: flex; justify-content: space-between; align-items: center; gap: 6px; min-height: 36px; padding: 0 6px 0 10px; border: none; border-radius: 8px; background: transparent; text-align: left; }
 .vbtn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-dark); font-weight: 600; }
+#rv-filter-toggle { display: none; }
+@media (max-width: 760px) {
+  #rv-filter-toggle { display: inline-flex; }
+  #rv-more:not(.open) { display: none; }
+  #rv-filters { max-width: none !important; }
+}
 .rvgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
 .rvcard { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px; text-align: left; }
 .rvcard.now { border: 2px solid var(--accent); }
@@ -199,6 +210,13 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
 .rvstage .msg { padding: 24px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
 .lockpill { background: #FEF3C7; color: #78350F; }
 .syncbadge { font-size: 12px; color: var(--on-navy); text-decoration: none; }
+.keysbtn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid #C7D2E388; background: none; color: #C7D2E3; font-weight: 700; padding: 0; }
+.keystable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.keystable td { padding: 4px 0; border-bottom: 1px solid #E6EAF0; vertical-align: top; }
+.keystable td:first-child { width: 42%; padding-right: 12px; }
+kbd { font: 600 12px/1 Inter, system-ui, sans-serif; background: #EEF2F7; border: 1px solid #C3CCD9; border-bottom-width: 2px; border-radius: 5px; padding: 2px 6px; color: var(--ink); }
+.syncbadge.clickable { text-decoration: underline; }
+.banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 24px; background: #FEF3C7; color: #78350F; font-weight: 600; font-size: 13px; }
 .syncbadge.ok::before { content: '\25CF '; color: #4ADE80; }
 .syncbadge.warn { color: #FDBA74; }
 .syncbadge.warn::before { content: '\25CF '; color: #FB923C; }
@@ -224,8 +242,9 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
     <a href="#review" data-nav="review">Review</a>
     <a href="#settings" data-nav="settings">Settings</a>
   </nav>
-  <div class="row" style="gap:12px"><a href="#settings" id="sync-badge" class="syncbadge"></a><div class="who" id="who"></div></div>
+  <div class="row" style="gap:12px"><a href="#settings" id="sync-badge" class="syncbadge"></a><div class="who" id="who"></div><button type="button" class="keysbtn" id="keys-open" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button></div>
 </header>
+<div id="update-banner" class="banner hidden" role="status"><span id="update-text"></span><button type="button" class="btn small primary" id="update-go">Reload now</button><button type="button" class="btn small" id="update-later">Later</button></div>
 
 <main id="view-games" class="hidden">
   <div class="cols">
@@ -324,7 +343,7 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
           <div class="row">
             <button type="button" class="btn small" id="b-period" title="Period start / end (P)">Period start <kbd>P</kbd></button>
             <button type="button" class="btn small" id="b-goal-for" title="Goal for (G)" style="color:#166534">Goal for <kbd>G</kbd></button>
-            <button type="button" class="btn small" id="b-goal-against" title="Goal against (Shift+G)" style="color:#991B1B">Goal against <kbd>Shift+G</kbd></button>
+            <button type="button" class="btn small" id="b-goal-against" title="Goal against (H)" style="color:#991B1B">Goal against <kbd>H</kbd></button>
           </div>
         </div>
         <div class="chips" id="marks-list"></div>
@@ -479,8 +498,11 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
         <button type="button" data-scope="private">🔒 Private</button>
         <button type="button" data-scope="both">Both</button>
       </div>
-      <div class="stack" style="gap:4px"><h3 class="fh">Saved views</h3><div class="stack" id="rv-views" style="gap:2px"></div></div>
-      <div id="rv-groups" class="stack" style="gap:14px"></div>
+      <button type="button" class="btn" id="rv-filter-toggle" aria-expanded="false" aria-controls="rv-more">Filters and saved views</button>
+      <div id="rv-more" class="stack" style="gap:14px">
+        <div class="stack" style="gap:4px"><h3 class="fh">Saved views</h3><div class="stack" id="rv-views" style="gap:2px"></div></div>
+        <div id="rv-groups" class="stack" style="gap:14px"></div>
+      </div>
       <span class="small muted" id="rv-lib-status"></span>
     </aside>
     <section class="col-main" aria-label="Results">
@@ -508,6 +530,7 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
         </div>
       </div>
       <div class="rvgrid" id="rv-results"></div>
+      <button type="button" class="btn hidden" id="rv-more-btn" style="align-self:center">Show more</button>
     </section>
   </div>
 </main>
@@ -571,9 +594,30 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
         <span class="small muted" id="app-released"></span>
       </div>
       <span class="small muted">Games and clips are stored in this browser (data format v<span id="app-schema"></span>). What's new in each version is in CHANGELOG.md.</span>
+      <span class="small muted" id="app-storage"></span>
     </section>
   </div>
 </main>
+
+<dialog id="dlg-keys" aria-labelledby="keys-h" style="max-width:640px">
+  <div class="dlg">
+    <div class="row spread"><h2 id="keys-h">Keyboard shortcuts</h2>
+      <div class="row"><a class="btn small" href="shortcuts.html" target="_blank" rel="noopener" style="text-decoration:none">Printable page</a><button type="button" class="btn small" id="keys-close">Close</button></div></div>
+    <div id="keys-body" class="stack" style="gap:12px"></div>
+  </div>
+</dialog>
+
+<dialog id="dlg-ask" aria-labelledby="ask-h">
+  <form class="dlg" method="dialog" id="ask-form">
+    <h2 id="ask-h"></h2>
+    <p class="small" id="ask-msg" style="margin:0"></p>
+    <input type="text" id="ask-input" class="hidden" autocomplete="off" maxlength="60" aria-labelledby="ask-h">
+    <div class="row" style="justify-content:flex-end">
+      <button type="button" class="btn" id="ask-cancel">Cancel</button>
+      <button type="submit" class="btn primary" id="ask-ok" value="ok">OK</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="dlg-manual" aria-labelledby="dm-h">
   <form class="dlg" method="dialog" id="dm-form">
@@ -598,11 +642,12 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
-<script src="config.js"></script>
-<script src="core.js"></script>
-<script src="vendor/mp4-muxer.js"></script>
-<script src="render.js"></script>
-<script src="drive.js"></script>
-<script src="app.js"></script>
+<script src="config.js?v=0.7.0"></script>
+<script src="core.js?v=0.7.0"></script>
+<script src="storage.js?v=0.7.0"></script>
+<script src="vendor/mp4-muxer.js?v=0.7.0"></script>
+<script src="render.js?v=0.7.0"></script>
+<script src="drive.js?v=0.7.0"></script>
+<script src="app.js?v=0.7.0"></script>
 </body>
 </html>

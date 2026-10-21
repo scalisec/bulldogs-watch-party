@@ -779,3 +779,43 @@ test('migrate adds library state and clip tag fields to older data', () => {
   assert.deepEqual(s.games[0].clips[0].events, []);
   assert.equal(s.games[0].clips[0].situation, 'even');
 });
+
+// ---------- v0.7: saving in pieces, versions, shortcuts ----------
+test('stateRecords splits meta, library parts and one record per game; stateFromRecords rebuilds it', () => {
+  const s = WP.defaultState();
+  const g = WP.newGame({ parts: [{ name: '1__R__2026-10-04T151933.mp4', size: 1, duration: 600 }], opponent: 'A' });
+  g.clips.push(WP.makeClip({ start: 1, end: 9, categoryId: s.settings.categories[0].id, total: 600 }));
+  s.games.push(g);
+  const recs = WP.stateRecords(s);
+  assert.deepEqual(recs.map((r) => r.key), ['meta', 'lib:team', 'lib:priv', 'lib:teamSync', 'lib:privSync', 'game:' + g.id]);
+  const back = WP.stateFromRecords(new Map(recs.map((r) => [r.key, JSON.parse(JSON.stringify(r.value))])));
+  assert.equal(back.games.length, 1);
+  assert.equal(back.games[0].clips[0].end, 9);
+  assert.equal(WP.stateFromRecords(new Map()), null);
+});
+
+test('recordSig notices pushes and reassignments but not identical state', () => {
+  const g = { id: 'g', clips: [], marks: { periods: [], goals: [] }, gameType: '' };
+  const a = WP.recordSig(g);
+  assert.ok(WP.sameSig(a, WP.recordSig(g)));
+  g.clips.push({ id: 'c' });
+  const b = WP.recordSig(g);
+  assert.ok(!WP.sameSig(a, b));
+  g.gameType = 'playoff';
+  assert.ok(!WP.sameSig(b, WP.recordSig(g)));
+  const c = WP.recordSig(g);
+  g.marks = { periods: [], goals: [] };
+  assert.ok(!WP.sameSig(c, WP.recordSig(g)));
+});
+
+test('compareVersions orders versions numerically', () => {
+  assert.ok(WP.compareVersions('0.10.0', '0.9.9') > 0);
+  assert.ok(WP.compareVersions('0.7.0', '0.7.0') === 0);
+  assert.ok(WP.compareVersions('0.6.1', '0.7') < 0);
+});
+
+test('shortcuts list has G for goal for and H for goal against', () => {
+  const all = WP.SHORTCUTS.flatMap((s) => s.keys);
+  assert.ok(all.some(([k, w]) => k === 'G' && /Goal for/.test(w)));
+  assert.ok(all.some(([k, w]) => k === 'H' && /Goal against/.test(w)));
+});

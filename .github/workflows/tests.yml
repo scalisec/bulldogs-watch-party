@@ -1,0 +1,28 @@
+name: Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Core logic tests
+        run: node --test tests/core.test.js
+      - name: Install browser
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Shared team data (simulated Google Drive)
+        run: mkdir -p shots && python tests/e2e_drive.py shots
+      - name: Storage, Review paging, shortcuts and update banner
+        run: python tests/e2e_v07.py shots
+      # e2e.py and e2e_library.py need game video, which stays off GitHub (it shows the players). Run them locally.

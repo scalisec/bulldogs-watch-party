@@ -2,8 +2,8 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '0.6.0';
-  const APP_RELEASED = '2026-10-20';
+  const APP_VERSION = '0.7.0';
+  const APP_RELEASED = '2026-10-21';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
   const DEFAULT_AFTER = 4;
@@ -1183,6 +1183,100 @@
     return s;
   }
 
+  /** Keyboard shortcuts, shown by the ? key and on the printable shortcuts page. */
+  const SHORTCUTS = [
+    { title: 'Watch and tag (game screen)', keys: [
+      ['Space or K', 'Play / pause'],
+      ['\u2190 / \u2192', 'Back / forward 5 seconds'],
+      ['Shift + \u2190 / \u2192', 'Back / forward 1 second'],
+      ['1 \u2013 9', 'Tag a clip with that category'],
+      ['I', 'Mark the start of a play'],
+      ['O', 'Mark the end, then press 1\u20139 for the category'],
+      ['Esc', 'Cancel the start/end marks'],
+      ['P', 'Period start / period end'],
+      ['G', 'Goal for (Bulldogs score)'],
+      ['H', 'Goal against'],
+      ['+ / \u2212', 'Zoom in / out'],
+      ['0', 'Back to the whole rink'],
+      ['Scroll \u00b7 drag \u00b7 double-click', 'Zoom \u00b7 move \u00b7 zoom in or back out']
+    ] },
+    { title: 'Clip editor', keys: [
+      ['Space', 'Preview the finished clip / stop'],
+      ['\u2190 / \u2192', 'Back / forward 1 second'],
+      [', / .', 'Back / forward one frame'],
+      ['Ctrl + Z', 'Undo the last drawing'],
+      ['Esc', 'Done drawing']
+    ] },
+    { title: 'While recording a breakdown', keys: [
+      ['Space or Esc', 'Stop recording'],
+      ['D', 'Switch between moving the picture and drawing'],
+      ['C', 'Clear the drawings'],
+      ['+ / \u2212 / 0', 'Zoom in / out / whole rink']
+    ] },
+    { title: 'Anywhere', keys: [
+      ['?', 'Show these shortcuts']
+    ] }
+  ];
+
+  /** Compare 'a.b.c' version strings: >0 when a is newer. */
+  function compareVersions(a, b) {
+    const pa = String(a).split('.').map(Number);
+    const pb = String(b).split('.').map(Number);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const d = (pa[i] || 0) - (pb[i] || 0);
+      if (d) return d;
+    }
+    return 0;
+  }
+
+  // ---------- saving in pieces (IndexedDB records) ----------
+  // The state is saved as small records so an edit only rewrites what changed:
+  // 'meta' (settings, sync, small library bits), one record per library part, one per game.
+  const LIB_PARTS = ['team', 'priv', 'teamSync', 'privSync'];
+
+  /** All records for a state: [{ key, value, track }]. track=false means "always write" (small). */
+  function stateRecords(state) {
+    const out = [{ key: 'meta', track: false, value: {
+      version: state.version, settings: state.settings, sync: state.sync,
+      lib: { deleted: state.lib.deleted, scope: state.lib.scope }, gameIds: state.games.map((g) => g.id)
+    } }];
+    for (const p of LIB_PARTS) out.push({ key: 'lib:' + p, track: true, value: state.lib[p] || null });
+    for (const g of state.games) out.push({ key: 'game:' + g.id, track: true, value: g });
+    return out;
+  }
+
+  /** A cheap fingerprint of an object: its identity, plus each property's identity/value and array lengths.
+      It notices reassigned properties and pushed arrays; deep in-place edits must be flagged by the caller. */
+  function recordSig(o) {
+    if (!o || typeof o !== 'object') return [o];
+    const out = [o];
+    for (const k of Object.keys(o)) {
+      const v = o[k];
+      out.push(k, v);
+      if (Array.isArray(v)) out.push(v.length);
+      else if (v && typeof v === 'object') out.push(Object.keys(v).length);
+    }
+    return out;
+  }
+  function sameSig(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+
+  /** Rebuild the state from records (a Map or object of key -> value). */
+  function stateFromRecords(recs) {
+    const get = (k) => (recs instanceof Map ? recs.get(k) : recs[k]);
+    const meta = get('meta');
+    if (!meta) return null;
+    const lib = Object.assign({}, meta.lib || {});
+    for (const p of LIB_PARTS) lib[p] = get('lib:' + p) || null;
+    if (!lib.team) delete lib.team;
+    if (!lib.priv) delete lib.priv;
+    const games = (meta.gameIds || []).map((id) => get('game:' + id)).filter(Boolean);
+    return migrate({ version: meta.version, settings: meta.settings, sync: meta.sync, lib, games });
+  }
+
   function createStore(storage, key) {
     const k = key || 'bulldogs-watch-party:v1';
     return {
@@ -1235,7 +1329,7 @@
     REC_FADE, hasRec, recExportRate, recOut, recIn, newRecording, addRecKey, recZoomAt, recShapesAt, addRecShape, addRecClear, recPlan, recSummary,
     addPlayer, removePlayer,
     newGame, gameTitle, formatDate, gameTimeline, matchFiles,
-    defaultState, migrate, createStore, exportBackup, importBackup,
+    defaultState, migrate, createStore, exportBackup, importBackup, SHORTCUTS, compareVersions, LIB_PARTS, stateRecords, recordSig, sameSig, stateFromRecords,
     TEAM_SECTIONS, DEFAULT_TEAM, teamSnapshot, normalizeTeamData, applyTeamData, teamFileText, parseTeamFile,
     addCoach, removeCoach, addListItem, removeListItem, mergeTeam, syncStep,
     EVENTS, EVENT_IDS, GAME_TYPES, HOME_AWAY, ZONES, SITUATIONS, label, eventLabel, gameMarks, togglePeriod, addGoal, removeGoal, removePeriod, periodName,

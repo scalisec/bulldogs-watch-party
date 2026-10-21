@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.7.0 — 2026-10-21 (speed and reliability)
+
+- **No more storage limit:**
+  - Games and clips moved from one localStorage entry (capped at about 5 MB, roughly a season with a few coaches tagging) to the browser's database.
+  - Only changed records are rewritten, so saving a full season edit takes milliseconds.
+  - Existing data moves over automatically.
+  - The app asks Chrome to keep its data permanently, and Settings › About shows the storage used.
+- **Google sign-in:**
+  - The header says when the hour-long sign-in has run out; tap to sign in again.
+  - Export to Drive refreshes the sign-in before rendering, not after.
+- **Drive uploads:**
+  - Upload once, and other folders get a Google-side copy.
+  - Upload progress in %.
+  - A failed upload keeps the finished video and offers **Retry upload**, with no empty file left behind.
+  - **Save the MP4 to** choices are remembered on each device.
+- **Review:**
+  - Shows 48 clips at a time with **Show more**, and filtering is much faster.
+  - The next clip downloads while the current one plays.
+  - Other coaches' new clips appear when you open Review or come back to the app.
+  - On phones the filters fold behind a button.
+- **Keys:**
+  - **H** is now goal against (was Shift+G); G and H work with Caps Lock on.
+  - **?** shows all shortcuts, and `shortcuts.html` is a printable one-pager.
+- **Smaller things:**
+  - The app's own dialogs replace the browser's pop-ups.
+  - Messages stack (up to 3) so a quick second tag doesn't hide the first one's Undo.
+  - Warns before closing during an export, upload or sync.
+  - Unexpected errors show a **Copy details** button.
+  - The editor stops redrawing while paused, which saves battery.
+- **Updates and install:**
+  - Scripts carry the version number, and a banner offers **Reload now** when a newer version is on the site.
+  - The app can be installed to a phone's home screen (icon and manifest).
+- Tests run on GitHub on every push.
+
 ## 0.6.0 — 2026-10-21 (milestone 3b: clip library)
 
 - **Periods and goals:**

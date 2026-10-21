@@ -105,6 +105,21 @@ def handle(route):
         f = new_file(user, m['name'], m.get('mimeType'), m.get('parents'), content)
         return reply(meta(f))
     segs = p.split('/')
+    if p.startswith('/drive/v3/files/') and p.endswith('/copy') and req.method == 'POST':
+        src = drive.get(segs[4])
+        if not src or not can_access(user, src): return reply({'error': {'message': 'File not found'}}, 404)
+        b = json.loads(req.post_data or '{}')
+        if b.get('parents'):
+            par = drive.get(b['parents'][0])
+            if not par or not can_access(user, par): return reply({'error': {'message': 'File not found: ' + b['parents'][0]}}, 404)
+        f = new_file(user, b.get('name') or src['name'], src['mime'], b.get('parents') or src['parents'], src['content'], b.get('description', ''))
+        f['copiedFrom'] = src['id']
+        return reply({'id': f['id'], 'name': f['name']})
+    if p.startswith('/drive/v3/files/') and len(segs) == 5 and req.method == 'DELETE':
+        f = drive.get(segs[4])
+        if not f or f['owner'] != user: return reply({'error': {'message': 'File not found'}}, 404)
+        del drive[segs[4]]
+        route.fulfill(status=204, headers={'Access-Control-Allow-Origin': '*'}); return
     if p.startswith('/drive/v3/files/') and len(segs) == 5:
         f = drive.get(segs[4])
         if not f or not can_access(user, f): return reply({'error': {'message': 'File not found'}}, 404)
