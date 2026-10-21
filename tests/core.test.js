@@ -489,3 +489,116 @@ test('recording summary', () => {
   WP.addRecShape(r, 2, { type: 'arrow', color: '#FACC15', pts: [[0.1, 0.1], [0.4, 0.4]] });
   assert.equal(WP.recSummary(r), 'Recorded 0:21 · at half speed · with voice · 1 drawing');
 });
+
+// ---------- milestone 3a: shared team data ----------
+const teamBase = () => WP.normalizeTeamData({
+  team: { name: 'Bulldogs U10 Blue', season: '2026-27' },
+  coaches: [{ name: 'Cristian', email: 'C@Example.com ' }],
+  roster: [{ number: '7', name: 'Sam' }, { number: '12', name: '' }],
+  opponents: ['Oakville', 'Milton'],
+  rinks: ['Mountainside Arena Rink']
+});
+
+test('team data: normalize cleans, sorts and fills defaults', () => {
+  const d = teamBase();
+  assert.equal(d.coaches[0].email, 'c@example.com');
+  assert.deepEqual(d.opponents, ['Milton', 'Oakville']);
+  assert.equal(d.categories.length, 9, 'default categories when none given');
+  const n = WP.normalizeTeamData({ coaches: [{ email: 'not-an-email' }], roster: [{ number: '#5' }, { number: '5' }, { number: 'x' }], opponents: [' A ', 'A', ''] });
+  assert.deepEqual(n.coaches, []);
+  assert.deepEqual(n.roster, [{ number: '5', name: '' }]);
+  assert.deepEqual(n.opponents, ['A']);
+  assert.equal(n.team.name, 'Bulldogs U10 Blue');
+});
+
+test('team file round trip and validation', () => {
+  const s = WP.applyTeamData(WP.defaultState().settings, teamBase());
+  s.coachName = 'Cristian';
+  const text = WP.teamFileText(s, 'c@example.com');
+  assert.ok(!text.includes('coachName'), 'each coach keeps their own name locally');
+  const back = WP.parseTeamFile(text);
+  assert.deepEqual(back, WP.normalizeTeamData(teamBase()));
+  assert.throws(() => WP.parseTeamFile('{"app":"x"}'), /isn’t Watch Party team data/);
+  assert.throws(() => WP.parseTeamFile('nope'), /damaged/);
+});
+
+test('list editors: coaches, opponents, rinks', () => {
+  let c = WP.addCoach([], 'Pat', 'Pat@Gmail.com');
+  assert.deepEqual(c, [{ name: 'Pat', email: 'pat@gmail.com' }]);
+  assert.throws(() => WP.addCoach(c, 'X', 'pat@gmail.com'), /already a coach/);
+  assert.throws(() => WP.addCoach(c, 'X', 'nope'), /Google email/);
+  assert.deepEqual(WP.removeCoach(c, 'pat@gmail.com'), []);
+  let o = WP.addListItem(['Milton'], ' Burlington ');
+  assert.deepEqual(o, ['Burlington', 'Milton']);
+  assert.deepEqual(WP.addListItem(o, 'milton'), o, 'no duplicates');
+  assert.deepEqual(WP.removeListItem(o, 'Milton'), ['Burlington']);
+});
+
+test('merge: changes to different things from two coaches both survive', () => {
+  const base = teamBase();
+  const mine = WP.normalizeTeamData(Object.assign({}, base, { roster: base.roster.concat([{ number: '3', name: 'Ava' }]), opponents: ['Milton'] }));
+  const theirs = WP.normalizeTeamData(Object.assign({}, base, {
+    team: { name: base.team.name, season: '2026-2027' },
+    roster: base.roster.map((p) => p.number === '12' ? { number: '12', name: 'Leo' } : p),
+    opponents: base.opponents.concat(['Hamilton'])
+  }));
+  const { merged, conflicts } = WP.mergeTeam(base, mine, theirs);
+  assert.deepEqual(conflicts, []);
+  assert.equal(merged.team.season, '2026-2027');
+  assert.deepEqual(merged.roster.map((p) => p.number + p.name), ['3Ava', '7Sam', '12Leo']);
+  assert.deepEqual(merged.opponents, ['Hamilton', 'Milton'], 'my removal of Oakville and their add of Hamilton both kept');
+});
+
+test('merge: the same item changed both ways keeps the Drive version and reports it', () => {
+  const base = teamBase();
+  const mine = WP.normalizeTeamData(Object.assign({}, base, { roster: [{ number: '7', name: 'Samuel' }, base.roster[1]] }));
+  const theirs = WP.normalizeTeamData(Object.assign({}, base, { roster: [{ number: '7', name: 'Sammy' }, base.roster[1]], team: { name: 'Bulldogs Blue', season: base.team.season } }));
+  const m2 = WP.normalizeTeamData(Object.assign({}, mine, { team: { name: 'U10 Blue Bulldogs', season: base.team.season } }));
+  const { merged, conflicts } = WP.mergeTeam(base, m2, theirs);
+  assert.equal(merged.roster[0].name, 'Sammy');
+  assert.equal(merged.team.name, 'Bulldogs Blue');
+  assert.deepEqual(conflicts.sort(), ['player #7', 'team name']);
+});
+
+test('merge: deletes and category reordering', () => {
+  const base = teamBase();
+  const cats = base.categories;
+  // I move Faceoffs to the top; they rename Goalie and delete a player
+  const mineCats = [cats[4]].concat(cats.filter((c, i) => i !== 4));
+  const mine = WP.normalizeTeamData(Object.assign({}, base, { categories: mineCats }));
+  const theirs = WP.normalizeTeamData(Object.assign({}, base, {
+    categories: cats.map((c) => c.id === 'cat_7' ? Object.assign({}, c, { name: 'Goaltending' }) : c),
+    roster: [base.roster[1]]
+  }));
+  const { merged, conflicts } = WP.mergeTeam(base, mine, theirs);
+  assert.deepEqual(conflicts, []);
+  assert.equal(merged.categories[0].name, 'Faceoffs', 'my reorder kept');
+  assert.ok(merged.categories.some((c) => c.name === 'Goaltending'), 'their rename kept');
+  assert.deepEqual(merged.roster.map((p) => p.number), ['12'], 'their delete kept');
+});
+
+test('syncStep decides what to keep and whether to write', () => {
+  const base = teamBase();
+  const theirs = WP.normalizeTeamData(Object.assign({}, base, { rinks: ['Appleby'] }));
+  let r = WP.syncStep({ base, mine: base, theirs, dirty: false });
+  assert.deepEqual(r.data.rinks, ['Appleby']);
+  assert.equal(r.push, false);
+  const mine = WP.normalizeTeamData(Object.assign({}, base, { opponents: base.opponents.concat(['Hamilton']) }));
+  r = WP.syncStep({ base, mine, theirs, dirty: true });
+  assert.deepEqual(r.data.rinks, ['Appleby']);
+  assert.ok(r.data.opponents.includes('Hamilton'));
+  assert.equal(r.push, true);
+  // first sync from a device with no base: local data wins and is written
+  r = WP.syncStep({ base: null, mine, theirs, dirty: true });
+  assert.deepEqual(r.data, mine);
+  assert.equal(r.push, true);
+});
+
+test('migrate adds shared-team fields to older saved data', () => {
+  const s = WP.migrate({ settings: { coachName: 'C', roster: [{ number: '7', name: '' }] }, games: [] });
+  assert.deepEqual(s.settings.team, WP.DEFAULT_TEAM);
+  assert.deepEqual(s.settings.coaches, []);
+  assert.deepEqual(s.settings.opponents, []);
+  assert.equal(s.sync, null);
+  assert.equal(s.settings.roster.length, 1);
+});

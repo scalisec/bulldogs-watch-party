@@ -170,6 +170,10 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
 .swatch[aria-pressed="true"] { border: 3px solid var(--ink); }
 .spdrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; }
 .saved { font-size: 12px; color: var(--muted); }
+.syncbadge { font-size: 12px; color: var(--on-navy); text-decoration: none; }
+.syncbadge.ok::before { content: '\25CF '; color: #4ADE80; }
+.syncbadge.warn { color: #FDBA74; }
+.syncbadge.warn::before { content: '\25CF '; color: #FB923C; }
 .countdown { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(11,18,32,.45); color: #fff; font: 700 96px var(--display); pointer-events: none; }
 .recdot { display: inline-block; width: 10px; height: 10px; border-radius: 5px; background: #EF4444; margin-right: 6px; animation: blink 1s steps(2, start) infinite; }
 @keyframes blink { to { visibility: hidden; } }
@@ -191,7 +195,7 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
     <a href="#games" data-nav="games">Games</a>
     <a href="#settings" data-nav="settings">Settings</a>
   </nav>
-  <div class="who" id="who"></div>
+  <div class="row" style="gap:12px"><a href="#settings" id="sync-badge" class="syncbadge"></a><div class="who" id="who"></div></div>
 </header>
 
 <main id="view-games" class="hidden">
@@ -214,8 +218,8 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
       </div>
       <div class="grid2">
         <label class="field">Game date<input type="date" id="g-date"></label>
-        <label class="field">Opponent<input type="text" id="g-opp" placeholder="e.g. Oakville" autocomplete="off"></label>
-        <label class="field">Rink<input type="text" id="g-rink" autocomplete="off"></label>
+        <label class="field">Opponent<input type="text" id="g-opp" placeholder="e.g. Oakville" autocomplete="off" list="dl-opp"><datalist id="dl-opp"></datalist></label>
+        <label class="field">Rink<input type="text" id="g-rink" autocomplete="off" list="dl-rink"><datalist id="dl-rink"></datalist></label>
         <label class="field">Result (optional)<input type="text" id="g-result" placeholder="e.g. W 4–2" autocomplete="off"></label>
       </div>
       <div class="row" style="justify-content:flex-end">
@@ -405,6 +409,28 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
         <input type="text" id="s-coach" placeholder="e.g. Coach Cristian" autocomplete="name">
       </label>
     </section>
+    <section class="card stack" aria-labelledby="team-h">
+      <div class="row spread"><h2 id="team-h">Team data — shared with coaches</h2><span class="small muted">Roster, categories, coaches, opponents and rinks</span></div>
+      <div class="stack" id="team-sync" style="gap:8px"></div>
+      <div class="grid2">
+        <label class="field">Team name<input type="text" id="t-name" autocomplete="off"></label>
+        <label class="field">Season<input type="text" id="t-season" placeholder="e.g. 2026–27" autocomplete="off"></label>
+      </div>
+      <h3>Coaches</h3>
+      <div class="stack" id="coaches" style="gap:6px"></div>
+      <form class="row" id="coach-add">
+        <input type="text" id="c-name" placeholder="Name" aria-label="Coach name" style="max-width:200px">
+        <input type="text" id="c-email" placeholder="Google email" aria-label="Coach Google email" style="max-width:260px" inputmode="email" autocomplete="off">
+        <button type="submit" class="btn outline">Add coach</button>
+      </form>
+      <div class="grid2">
+        <div class="stack" style="gap:8px"><h3>Opponents</h3><div class="chips" id="opponents"></div>
+          <form class="row" id="opp-add"><input type="text" id="o-new" placeholder="Add an opponent" aria-label="New opponent" class="grow"><button type="submit" class="btn small outline">Add</button></form></div>
+        <div class="stack" style="gap:8px"><h3>Rinks</h3><div class="chips" id="rinks"></div>
+          <form class="row" id="rink-add"><input type="text" id="k-new" placeholder="Add a rink" aria-label="New rink" class="grow"><button type="submit" class="btn small outline">Add</button></form></div>
+      </div>
+      <span class="small muted">New opponents and rinks are also added automatically when you start a game.</span>
+    </section>
     <section class="card stack" aria-labelledby="cats-h">
       <div class="row spread"><h2 id="cats-h">Categories</h2><span class="small muted">The first 9 shown get keys 1–9</span></div>
       <p class="small muted" style="margin:0">Before / after = seconds kept either side of a tap for that category. Changes apply to new clips only. Hidden categories lose their button but keep their clips.</p>
@@ -419,7 +445,7 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
     </section>
     <section class="card stack" aria-labelledby="roster-h">
       <h2 id="roster-h">Roster</h2>
-      <p class="small muted" style="margin:0">Jersey numbers appear as quick buttons when you tag players on a clip. Names stay on this computer.</p>
+      <p class="small muted" style="margin:0">Jersey numbers appear as quick buttons when you tag players on a clip. With team data on, the roster is shared with the coaches only — never with families.</p>
       <div class="chips" id="roster"></div>
       <form class="row" id="roster-add">
         <input type="text" id="r-num" placeholder="#" aria-label="Jersey number" style="width:80px" inputmode="numeric">
@@ -461,9 +487,11 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
+<script src="config.js"></script>
 <script src="core.js"></script>
 <script src="vendor/mp4-muxer.js"></script>
 <script src="render.js"></script>
+<script src="drive.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

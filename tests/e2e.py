@@ -341,7 +341,8 @@ with sync_playwright() as p:
     page.fill('#cat-new', 'Power play'); page.click('text=Add category')
     page.fill('#r-num', '7'); page.fill('#r-name', 'Sam'); page.click('text=Add player')
     page.screenshot(path=SHOTS + '/4-settings.png', full_page=True)
-    check(page.text_content('#app-version') == 'v0.4.0' and 'v0.4.0' in page.text_content('#brand-version'), 'version shows in Settings and the header')
+    check('isn\u2019t set up yet' in page.text_content('#team-sync'), 'team data card explains Google sign-in isn\u2019t set up yet')
+    check(page.text_content('#app-version') == 'v0.5.0' and 'v0.5.0' in page.text_content('#brand-version'), 'version shows in Settings and the header')
     st = page.evaluate('window.__bwp.state.settings')
     fo = [c for c in st['categories'] if c['name'] == 'Faceoffs'][0]
     check(fo['before'] == 2 and fo['after'] == 6, 'faceoff window saved 2/6')

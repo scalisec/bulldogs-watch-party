@@ -190,6 +190,11 @@
     } catch (e) { toast(e.message, { err: true }); return; }
     S.games.push(game);
     save();
+    let listsChanged = false;
+    for (const [key, val] of [['opponents', game.opponent], ['rinks', game.rink]]) {
+      if (val && !S.settings[key].some((x) => x.toLowerCase() === val.toLowerCase())) { S.settings[key] = WP.addListItem(S.settings[key], val); listsChanged = true; }
+    }
+    if (listsChanged) teamChanged();
     session.files.set(game.id, parts.map((p) => p.file));
     if (parts.every((p) => p.handle)) await idb.put(game.id, parts.map((p) => p.handle));
     clearDraft();
@@ -198,6 +203,7 @@
 
   function renderGames() {
     renderWho();
+    renderGameLists();
     const games = S.games.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.createdAt - a.createdAt);
     if (!games.length) {
       $('games').replaceChildren(el('div', { class: 'empty' }, 'No games yet. Add your first LiveBarn download on the left.'));
@@ -1497,6 +1503,7 @@
   // =====================================================================
   function renderSettings() {
     renderWho();
+    renderTeamSettings();
     $('app-version').textContent = 'v' + WP.APP_VERSION;
     $('app-released').textContent = 'Released ' + WP.formatDate(WP.APP_RELEASED);
     $('app-schema').textContent = String(WP.SCHEMA_VERSION);
@@ -1507,7 +1514,7 @@
     $('cat-rows').replaceChildren(...cats.map((c, i) => {
       const inUse = WP.categoryInUse(S.games, c.id);
       const upd = (patch) => {
-        try { S.settings.categories = WP.updateCategory(S.settings.categories, c.id, patch); save(); }
+        try { S.settings.categories = WP.updateCategory(S.settings.categories, c.id, patch); teamChanged(); }
         catch (e) { toast(e.message, { err: true }); }
         renderSettings();
       };
@@ -1519,20 +1526,20 @@
         el('td', {}, el('input', { type: 'number', min: '0', max: '60', step: '0.5', value: String(c.after), 'aria-label': 'Seconds after for ' + c.name, onchange: (e) => upd({ after: e.target.value }) })),
         el('td', {}, el('input', { type: 'checkbox', checked: !c.hidden, 'aria-label': 'Show ' + c.name, style: 'width:20px;height:20px', onchange: (e) => upd({ hidden: !e.target.checked }) })),
         el('td', { style: 'white-space:nowrap' },
-          el('button', { type: 'button', class: 'btn small', 'aria-label': 'Move ' + c.name + ' up', disabled: i === 0, onclick: () => { S.settings.categories = WP.moveCategory(cats, c.id, -1); save(); renderSettings(); } }, '↑'),
+          el('button', { type: 'button', class: 'btn small', 'aria-label': 'Move ' + c.name + ' up', disabled: i === 0, onclick: () => { S.settings.categories = WP.moveCategory(cats, c.id, -1); teamChanged(); renderSettings(); } }, '↑'),
           ' ',
-          el('button', { type: 'button', class: 'btn small', 'aria-label': 'Move ' + c.name + ' down', disabled: i === cats.length - 1, onclick: () => { S.settings.categories = WP.moveCategory(cats, c.id, 1); save(); renderSettings(); } }, '↓'),
+          el('button', { type: 'button', class: 'btn small', 'aria-label': 'Move ' + c.name + ' down', disabled: i === cats.length - 1, onclick: () => { S.settings.categories = WP.moveCategory(cats, c.id, 1); teamChanged(); renderSettings(); } }, '↓'),
           ' ',
           el('button', {
             type: 'button', class: 'btn small danger', disabled: inUse, title: inUse ? 'Has clips — hide it instead' : null, 'aria-label': 'Delete ' + c.name,
-            onclick: () => { try { S.settings.categories = WP.removeCategory(cats, c.id, S.games); save(); renderSettings(); } catch (e) { toast(e.message, { err: true }); } }
+            onclick: () => { try { S.settings.categories = WP.removeCategory(cats, c.id, S.games); teamChanged(); renderSettings(); } catch (e) { toast(e.message, { err: true }); } }
           }, 'Delete')
         )
       );
     }));
     $('roster').replaceChildren(...(S.settings.roster.length ? S.settings.roster.map((p) => el('button', {
       type: 'button', class: 'chip', 'aria-label': 'Remove #' + p.number + (p.name ? ' ' + p.name : ''),
-      onclick: () => { S.settings.roster = WP.removePlayer(S.settings.roster, p.number); save(); renderSettings(); }
+      onclick: () => { S.settings.roster = WP.removePlayer(S.settings.roster, p.number); teamChanged(); renderSettings(); }
     }, '#' + p.number + (p.name ? ' ' + p.name : '') + ' ✕')) : [el('span', { class: 'small muted' }, 'No players yet.')]));
   }
 
@@ -1542,7 +1549,7 @@
     try {
       S.settings.categories = WP.addCategory(S.settings.categories, $('cat-new').value, '#475569');
       $('cat-new').value = '';
-      save(); renderSettings();
+      teamChanged(); renderSettings();
     } catch (err) { toast(err.message, { err: true }); }
   });
   $('roster-add').addEventListener('submit', (e) => {
@@ -1550,8 +1557,252 @@
     try {
       S.settings.roster = WP.addPlayer(S.settings.roster, $('r-num').value, $('r-name').value);
       $('r-num').value = ''; $('r-name').value = '';
-      save(); renderSettings(); $('r-num').focus();
+      teamChanged(); renderSettings(); $('r-num').focus();
     } catch (err) { toast(err.message, { err: true }); }
+  });
+
+
+  // =====================================================================
+  // SHARED TEAM DATA IN GOOGLE DRIVE (milestone 3a)
+  // =====================================================================
+  const Team = { busy: false, again: false, lastErr: null, account: null };
+  let pushTimer = 0;
+
+  function teamChanged() {
+    if (S.sync) S.sync.dirty = true;
+    save();
+    renderSyncBadge();
+    clearTimeout(pushTimer);
+    if (S.sync && WPDrive.hasToken()) pushTimer = setTimeout(() => syncNow(false), 1200);
+  }
+
+  function renderSyncBadge() {
+    const b = $('sync-badge');
+    if (!b) return;
+    if (!S.sync) { b.textContent = ''; b.className = 'syncbadge'; return; }
+    if (Team.busy) { b.textContent = 'Syncing team data…'; b.className = 'syncbadge'; return; }
+    if (Team.lastErr) { b.textContent = 'Team data: sync problem'; b.className = 'syncbadge warn'; return; }
+    if (S.sync.dirty) { b.textContent = 'Team data: not synced yet'; b.className = 'syncbadge warn'; return; }
+    b.textContent = 'Team data synced';
+    b.className = 'syncbadge ok';
+  }
+
+  async function ensureSignedIn() {
+    if (WPDrive.hasToken()) return;
+    await WPDrive.signIn(S.sync && S.sync.account);
+  }
+
+  async function syncNow(interactive) {
+    if (!S.sync || !S.sync.fileId) return;
+    if (!WPDrive.hasToken()) {
+      if (!interactive) { renderSyncBadge(); renderTeamCard(); return; }
+      try { await ensureSignedIn(); } catch (e) { toast(e.message, { err: true }); return; }
+    }
+    if (Team.busy) { Team.again = true; return; }
+    Team.busy = true;
+    renderSyncBadge(); renderTeamCard();
+    try {
+      const meta = await WPDrive.getMeta(S.sync.fileId);
+      if (meta.trashed) throw new Error('The team data file is in the Google Drive trash');
+      const fresh = !(String(meta.version) === String(S.sync.version) && S.sync.base);
+      const theirs = fresh ? WP.parseTeamFile(await WPDrive.readText(S.sync.fileId)) : S.sync.base;
+      const step = WP.syncStep({ base: S.sync.base, mine: WP.teamSnapshot(S.settings), theirs, dirty: !!S.sync.dirty });
+      S.settings = WP.applyTeamData(S.settings, step.data);
+      let version = meta.version;
+      let by = meta.lastModifyingUser ? (meta.lastModifyingUser.displayName || meta.lastModifyingUser.emailAddress) : '';
+      if (step.push) {
+        const up = await WPDrive.updateText(S.sync.fileId, WP.teamFileText(S.settings, S.sync.account));
+        version = up.version;
+        by = 'you';
+      }
+      Object.assign(S.sync, { base: WP.normalizeTeamData(step.data), version, dirty: false, lastSyncAt: Date.now(), lastBy: by });
+      Team.lastErr = null;
+      save();
+      if (step.conflicts.length) {
+        toast('Another coach changed the same thing at the same time (' + step.conflicts.join(', ') + '). Their version was kept — check it and redo your change if needed.', { err: true, ms: 12000 });
+      }
+    } catch (e) {
+      Team.lastErr = e.message;
+      if (interactive || e.code !== 0) toast('Team data: ' + e.message, { err: true, ms: 7000 });
+    } finally {
+      Team.busy = false;
+      renderSyncBadge();
+      refreshAfterSync();
+      if (Team.again) { Team.again = false; syncNow(false); }
+    }
+  }
+
+  function refreshAfterSync() {
+    if (!$('view-settings').classList.contains('hidden')) renderSettings();
+    else if (!$('view-tag').classList.contains('hidden') && G) { renderTags(); renderClips(); }
+    else if (!$('view-games').classList.contains('hidden')) renderGameLists();
+    if (E) renderEditor();
+  }
+
+  async function connectGoogle() {
+    try {
+      await WPDrive.signIn(S.sync && S.sync.account);
+      const who = await WPDrive.whoAmI();
+      Team.account = who.email;
+      if (!S.settings.coachName && who.name) { S.settings.coachName = who.name.slice(0, 40); save(); renderWho(); }
+      if (S.sync && S.sync.fileId) {
+        if (S.sync.account && S.sync.account !== who.email) toast('Signed in as ' + who.email + ' (this device was set up with ' + S.sync.account + ')');
+        S.sync.account = who.email;
+        await syncNow(true);
+      } else renderTeamCard();
+    } catch (e) { toast(e.message, { err: true }); renderTeamCard(); }
+  }
+
+  async function createTeamData() {
+    try {
+      await ensureSignedIn();
+      const who = Team.account ? { email: Team.account } : await WPDrive.whoAmI();
+      Team.account = who.email;
+      Team.busy = true; renderTeamCard();
+      if (!S.settings.coaches.some((c) => c.email === who.email)) S.settings.coaches = WP.addCoach(S.settings.coaches, S.settings.coachName || 'Head coach', who.email);
+      const root = await WPDrive.createFolder('Bulldogs Watch Party');
+      const appFolder = await WPDrive.createFolder('_App', root.id);
+      const file = await WPDrive.createFile('Watch Party team data.json', appFolder.id, WP.teamFileText(S.settings, who.email));
+      S.sync = { fileId: file.id, folderId: root.id, appFolderId: appFolder.id, version: file.version, base: WP.normalizeTeamData(WP.teamSnapshot(S.settings)), dirty: false, account: who.email, owner: true, lastSyncAt: Date.now(), lastBy: 'you', sharedWith: [] };
+      Team.lastErr = null;
+      save();
+      Team.busy = false;
+      toast('Team data created in your Google Drive (Bulldogs Watch Party › _App)');
+      if (S.settings.coaches.length > 1) await shareWithCoaches();
+    } catch (e) { toast('Couldn’t create team data: ' + e.message, { err: true, ms: 8000 }); }
+    finally { Team.busy = false; renderTeamCard(); renderSyncBadge(); }
+  }
+
+  async function shareWithCoaches() {
+    if (!S.sync || !S.sync.owner) { toast('Only the coach who created the team data can share it from the app. They can also share the folder in Google Drive.'); return; }
+    try { await ensureSignedIn(); } catch (e) { toast(e.message, { err: true }); return; }
+    const todo = S.settings.coaches.filter((c) => c.email !== S.sync.account && !(S.sync.sharedWith || []).includes(c.email));
+    if (!todo.length) { toast('Everyone on the coach list already has access'); return; }
+    const done = [];
+    const failed = [];
+    for (const c of todo) {
+      try {
+        await WPDrive.share(S.sync.folderId, c.email, 'You’ve been added to the Bulldogs U10 Blue coaching staff in Bulldogs Watch Party. Open the app, go to Settings, sign in with Google and choose “Open shared team data”.');
+        done.push(c.email);
+      } catch (e) { failed.push(c.email + ' (' + e.message + ')'); }
+    }
+    S.sync.sharedWith = (S.sync.sharedWith || []).concat(done);
+    save();
+    renderTeamCard();
+    if (done.length) toast('Shared with ' + done.join(', ') + '. They’ll get an email from Google.', { ms: 7000 });
+    if (failed.length) toast('Couldn’t share with ' + failed.join('; '), { err: true, ms: 9000 });
+  }
+
+  async function openSharedTeamData() {
+    try {
+      await ensureSignedIn();
+      const who = Team.account ? { email: Team.account } : await WPDrive.whoAmI();
+      Team.account = who.email;
+      const id = await WPDrive.pickFile();
+      if (!id) return;
+      Team.busy = true; renderTeamCard();
+      const meta = await WPDrive.getMeta(id);
+      const data = WP.parseTeamFile(await WPDrive.readText(id));
+      S.settings = WP.applyTeamData(S.settings, data);
+      S.sync = { fileId: id, folderId: null, appFolderId: (meta.parents || [])[0] || null, version: meta.version, base: data, dirty: false, account: who.email, owner: false, lastSyncAt: Date.now(), lastBy: meta.lastModifyingUser ? (meta.lastModifyingUser.displayName || meta.lastModifyingUser.emailAddress) : '' };
+      Team.lastErr = null;
+      save();
+      toast('Connected to the team’s shared roster and categories');
+    } catch (e) { toast('Couldn’t open team data: ' + e.message, { err: true, ms: 8000 }); }
+    finally { Team.busy = false; renderTeamCard(); renderSyncBadge(); refreshAfterSync(); }
+  }
+
+  function disconnectTeam() {
+    if (!confirm('Stop syncing team data on this device? The roster and categories stay here; nothing is deleted from Google Drive.')) return;
+    S.sync = null;
+    Team.lastErr = null;
+    WPDrive.signOut();
+    save();
+    renderTeamCard();
+    renderSyncBadge();
+  }
+
+  function ago(ms) {
+    const s = Math.round((Date.now() - ms) / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.round(s / 60) + ' min ago';
+    if (s < 86400) return Math.round(s / 3600) + ' h ago';
+    return new Date(ms).toLocaleDateString();
+  }
+
+  function renderTeamCard() {
+    const box = $('team-sync');
+    if (!box) return;
+    const btn = (label, fn, cls) => el('button', { type: 'button', class: 'btn small' + (cls ? ' ' + cls : ''), disabled: Team.busy, onclick: fn }, label);
+    const lines = [];
+    const actions = [];
+    if (!WPDrive.configured()) {
+      lines.push(el('span', { class: 'small muted' }, 'Google sign-in isn’t set up yet. Until it is, the roster and categories are kept on this device only.'));
+    } else if (!WPDrive.webOrigin()) {
+      lines.push(el('span', { class: 'small muted' }, 'Google sign-in only works on the web version: '), el('a', { href: 'https://scalisec.github.io/bulldogs-watch-party/', target: '_blank', rel: 'noopener' }, 'scalisec.github.io/bulldogs-watch-party'));
+    } else if (!S.sync) {
+      if (!WPDrive.hasToken()) {
+        lines.push(el('span', { class: 'small muted' }, 'Sign in with Google to share the roster, categories, coaches, opponents and rinks with the other coaches.'));
+        actions.push(btn('Sign in with Google', connectGoogle, 'primary'));
+      } else {
+        lines.push(el('span', { class: 'small' }, 'Signed in' + (Team.account ? ' as ' + Team.account : '') + '. Set up the team data:'));
+        actions.push(btn('Create team data in my Drive', createTeamData, 'primary'));
+        actions.push(btn('Open shared team data', openSharedTeamData));
+        lines.push(el('span', { class: 'small muted' }, 'Head coach: create it once — it goes in a “Bulldogs Watch Party” folder in your Drive and is shared with the coaches listed below. Other coaches: open the one that was shared with you.'));
+      }
+    } else {
+      const st = Team.busy ? 'Syncing…' : Team.lastErr ? 'Problem: ' + Team.lastErr : S.sync.dirty ? 'Changes on this device not synced yet' : 'In sync';
+      lines.push(el('div', { class: 'row', style: 'gap:8px' }, el('strong', {}, st),
+        el('span', { class: 'small muted' }, (S.sync.lastSyncAt ? 'Last synced ' + ago(S.sync.lastSyncAt) : '') + (S.sync.lastBy ? ' · last change by ' + S.sync.lastBy : '') + ' · ' + S.sync.account + (S.sync.owner ? ' (owner)' : ''))));
+      if (!WPDrive.hasToken()) actions.push(btn('Sign in to sync', connectGoogle, 'primary'));
+      else actions.push(btn('Sync now', () => syncNow(true), 'primary'));
+      if (S.sync.owner) actions.push(btn('Share with coaches', shareWithCoaches));
+      actions.push(btn('Stop syncing on this device', disconnectTeam, 'danger'));
+    }
+    box.replaceChildren(...lines, actions.length ? el('div', { class: 'row' }, ...actions) : '');
+  }
+
+  function renderTeamSettings() {
+    const t = S.settings.team;
+    if (document.activeElement !== $('t-name')) $('t-name').value = t.name;
+    if (document.activeElement !== $('t-season')) $('t-season').value = t.season;
+    $('coaches').replaceChildren(...(S.settings.coaches.length ? S.settings.coaches.map((c) => el('div', { class: 'row', style: 'gap:8px' },
+      el('span', { style: 'font-weight:600' }, c.name || '(no name)'), el('span', { class: 'small muted' }, c.email),
+      S.sync && S.sync.sharedWith && S.sync.sharedWith.includes(c.email) ? el('span', { class: 'pill do' }, 'Shared') : '',
+      S.sync && c.email === S.sync.account ? el('span', { class: 'pill zoompill' }, 'You') : '',
+      el('button', { type: 'button', class: 'btn small danger', 'aria-label': 'Remove ' + c.email, onclick: () => { S.settings.coaches = WP.removeCoach(S.settings.coaches, c.email); teamChanged(); renderSettings(); } }, 'Remove')))
+      : [el('span', { class: 'small muted' }, 'No coaches yet.')]));
+    const chips = (list, key, label) => list.length ? list.map((v) => el('button', { type: 'button', class: 'chip', 'aria-label': 'Remove ' + v, onclick: () => { S.settings[key] = WP.removeListItem(S.settings[key], v); teamChanged(); renderSettings(); } }, v + ' ✕')) : [el('span', { class: 'small muted' }, 'No ' + label + ' yet.')];
+    $('opponents').replaceChildren(...chips(S.settings.opponents, 'opponents', 'opponents'));
+    $('rinks').replaceChildren(...chips(S.settings.rinks, 'rinks', 'rinks'));
+    renderTeamCard();
+  }
+
+  function renderGameLists() {
+    $('dl-opp').replaceChildren(...S.settings.opponents.map((v) => el('option', { value: v })));
+    $('dl-rink').replaceChildren(...S.settings.rinks.map((v) => el('option', { value: v })));
+  }
+
+  $('t-name').addEventListener('change', (e) => { S.settings.team = Object.assign({}, S.settings.team, { name: e.target.value.trim().slice(0, 60) || WP.DEFAULT_TEAM.name }); teamChanged(); renderSettings(); });
+  $('t-season').addEventListener('change', (e) => { S.settings.team = Object.assign({}, S.settings.team, { season: e.target.value.trim().slice(0, 30) }); teamChanged(); renderSettings(); });
+  $('coach-add').addEventListener('submit', (e) => {
+    e.preventDefault();
+    try {
+      S.settings.coaches = WP.addCoach(S.settings.coaches, $('c-name').value, $('c-email').value);
+      $('c-name').value = ''; $('c-email').value = '';
+      teamChanged(); renderSettings();
+      if (S.sync && S.sync.owner) toast('Added. Click “Share with coaches” to give them access, and add their email as a test user in Google Cloud.', { ms: 8000 });
+    } catch (err) { toast(err.message, { err: true }); }
+  });
+  for (const [form, input, key] of [['opp-add', 'o-new', 'opponents'], ['rink-add', 'k-new', 'rinks']]) {
+    $(form).addEventListener('submit', (e) => {
+      e.preventDefault();
+      try { S.settings[key] = WP.addListItem(S.settings[key], $(input).value); $(input).value = ''; teamChanged(); renderSettings(); }
+      catch (err) { toast(err.message, { err: true }); }
+    });
+  }
+  window.addEventListener('focus', () => {
+    if (S.sync && WPDrive.hasToken() && !Team.busy && (!S.sync.lastSyncAt || Date.now() - S.sync.lastSyncAt > 60000)) syncNow(false);
   });
 
   // keep other open tabs in sync
@@ -1563,7 +1814,9 @@
   });
 
   $('brand-version').textContent = 'v' + WP.APP_VERSION;
+  renderSyncBadge();
+  if (S.sync && WPDrive.hasToken()) setTimeout(() => syncNow(false), 300);
   window.addEventListener('hashchange', route);
-  window.__bwp = { get state() { return S; }, get player() { return player; }, get editor() { return E; }, lastExport: null }; // for testing
+  window.__bwp = { get state() { return S; }, get player() { return player; }, get editor() { return E; }, get team() { return Team; }, lastExport: null }; // for testing
   route();
 })();

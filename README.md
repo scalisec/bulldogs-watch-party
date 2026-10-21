@@ -1,4 +1,4 @@
-# Bulldogs Watch Party — milestones 1, 2a and 2b
+# Bulldogs Watch Party — milestones 1, 2 and 3a
 
 Watch a LiveBarn game on your PC, tag clips for the U10 Blue team, and turn clips into finished MP4 videos with drawings, slow motion and zoom.
 
@@ -86,14 +86,35 @@ In the clip editor, tick **Voice-over** and/or **Record at half speed**, then cl
 | + / − / 0 | Zoom in / out / fit |
 | Esc | Cancel marks |
 
+## Shared team data (milestone 3a)
+
+The roster, categories, coaches, opponents, rinks, and team name and season are shared by all coaches through one file in Google Drive. This works on the web version only (https://scalisec.github.io/bulldogs-watch-party/).
+
+- **Head coach (once):**
+  1. Add the coaches' Google emails in **Settings › Coaches**.
+  2. Click **Sign in with Google**, then **Create team data in my Drive**.
+  3. The app makes **Bulldogs Watch Party › _App › Watch Party team data.json** and shares the **Bulldogs Watch Party** folder with the coaches.
+- **Other coaches (once per device):** open Settings, click **Sign in with Google**, then **Open shared team data**, and pick the file.
+- **Syncing:**
+  - Changes sync automatically. **Sync now** pulls the latest.
+  - If two coaches change the same thing at once, the version already in Drive is kept and you're told what clashed.
+  - Offline changes wait and sync later.
+- **Privacy:**
+  - The app uses Google's `drive.file` permission, so it only sees files it created or that you picked. It never sees the rest of your Drive.
+  - Never share the top **Bulldogs Watch Party** folder with families. It holds the roster. Family folders come in milestone 3b.
+- **New coaches** must also be added as test users in Google Cloud (Google Auth Platform › Audience).
+
+Each coach's own name (shown on their clips) stays on their device.
+
 ## Reopening a game later
 
 Video files can't be saved inside the browser. When you reopen a game, click **Reconnect videos**, or choose the same files again.
 
 ## Tests
 
-- `node --test tests/` runs the core logic tests (41).
-- `python3 tests/e2e.py <screenshot-dir> <media-dir>` runs the browser test (73 checks). It covers tagging, zoom, the editor, drawing, slow motion, preview, MP4 export, and recording a breakdown with a simulated microphone.
+- `node --test tests/` runs the core logic tests (49).
+- `python3 tests/e2e_drive.py <screenshot-dir>` tests shared team data with two coaches against a simulated Google Drive (23 checks).
+- `python3 tests/e2e.py <screenshot-dir> <media-dir>` runs the browser test (74 checks). It covers tagging, zoom, the editor, drawing, slow motion, preview, MP4 export, and recording a breakdown with a simulated microphone.
 
 ## Included library
 

@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '0.4.0';
+  const APP_VERSION = '0.5.0';
   const APP_RELEASED = '2026-10-20';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
@@ -611,6 +611,146 @@
     return roster.filter((p) => p.number !== String(number));
   }
 
+  // ---------- shared team data (milestone 3a) ----------
+  // Shared by all coaches through one file in Google Drive. Each coach's own name stays on their device.
+  const TEAM_SECTIONS = ['team', 'coaches', 'roster', 'categories', 'opponents', 'rinks'];
+  const DEFAULT_TEAM = { name: 'Bulldogs U10 Blue', season: '' };
+
+  function clone(o) { return o == null ? o : JSON.parse(JSON.stringify(o)); }
+  function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+
+  function teamSnapshot(settings) {
+    const out = {};
+    for (const k of TEAM_SECTIONS) out[k] = clone(settings[k]);
+    return out;
+  }
+
+  function cleanText(v, max) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, max || 60); }
+
+  function normalizeTeamData(d) {
+    const src = d || {};
+    const team = Object.assign({}, DEFAULT_TEAM, src.team || {});
+    const coaches = (Array.isArray(src.coaches) ? src.coaches : [])
+      .map((c) => ({ name: cleanText(c && c.name, 40), email: cleanText(c && c.email, 120).toLowerCase() }))
+      .filter((c) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.email));
+    const roster = (Array.isArray(src.roster) ? src.roster : [])
+      .map((p) => ({ number: String(p && p.number).replace(/^#/, ''), name: cleanText(p && p.name, 40) }))
+      .filter((p) => /^\d{1,2}$/.test(p.number));
+    const cats = Array.isArray(src.categories) && src.categories.length ? src.categories : defaultCategories();
+    const categories = cats.filter((c) => c && c.id && c.name)
+      .map((c) => Object.assign({ before: DEFAULT_BEFORE, after: DEFAULT_AFTER, hidden: false, color: '#475569' }, c));
+    const list = (a) => [...new Set((Array.isArray(a) ? a : []).map((x) => cleanText(x, 60)).filter(Boolean))].sort((x, y) => x.localeCompare(y));
+    return {
+      team: { name: cleanText(team.name, 60) || DEFAULT_TEAM.name, season: cleanText(team.season, 30) },
+      coaches: dedupeBy(coaches, (c) => c.email),
+      roster: dedupeBy(roster, (p) => p.number).sort((a, b) => Number(a.number) - Number(b.number)),
+      categories: dedupeBy(categories, (c) => c.id),
+      opponents: list(src.opponents),
+      rinks: list(src.rinks)
+    };
+  }
+
+  function dedupeBy(arr, key) {
+    const seen = new Set();
+    return arr.filter((x) => { const k = key(x); if (seen.has(k)) return false; seen.add(k); return true; });
+  }
+
+  function applyTeamData(settings, data) {
+    return Object.assign({}, settings, normalizeTeamData(data));
+  }
+
+  function teamFileText(settings, by) {
+    return JSON.stringify(Object.assign({ app: 'bulldogs-watch-party', kind: 'team', schema: 1, updatedAt: new Date().toISOString(), updatedBy: by || '' }, teamSnapshot(settings)), null, 2);
+  }
+
+  function parseTeamFile(text) {
+    let d;
+    try { d = JSON.parse(text); } catch (e) { throw new Error('The team data file is damaged'); }
+    if (!d || d.app !== 'bulldogs-watch-party' || d.kind !== 'team') throw new Error('That file isn’t Watch Party team data');
+    return normalizeTeamData(d);
+  }
+
+  // --- small list editors ---
+  function addCoach(coaches, name, email) {
+    const e = cleanText(email, 120).toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) throw new Error('Enter the coach’s Google email');
+    if (coaches.some((c) => c.email === e)) throw new Error(e + ' is already a coach');
+    return coaches.concat([{ name: cleanText(name, 40), email: e }]);
+  }
+  function removeCoach(coaches, email) { return coaches.filter((c) => c.email !== email); }
+  function addListItem(list, value) {
+    const v = cleanText(value, 60);
+    if (!v) throw new Error('Enter a name');
+    if (list.some((x) => x.toLowerCase() === v.toLowerCase())) return list.slice();
+    return list.concat([v]).sort((a, b) => a.localeCompare(b));
+  }
+  function removeListItem(list, value) { return list.filter((x) => x !== value); }
+
+  // --- three-way merge: base = last synced copy, mine = this device, theirs = what's in Drive now ---
+  function mergeKeyed(base, mine, theirs, key, label, conflicts) {
+    const b = new Map((base || []).map((x) => [key(x), x]));
+    const m = new Map((mine || []).map((x) => [key(x), x]));
+    const t = new Map((theirs || []).map((x) => [key(x), x]));
+    const result = new Map();
+    for (const k of new Set([...b.keys(), ...m.keys(), ...t.keys()])) {
+      const vb = b.get(k), vm = m.get(k), vt = t.get(k);
+      let v;
+      if (same(vm, vb)) v = vt;
+      else if (same(vt, vb)) v = vm;
+      else if (same(vm, vt)) v = vm;
+      else { v = vt; conflicts.push(label(vm || vt || vb)); }
+      if (v !== undefined) result.set(k, v);
+    }
+    // order: keep whichever side reordered; otherwise theirs, with my new items at the end
+    const order = (arr) => (arr || []).map(key);
+    const mineReordered = !same(order(mine).filter((k) => b.has(k)), order(base).filter((k) => m.has(k)));
+    const primary = mineReordered ? order(mine) : order(theirs);
+    const secondary = mineReordered ? order(theirs) : order(mine);
+    const keys = [...primary, ...secondary, ...order(base)].filter((k, i, a) => result.has(k) && a.indexOf(k) === i);
+    return keys.map((k) => result.get(k));
+  }
+
+  function mergeSet(base, mine, theirs) {
+    const b = new Set(base || []), m = new Set(mine || []), t = new Set(theirs || []);
+    const all = new Set([...m, ...t]);
+    return [...all].filter((x) => !((b.has(x) && !m.has(x)) || (b.has(x) && !t.has(x)))).sort((x, y) => x.localeCompare(y));
+  }
+
+  function mergeTeam(base, mine, theirs) {
+    const B = normalizeTeamData(base || theirs);
+    const M = normalizeTeamData(mine);
+    const T = normalizeTeamData(theirs);
+    const conflicts = [];
+    const team = {};
+    for (const f of ['name', 'season']) {
+      if (same(M.team[f], B.team[f])) team[f] = T.team[f];
+      else if (same(T.team[f], B.team[f]) || same(M.team[f], T.team[f])) team[f] = M.team[f];
+      else { team[f] = T.team[f]; conflicts.push(f === 'name' ? 'team name' : 'season'); }
+    }
+    const merged = {
+      team,
+      coaches: mergeKeyed(B.coaches, M.coaches, T.coaches, (c) => c.email, (c) => 'coach ' + (c.name || c.email), conflicts),
+      roster: mergeKeyed(B.roster, M.roster, T.roster, (p) => p.number, (p) => 'player #' + p.number, conflicts),
+      categories: mergeKeyed(B.categories, M.categories, T.categories, (c) => c.id, (c) => 'category “' + c.name + '”', conflicts),
+      opponents: mergeSet(B.opponents, M.opponents, T.opponents),
+      rinks: mergeSet(B.rinks, M.rinks, T.rinks)
+    };
+    return { merged: normalizeTeamData(merged), conflicts };
+  }
+
+  /**
+   * One sync decision. dirty = this device has changes not yet in Drive.
+   * Returns the data to keep locally, whether it must be written to Drive, and any conflicts (theirs won those).
+   */
+  function syncStep(o) {
+    const theirs = normalizeTeamData(o.theirs);
+    if (!o.dirty) return { data: theirs, push: false, conflicts: [] };
+    const mine = normalizeTeamData(o.mine);
+    if (!o.base) return { data: mine, push: !same(mine, theirs), conflicts: [] };
+    const { merged, conflicts } = mergeTeam(o.base, mine, theirs);
+    return { data: merged, push: !same(merged, theirs), conflicts };
+  }
+
   // ---------- games ----------
   function newGame(fields) {
     const parts = orderParts(fields.parts || []).map((p) => ({
@@ -662,8 +802,9 @@
   function defaultState() {
     return {
       version: SCHEMA_VERSION,
-      settings: { coachName: '', categories: defaultCategories(), roster: [] },
-      games: []
+      settings: { coachName: '', team: Object.assign({}, DEFAULT_TEAM), coaches: [], categories: defaultCategories(), roster: [], opponents: [], rinks: [] },
+      games: [],
+      sync: null
     };
   }
 
@@ -675,7 +816,10 @@
     if (!Array.isArray(s.settings.categories) || !s.settings.categories.length) s.settings.categories = defaultCategories();
     s.settings.categories = s.settings.categories.map((c) => Object.assign({ before: DEFAULT_BEFORE, after: DEFAULT_AFTER, hidden: false }, c));
     if (!Array.isArray(s.settings.roster)) s.settings.roster = [];
+    if (!s.settings.team || typeof s.settings.team !== 'object') s.settings.team = Object.assign({}, DEFAULT_TEAM);
+    for (const k of ['coaches', 'opponents', 'rinks']) if (!Array.isArray(s.settings[k])) s.settings[k] = [];
     if (!Array.isArray(s.games)) s.games = [];
+    if (!s.sync || typeof s.sync !== 'object') s.sync = null;
     s.version = SCHEMA_VERSION;
     return s;
   }
@@ -732,7 +876,9 @@
     REC_FADE, hasRec, recExportRate, recOut, recIn, newRecording, addRecKey, recZoomAt, recShapesAt, addRecShape, addRecClear, recPlan, recSummary,
     addPlayer, removePlayer,
     newGame, gameTitle, formatDate, gameTimeline, matchFiles,
-    defaultState, migrate, createStore, exportBackup, importBackup
+    defaultState, migrate, createStore, exportBackup, importBackup,
+    TEAM_SECTIONS, DEFAULT_TEAM, teamSnapshot, normalizeTeamData, applyTeamData, teamFileText, parseTeamFile,
+    addCoach, removeCoach, addListItem, removeListItem, mergeTeam, syncStep
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = WP;

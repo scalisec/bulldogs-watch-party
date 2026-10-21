@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0 — 2026-10-20 (milestone 3a)
+
+- **Team data shared through Google Drive.** Team name and season, coaches, roster, categories (with their before/after windows), opponents and rinks.
+- **Sign in with Google** in Settings, using the narrow `drive.file` permission.
+  - The head coach creates **Bulldogs Watch Party › _App › Watch Party team data.json** in their Drive and shares the folder with the coaches on the list.
+  - Other coaches pick the shared file once with the Google file picker.
+- **Syncing:**
+  - Changes sync automatically. When two coaches edit at the same time, their changes are merged.
+  - If both change the same item, the Drive version is kept and the coach is told which item.
+  - Offline changes are kept and synced later. The header shows the sync state.
+- **New game** suggests opponents and rinks from the shared lists and adds new ones automatically.
+- Google values live in `config.js`.
+
 ## 0.4.0 — 2026-10-20 (milestone 2b)
 
 - **Record a breakdown** in the clip editor. The clip plays from its start while you scroll to zoom, drag to move and draw arrows, circles or freehand lines; drawings fade after 3 s.
