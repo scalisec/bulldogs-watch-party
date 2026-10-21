@@ -962,7 +962,7 @@
     renderEditorTags();
     $('e-export-note').textContent = d.exported
       ? 'Last exported ' + new Date(d.exported.at).toLocaleString() + ' as “' + d.exported.name + '”'
-      : 'Makes a ' + E.W + '×' + E.H + ' MP4 on this computer. Drive sharing comes in milestone 3.';
+      : 'Makes a ' + E.W + '×' + E.H + ' MP4. Choose above where it\u2019s saved.';
     $('e-ov-mode').classList.toggle('hidden', E.mode !== 'draw');
     $('e-ov-mode').textContent = 'Drawing — drag on the picture';
     $('e-play-label').textContent = E.mode === 'preview' ? '⏸ Stop preview' : '▶ Preview finished clip';
