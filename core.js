@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '0.3.0';
+  const APP_VERSION = '0.4.0';
   const APP_RELEASED = '2026-10-20';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
@@ -393,6 +393,7 @@
    * Each segment carries outStart/outEnd on the exported video's timeline.
    */
   function buildPlan(clip) {
+    if (hasRec(clip)) return recPlan(clip);
     const cuts = new Set([clip.start, clip.end]);
     const speeds = sortedSpeeds(clip.speeds).filter((x) => x.end > clip.start && x.start < clip.end);
     for (const x of speeds) { cuts.add(Math.max(clip.start, x.start)); cuts.add(Math.min(clip.end, x.end)); }
@@ -430,6 +431,97 @@
   }
 
   function planDuration(plan) { return plan.length ? plan[plan.length - 1].outEnd : 0; }
+
+  // ---------- recorded breakdowns (milestone 2b) ----------
+  // A recording is stored on the clip as
+  //   rec = { rate: 1 | 0.5, voice: bool, duration: seconds of recording,
+  //           zoomKeys: [[t, scale, x, y], ...], shapes: [{ t, type, color, pts }], clears: [t, ...] }
+  // where every t is seconds since the recording started ("recording time").
+  // Speed rule: with voice the export plays at the recorded speed (so the voice stays in sync);
+  // without voice it plays at normal speed and the moves/drawings are sped up to match.
+  const REC_FADE = 3;          // drawings stay up this many seconds of finished video
+  const REC_KEY_INTERVAL = 0.1;
+
+  function hasRec(clip) { return !!(clip && clip.rec && clip.rec.duration > 0); }
+  function recExportRate(rec) { return rec.voice ? rec.rate : 1; }
+  /** Recording time -> finished-video time. */
+  function recOut(rec, t) { return (t * rec.rate) / recExportRate(rec); }
+  /** Finished-video time -> recording time. */
+  function recIn(rec, outT) { return (outT * recExportRate(rec)) / rec.rate; }
+
+  function newRecording(rate, voice) {
+    return { rate: rate === 0.5 ? 0.5 : 1, voice: !!voice, duration: 0, zoomKeys: [], shapes: [], clears: [], createdAt: Date.now() };
+  }
+
+  /** Add a zoom key if the view changed (at most every 0.1 s) or a second has passed. Mutates rec (it's a live draft). */
+  function addRecKey(rec, t, zoom, force) {
+    const z = normalizeZoom(zoom || FIT);
+    const key = [Math.round(t * 1000) / 1000, z.scale, z.x, z.y];
+    const last = rec.zoomKeys[rec.zoomKeys.length - 1];
+    if (!last || force) { rec.zoomKeys.push(key); return true; }
+    const changed = last[1] !== key[1] || last[2] !== key[2] || last[3] !== key[3];
+    if ((changed && t - last[0] >= REC_KEY_INTERVAL - 1e-9) || t - last[0] >= 1) { rec.zoomKeys.push(key); return true; }
+    return false;
+  }
+
+  /** The recorded view at a finished-video time, smoothly between keys. */
+  function recZoomAt(rec, outT) {
+    const keys = rec.zoomKeys || [];
+    if (!keys.length) return null;
+    const t = recIn(rec, outT);
+    let k = keys[0];
+    if (t <= keys[0][0]) k = keys[0];
+    else if (t >= keys[keys.length - 1][0]) k = keys[keys.length - 1];
+    else {
+      let i = 1;
+      while (i < keys.length && keys[i][0] < t) i++;
+      const a = keys[i - 1];
+      const b = keys[i];
+      const f = b[0] > a[0] ? (t - a[0]) / (b[0] - a[0]) : 0;
+      k = [t, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, a[3] + (b[3] - a[3]) * f];
+    }
+    const z = normalizeZoom({ scale: k[1], x: k[2], y: k[3] });
+    return isZoomed(z) ? z : null;
+  }
+
+  /** Drawings showing at a finished-video time, each with an `alpha` for the fade-out. */
+  function recShapesAt(rec, outT) {
+    const t = recIn(rec, outT);
+    const out = [];
+    for (const s of rec.shapes || []) {
+      if (s.t > t + 1e-9) continue;
+      const age = outT - recOut(rec, s.t);
+      if (age >= REC_FADE) continue;
+      if ((rec.clears || []).some((c) => c > s.t && c <= t + 1e-9)) continue;
+      const alpha = age > REC_FADE - 0.4 ? Math.max(0, (REC_FADE - age) / 0.4) : 1;
+      out.push(Object.assign({}, s, { alpha }));
+    }
+    return out;
+  }
+
+  function addRecShape(rec, t, shape) {
+    if ((rec.shapes || []).length >= 200) throw new Error('Too many drawings in one recording');
+    rec.shapes.push(Object.assign({ t: Math.round(t * 1000) / 1000 }, normalizeShape(shape)));
+  }
+
+  function addRecClear(rec, t) { rec.clears.push(Math.round(t * 1000) / 1000); }
+
+  /** The finished video for a recorded clip: one play segment at the export speed. */
+  function recPlan(clip) {
+    const rec = clip.rec;
+    const er = recExportRate(rec);
+    const to = Math.min(clip.end, clip.start + rec.duration * rec.rate);
+    return [{ kind: 'play', from: clip.start, to, rate: er, outStart: 0, outEnd: (to - clip.start) / er }];
+  }
+
+  function recSummary(rec) {
+    const bits = ['Recorded ' + formatTime(rec.duration)];
+    bits.push(rec.rate === 0.5 ? 'at half speed' : 'at normal speed');
+    bits.push(rec.voice ? 'with voice' : 'no voice');
+    const n = (rec.shapes || []).length;
+    if (n) bits.push(n + (n === 1 ? ' drawing' : ' drawings'));
+    return bits.join(' · ');
+  }
 
   /** Title bar words for an exported clip. */
   function titleLines(clip, category, game) {
@@ -483,7 +575,11 @@
       if (err) throw new Error(err);
       next.speeds = sortedSpeeds(patch.speeds);
     }
-    if ('start' in patch || 'end' in patch) return fitEditsToRange(next);
+    if ('start' in patch || 'end' in patch) {
+      // a recording is timed to the old trim; re-trimming means re-recording
+      if (clip.rec && (next.start !== clip.start || next.end !== clip.end)) next.rec = null;
+      return fitEditsToRange(next);
+    }
     return next;
   }
 
@@ -633,6 +729,7 @@
     MAX_ZOOM, FIT, normalizeZoom, isZoomed, zoomAt, panZoom, zoomTransform, zoomSourceRect, viewToFrame, frameToView,
     RATES, MAX_SPEEDS, DEFAULT_HOLD, COLORS, validateSpeeds, addSpeed, updateSpeed, removeSpeed, fitEditsToRange,
     setFreeze, addShape, normalizeShape, buildPlan, planDuration, titleLines, exportFileName, exportSize,
+    REC_FADE, hasRec, recExportRate, recOut, recIn, newRecording, addRecKey, recZoomAt, recShapesAt, addRecShape, addRecClear, recPlan, recSummary,
     addPlayer, removePlayer,
     newGame, gameTitle, formatDate, gameTimeline, matchFiles,
     defaultState, migrate, createStore, exportBackup, importBackup

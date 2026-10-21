@@ -17,7 +17,7 @@ def check(cond, msg):
     if not cond: fails.append(msg)
 
 with sync_playwright() as p:
-    b = p.chromium.launch(args=['--autoplay-policy=no-user-gesture-required'])
+    b = p.chromium.launch(args=['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'])
     ctx = b.new_context(viewport={'width': 1440, 'height': 1000})
     page = ctx.new_page()
     errors = []
@@ -258,6 +258,72 @@ with sync_playwright() as p:
     check(le['frames'] > 250, 'export encoded enough frames (%d)' % le['frames'])
     check(page.evaluate("window.__bwp.state.games[0].clips.some(c => c.exported && c.exported.name.endsWith('.mp4'))"), 'clip remembers it was exported')
     page.screenshot(path=SHOTS + '/8-editor-after-export.png')
+
+    # ===== milestone 2b: record a breakdown (voice + half speed) =====
+    check(page.is_checked('#e-rec-voice') and page.is_checked('#e-rec-half'), 'voice-over and half speed are on by default')
+    page.click('#e-rec-start')
+    page.wait_for_selector('#e-count:not(.hidden)')
+    check(True, 'countdown shows')
+    page.wait_for_function("window.__bwp.editor.mode === 'record'", timeout=6000)
+    check(page.is_visible('#e-rec-stop'), 'recording controls show')
+    page.wait_for_timeout(1500)
+    cb = page.locator('#e-canvas').bounding_box()
+    page.mouse.move(cb['x'] + cb['width'] * 0.6, cb['y'] + cb['height'] * 0.4)
+    for _ in range(6):
+        page.mouse.wheel(0, -120); page.wait_for_timeout(60)
+    page.wait_for_timeout(1500)
+    page.keyboard.press('d')
+    page.mouse.move(cb['x'] + cb['width'] * 0.3, cb['y'] + cb['height'] * 0.5)
+    page.mouse.down(); page.mouse.move(cb['x'] + cb['width'] * 0.6, cb['y'] + cb['height'] * 0.3, steps=6); page.mouse.up()
+    page.wait_for_timeout(200)
+    page.screenshot(path=SHOTS + '/9-recording.png')
+    page.keyboard.press('d')
+    page.wait_for_timeout(2000)
+    page.mouse.move(cb['x'] + cb['width'] * 0.5, cb['y'] + cb['height'] * 0.5)
+    for _ in range(6):
+        page.mouse.wheel(0, 120); page.wait_for_timeout(60)
+    # half speed: 10 s of game takes ~20 s to record; it stops itself at the clip end
+    page.wait_for_function("window.__bwp.editor.mode === 'idle' && !!window.__bwp.editor.d.rec", timeout=40000)
+    rec = page.evaluate('window.__bwp.editor.d.rec')
+    print('rec:', {k: (v if not isinstance(v, list) else len(v)) for k, v in rec.items()})
+    check(rec['rate'] == 0.5 and rec['voice'] and 19 <= rec['duration'] <= 21, 'recording saved: half speed, voice, ~20 s (%.1f)' % rec['duration'])
+    check(len(rec['zoomKeys']) >= 5 and max(k[1] for k in rec['zoomKeys']) > 1.8, 'zoom moves were recorded (%d keys)' % len(rec['zoomKeys']))
+    check(len(rec['shapes']) == 1, 'live drawing was recorded')
+    check('finished video 20 s' in page.text_content('#e-len'), 'with voice, the finished video keeps the half-speed length: ' + page.text_content('#e-len'))
+    check('dim' in page.get_attribute('#e-edits', 'class'), 'freeze and speed panels are set aside while a recording exists')
+    page.click('text=Play recording')
+    page.wait_for_timeout(600)
+    check(page.evaluate('window.__bwp.editor.mode') == 'preview', 'play recording starts')
+    page.keyboard.press(' ')
+    page.wait_for_timeout(300)
+    with page.expect_download(timeout=90000) as dl:
+        page.click('#e-export')
+    mp4v = SHOTS + '/export-voice.mp4'
+    dl.value.save_as(mp4v)
+    le = page.evaluate('({codec: window.__bwp.lastExport.codec, audio: window.__bwp.lastExport.audio, duration: window.__bwp.lastExport.duration, frames: window.__bwp.lastExport.frames})')
+    print('voice export:', le)
+    check(le['audio'] in ('mp4a.40.2', 'opus') and abs(le['duration'] - 20) < 1.2, 'export has a voice track and runs ~20 s')
+
+    # ===== no voice, half speed, stopped early =====
+    page.uncheck('#e-rec-voice')
+    page.click('#e-rec-start')
+    page.wait_for_function("window.__bwp.editor.mode === 'record'", timeout=6000)
+    page.wait_for_timeout(4200)
+    page.keyboard.press('Escape')
+    page.wait_for_function("window.__bwp.editor.mode === 'idle'", timeout=8000)
+    rec2 = page.evaluate('window.__bwp.editor.d.rec')
+    check(not rec2['voice'] and 3.5 <= rec2['duration'] <= 5.5, 'Esc stops early; no-voice recording saved (%.1f s)' % rec2['duration'])
+    with page.expect_download(timeout=60000) as dl:
+        page.click('#e-export')
+    mp4n = SHOTS + '/export-novoice.mp4'
+    dl.value.save_as(mp4n)
+    le2 = page.evaluate('({audio: window.__bwp.lastExport.audio, duration: window.__bwp.lastExport.duration})')
+    print('no-voice export:', le2)
+    check(le2['audio'] is None and abs(le2['duration'] - rec2['duration'] / 2) < 0.3, 'without voice the half-speed recording exports at normal speed (%.2f s)' % le2['duration'])
+    page.once('dialog', lambda d: d.accept())
+    page.click('text=Delete recording')
+    page.wait_for_timeout(200)
+    check(page.evaluate('window.__bwp.editor.d.rec') is None and 'finished video 16 s' in page.text_content('#e-len'), 'deleting the recording brings back slow motion and freeze')
     page.click('#e-back')
     page.wait_for_selector('#view-tag:not(.hidden)')
     page.evaluate("(() => { const s = window.__bwp.state; s.games[0].clips = s.games[0].clips.filter(c => c.start !== 58); localStorage.setItem('bulldogs-watch-party:v1', JSON.stringify(s)); })()")
@@ -275,7 +341,7 @@ with sync_playwright() as p:
     page.fill('#cat-new', 'Power play'); page.click('text=Add category')
     page.fill('#r-num', '7'); page.fill('#r-name', 'Sam'); page.click('text=Add player')
     page.screenshot(path=SHOTS + '/4-settings.png', full_page=True)
-    check(page.text_content('#app-version') == 'v0.3.0' and 'v0.3.0' in page.text_content('#brand-version'), 'version shows in Settings and the header')
+    check(page.text_content('#app-version') == 'v0.4.0' and 'v0.4.0' in page.text_content('#brand-version'), 'version shows in Settings and the header')
     st = page.evaluate('window.__bwp.state.settings')
     fo = [c for c in st['categories'] if c['name'] == 'Faceoffs'][0]
     check(fo['before'] == 2 and fo['after'] == 6, 'faceoff window saved 2/6')

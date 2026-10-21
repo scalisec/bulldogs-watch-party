@@ -1,4 +1,4 @@
-# Bulldogs Watch Party — milestones 1 and 2a
+# Bulldogs Watch Party — milestones 1, 2a and 2b
 
 Watch a LiveBarn game on your PC, tag clips for the U10 Blue team, and turn clips into finished MP4 videos with drawings, slow motion and zoom.
 
@@ -47,7 +47,23 @@ Click **Edit** on any clip. Everything saves as you go.
 - **Export MP4** makes the video on this computer and asks where to save it.
   - It plays through the clip once while it records, so a 15-second clip takes about 15–20 seconds. Keep the tab open.
   - Video is 1280 wide and keeps the LiveBarn shape. It's about 3–5 MB for a 15-second clip.
-  - Exported clips have no sound yet. Voice-over and rink sound come with milestone 2b.
+  - Exported clips have sound only when you record a voice-over (below).
+
+### Record a breakdown (milestone 2b)
+
+In the clip editor, tick **Voice-over** and/or **Record at half speed**, then click **Record breakdown**.
+
+- **During the countdown and recording:**
+  - After a 3-second countdown the clip plays from its start.
+  - Scroll to zoom and drag to move. Press `D` to switch to drawing (arrows, circles, freehand) and back.
+  - `C` clears the drawings. Drawings fade after 3 s.
+  - It stops by itself at the clip's end, or press `Esc` / **Stop**.
+- **Afterwards:** **Play recording** shows it with your voice. **Record again** replaces it; **Delete recording** removes it.
+- **Speed rule:**
+  - With voice, the finished video plays at the speed you recorded (a half-speed take becomes a slow-motion breakdown).
+  - Without voice, it plays at normal speed.
+- **What the recording replaces:** while a recording exists, the export uses it instead of the slow-motion sections, freeze and fixed zoom. Changing the trim deletes the recording.
+- **Storage:** voice recordings are kept in this browser and aren't included in game backups.
 
 ### Editor keys
 
@@ -76,8 +92,8 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 
 ## Tests
 
-- `node --test tests/` runs the core logic tests (34).
-- `python3 tests/e2e.py <screenshot-dir> <media-dir>` runs the browser test (60 checks). It covers tagging, zoom, the editor, drawing, slow motion, preview, and exporting an MP4.
+- `node --test tests/` runs the core logic tests (41).
+- `python3 tests/e2e.py <screenshot-dir> <media-dir>` runs the browser test (73 checks). It covers tagging, zoom, the editor, drawing, slow motion, preview, MP4 export, and recording a breakdown with a simulated microphone.
 
 ## Included library
 
@@ -85,6 +101,5 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 
 ## Coming next
 
-- **Milestone 2b:** Record a breakdown — recorded zoom moves, live drawing and voice-over.
 - **Milestone 3:** Google Drive sign-in, folders, and a shared library.
 - **Milestone 4:** tablet and phone layouts.

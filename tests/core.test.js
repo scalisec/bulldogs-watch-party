@@ -397,3 +397,95 @@ test('app version is a semantic version with a release date', () => {
   assert.match(WP.APP_VERSION, /^\d+\.\d+\.\d+$/);
   assert.match(WP.APP_RELEASED, /^\d{4}-\d{2}-\d{2}$/);
 });
+
+// ---------- milestone 2b: recorded breakdowns ----------
+const recClip = (rate, voice, duration) => {
+  const c = WP.makeClip({ start: 10, end: 20, categoryId: 'cat_1', total: 600 });
+  c.rec = Object.assign(WP.newRecording(rate, voice), { duration });
+  return c;
+};
+
+test('recording speed rule: voice keeps the recorded speed, no voice plays at normal speed', () => {
+  // half speed, voice: 10 s of game recorded over 20 s -> 20 s finished video at 0.5x
+  let p = WP.buildPlan(recClip(0.5, true, 20));
+  assert.deepEqual(p, [{ kind: 'play', from: 10, to: 20, rate: 0.5, outStart: 0, outEnd: 20 }]);
+  // half speed, no voice -> 10 s at normal speed
+  p = WP.buildPlan(recClip(0.5, false, 20));
+  assert.deepEqual(p, [{ kind: 'play', from: 10, to: 20, rate: 1, outStart: 0, outEnd: 10 }]);
+  // normal speed with voice -> 10 s
+  assert.equal(WP.planDuration(WP.buildPlan(recClip(1, true, 10))), 10);
+  // stopped early: 4 s of half-speed recording covers 2 s of game
+  p = WP.buildPlan(recClip(0.5, false, 4));
+  assert.equal(p[0].to, 12);
+  assert.equal(WP.planDuration(p), 2);
+});
+
+test('recording ignores slow-motion sections and freeze while it exists', () => {
+  const c = recClip(1, false, 10);
+  c.speeds = [{ id: 'a', start: 12, end: 14, rate: 0.5 }];
+  c.freeze = { at: 15, hold: 3, shapes: [] };
+  assert.equal(WP.planDuration(WP.buildPlan(c)), 10);
+  c.rec = null;
+  assert.equal(WP.planDuration(WP.buildPlan(c)), 15);
+});
+
+test('recording time maps to finished-video time', () => {
+  const v = WP.newRecording(0.5, true);
+  const n = WP.newRecording(0.5, false);
+  assert.equal(WP.recOut(v, 8), 8);
+  assert.equal(WP.recOut(n, 8), 4);
+  assert.equal(WP.recIn(n, 4), 8);
+});
+
+test('zoom keys: only on change (max 10/s) or once a second, interpolated on playback', () => {
+  const r = WP.newRecording(1, false);
+  assert.ok(WP.addRecKey(r, 0, null));
+  assert.ok(!WP.addRecKey(r, 0.05, { scale: 2, x: 0.5, y: 0.5 }), 'too soon');
+  assert.ok(WP.addRecKey(r, 0.1, { scale: 2, x: 0.5, y: 0.5 }));
+  assert.ok(!WP.addRecKey(r, 0.5, { scale: 2, x: 0.5, y: 0.5 }), 'unchanged');
+  assert.ok(WP.addRecKey(r, 1.1, { scale: 2, x: 0.5, y: 0.5 }), 'heartbeat');
+  assert.ok(WP.addRecKey(r, 2.1, { scale: 3, x: 0.5, y: 0.5 }));
+  assert.equal(WP.recZoomAt(r, 0), null, 'starts on the whole rink');
+  assert.equal(WP.recZoomAt(r, 0.05).scale, 1.5, 'halfway between keys');
+  assert.equal(WP.recZoomAt(r, 1.6).scale, 2.5);
+  assert.equal(WP.recZoomAt(r, 99).scale, 3, 'holds the last view');
+  assert.equal(WP.recZoomAt(WP.newRecording(1, false), 3), null, 'no keys = whole rink');
+  // half speed without voice: recording time 2.1 lands at video time 1.05
+  const h = WP.newRecording(0.5, false);
+  WP.addRecKey(h, 0, null); WP.addRecKey(h, 2, { scale: 3, x: 0.5, y: 0.5 });
+  assert.equal(WP.recZoomAt(h, 1).scale, 3);
+});
+
+test('recorded drawings appear, fade after 3 s and can be cleared', () => {
+  const r = WP.newRecording(1, false);
+  WP.addRecShape(r, 2, { type: 'arrow', color: '#FACC15', pts: [[0.1, 0.1], [0.4, 0.4]] });
+  WP.addRecShape(r, 6, { type: 'circle', color: '#EF4444', pts: [[0.5, 0.5], [0.6, 0.6]] });
+  assert.equal(WP.recShapesAt(r, 1.9).length, 0);
+  assert.equal(WP.recShapesAt(r, 2).length, 1);
+  assert.equal(WP.recShapesAt(r, 4)[0].alpha, 1);
+  const fading = WP.recShapesAt(r, 4.8)[0].alpha;
+  assert.ok(fading > 0 && fading < 1, 'fades in the last 0.4 s');
+  assert.equal(WP.recShapesAt(r, 5).length, 0, 'gone after 3 s');
+  WP.addRecClear(r, 6.5);
+  assert.equal(WP.recShapesAt(r, 6.2).length, 1);
+  assert.equal(WP.recShapesAt(r, 6.6).length, 0, 'cleared');
+  // without voice at half speed, fade time is measured in finished video seconds
+  const h = WP.newRecording(0.5, false);
+  WP.addRecShape(h, 2, { type: 'arrow', color: '#FACC15', pts: [[0.1, 0.1], [0.4, 0.4]] });
+  assert.equal(WP.recShapesAt(h, 1).length, 1);
+  assert.equal(WP.recShapesAt(h, 3.9).length, 1);
+  assert.equal(WP.recShapesAt(h, 4.1).length, 0);
+});
+
+test('re-trimming a recorded clip drops the recording; other edits keep it', () => {
+  const c = recClip(1, true, 10);
+  assert.ok(WP.hasRec(WP.updateClip(c, { note: 'x' }, 600)));
+  assert.equal(WP.updateClip(c, { start: 11 }, 600).rec, null);
+  assert.ok(WP.hasRec(WP.updateClip(c, { start: 10 }, 600)), 'same trim keeps it');
+});
+
+test('recording summary', () => {
+  const r = Object.assign(WP.newRecording(0.5, true), { duration: 21 });
+  WP.addRecShape(r, 2, { type: 'arrow', color: '#FACC15', pts: [[0.1, 0.1], [0.4, 0.4]] });
+  assert.equal(WP.recSummary(r), 'Recorded 0:21 · at half speed · with voice · 1 drawing');
+});

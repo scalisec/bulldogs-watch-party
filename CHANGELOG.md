@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 — 2026-10-20 (milestone 2b)
+
+- **Record a breakdown** in the clip editor. The clip plays from its start while you scroll to zoom, drag to move and draw arrows, circles or freehand lines; drawings fade after 3 s.
+- **Optional voice-over** from the microphone, and an option to record at half speed.
+  - With voice, the finished video plays at the speed you recorded, so your words stay in sync.
+  - Without voice, it plays at normal speed.
+- **Recording controls:** countdown, Stop (Esc), D to switch between moving and drawing, C to clear drawings. Play recording, Record again, Delete recording.
+- **Export** follows the recorded zoom moves and drawings and adds the voice as the sound track: AAC where available, Opus fallback.
+- The editor scrolls the picture into view when you start drawing or recording.
+
 ## 0.3.0 — 2026-10-20 (milestone 2a)
 
 - **Clip editor:**

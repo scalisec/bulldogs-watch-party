@@ -30,6 +30,13 @@
   }
 
   function drawShape(ctx, s, zoom, W, H) {
+    if (s.alpha != null && s.alpha < 1) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, s.alpha);
+      drawShape(ctx, Object.assign({}, s, { alpha: null }), zoom, W, H);
+      ctx.restore();
+      return;
+    }
     const lw = Math.max(3, H * 0.009);
     const pts = s.pts.map((p) => toCanvas(zoom, W, H, p));
     if (s.type === 'free') {
@@ -199,19 +206,84 @@
     player.setRate(1);
   }
 
-  /** Export one clip to an MP4 Blob. */
+  // ---------- voice-over audio ----------
+  const AUDIO_RATE = 48000;
+
+  /** Decode a recorded voice blob to mono samples at 48 kHz. */
+  async function decodeVoice(blob) {
+    const ctx = new (root.AudioContext || root.webkitAudioContext)({ sampleRate: AUDIO_RATE });
+    try {
+      const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
+      const n = buf.length;
+      const mono = new Float32Array(n);
+      for (let c = 0; c < buf.numberOfChannels; c++) {
+        const d = buf.getChannelData(c);
+        for (let i = 0; i < n; i++) mono[i] += d[i] / buf.numberOfChannels;
+      }
+      return { samples: mono, sampleRate: buf.sampleRate };
+    } finally { ctx.close(); }
+  }
+
+  async function pickAudioCodec(sampleRate) {
+    if (!('AudioEncoder' in root)) return null;
+    const tries = [
+      { id: 'mp4a.40.2', mux: 'aac', bitrate: 96000 },
+      { id: 'opus', mux: 'opus', bitrate: 64000 }
+    ];
+    for (const t of tries) {
+      const config = { codec: t.id, sampleRate, numberOfChannels: 1, bitrate: t.bitrate };
+      try {
+        const r = await AudioEncoder.isConfigSupported(config);
+        if (r.supported) return Object.assign({}, t, { config });
+      } catch (e) { /* next */ }
+    }
+    return null;
+  }
+
+  async function encodeAudio(voice, codec, muxer, maxSeconds) {
+    let err = null;
+    const enc = new AudioEncoder({ output: (chunk, meta) => muxer.addAudioChunk(chunk, meta), error: (e) => { err = e; } });
+    enc.configure(codec.config);
+    const sr = voice.sampleRate;
+    const total = Math.min(voice.samples.length, Math.floor(maxSeconds * sr));
+    const step = 1024;
+    for (let i = 0; i < total; i += step) {
+      const n = Math.min(step, total - i);
+      const data = voice.samples.slice(i, i + n);
+      const ad = new AudioData({ format: 'f32-planar', sampleRate: sr, numberOfFrames: n, numberOfChannels: 1, timestamp: Math.round((i / sr) * 1e6), data });
+      enc.encode(ad);
+      ad.close();
+      if (err) throw err;
+    }
+    await enc.flush();
+    enc.close();
+    if (err) throw err;
+  }
+
+  /** Export one clip to an MP4 Blob.
+      o.frameAt(outT, seg) -> { zoom, shapes } lets a recorded breakdown change zoom and drawings frame by frame.
+      o.voiceBlob adds the coach's voice as the sound track. */
   async function exportClip(o) {
     const { player, video, plan, W, H } = o;
     const codec = await pickCodec(W, H);
+    const total = WP.planDuration(plan);
+    let voice = null;
+    let acodec = null;
+    if (o.voiceBlob) {
+      voice = await decodeVoice(o.voiceBlob);
+      acodec = await pickAudioCodec(voice.sampleRate);
+      if (!acodec) throw new Error('This browser can\u2019t add sound to video files. Use the latest Chrome or Edge.');
+    }
     const target = new Mp4Muxer.ArrayBufferTarget();
-    const muxer = new Mp4Muxer.Muxer({ target, video: { codec: codec.mux, width: W, height: H }, fastStart: 'in-memory', firstTimestampBehavior: 'offset' });
+    const muxer = new Mp4Muxer.Muxer(Object.assign({ target, video: { codec: codec.mux, width: W, height: H }, fastStart: 'in-memory', firstTimestampBehavior: 'offset' },
+      acodec ? { audio: { codec: acodec.mux, numberOfChannels: 1, sampleRate: voice.sampleRate } } : {}));
+    if (voice) await encodeAudio(voice, acodec, muxer, total);
     let encErr = null;
     const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => { encErr = e; } });
     enc.configure(Object.assign({}, codec.config, { latencyMode: 'quality' }));
     const canvas = o.canvas || document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d');
-    const total = WP.planDuration(plan);
     let lastKey = -Infinity;
     let lastTs = -1;
     let frames = 0;
@@ -226,7 +298,8 @@
           const ts = Math.round(outT * 1e6);
           if (ts <= lastTs) return;
           lastTs = ts;
-          renderFrame(ctx, video, { zoom: o.zoom, W, H, title: o.title, shapes: seg.kind === 'hold' ? o.shapes : null });
+          const st = o.frameAt ? o.frameAt(outT, seg) : { zoom: o.zoom, shapes: seg.kind === 'hold' ? o.shapes : null };
+          renderFrame(ctx, video, { zoom: st.zoom, W, H, title: o.title, shapes: st.shapes });
           const vf = new VideoFrame(canvas, { timestamp: ts });
           const key = outT - lastKey >= 2;
           if (key) lastKey = outT;
@@ -251,8 +324,8 @@
       try { enc.close(); } catch (e) { /* already closed */ }
     }
     if (o.onProgress) o.onProgress(1);
-    return { blob: new Blob([target.buffer], { type: 'video/mp4' }), codec: codec.id, h264: codec.h264, frames, duration: total };
+    return { blob: new Blob([target.buffer], { type: 'video/mp4' }), codec: codec.id, h264: codec.h264, audio: acodec ? acodec.id : null, frames, duration: total };
   }
 
-  root.WPRender = { drawVideo, drawShape, drawTitle, renderFrame, pickCodec, runPlan, exportClip, waitEvent };
+  root.WPRender = { drawVideo, drawShape, drawTitle, renderFrame, pickCodec, pickAudioCodec, decodeVoice, runPlan, exportClip, waitEvent };
 })(window);

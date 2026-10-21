@@ -754,7 +754,7 @@
       el('div', { class: 'meta' },
         el('span', {}, c.players.length ? c.players.map((p) => '#' + p).join(' ') : 'No players'),
         el('span', { class: 'pill ' + c.flag }, c.flag === 'work' ? 'Work on this' : 'Do this'),
-        c.zoom ? el('span', { class: 'pill zoompill' }, zoomLabel(c.zoom)) : null,
+        WP.hasRec(c) ? el('span', { class: 'pill recpill' }, '\u25CF Breakdown' + (c.rec.voice ? ' + voice' : '')) : (c.zoom ? el('span', { class: 'pill zoompill' }, zoomLabel(c.zoom)) : null),
         c.by ? el('span', {}, 'by ' + c.by) : null
       ),
       c.note ? el('div', { class: 'small' }, c.note) : null,
@@ -776,6 +776,7 @@
   function edClip() { return E && G ? G.clips.find((c) => c.id === E.clipId) : null; }
   function edCtx() { return $('e-canvas').getContext('2d'); }
   function edBusy() { return E && (E.mode === 'export'); }
+  function edRecording() { return E && (E.mode === 'record' || E.mode === 'countdown'); }
 
   function openEditor(gameId, clipId) {
     const game = S.games.find((g) => g.id === gameId);
@@ -801,6 +802,8 @@
   function closeEditor() {
     if (!E) return;
     if (E.ctrl) E.ctrl.abort();
+    if (E.recStream) E.recStream.getTracks().forEach((tr) => tr.stop());
+    if (E.recorder && E.recorder.state !== 'inactive') { try { E.recorder.stop(); } catch (e) { /* ignore */ } }
     cancelAnimationFrame(E.raf);
     if (E.player) E.player.destroy();
     E = null;
@@ -843,20 +846,38 @@
     }
   }
 
+  function recT() { return E && E.rec ? Math.max(0, (E.player.time() - E.d.start) / E.rec.rate) : 0; }
+
   function drawStage() {
     const d = E.d;
     const v = $('e-video');
     const t = E.player.time();
     const paused = !E.player.isPlaying();
-    const atFreeze = d.freeze && Math.abs(t - d.freeze.at) < 0.06 && paused && E.mode !== 'preview';
-    const showShapes = d.freeze && (E.mode === 'draw' || E.holdActive || atFreeze);
     const cat = catById(d.categoryId);
-    WPRender.renderFrame(edCtx(), v, {
-      zoom: d.zoom, W: E.W, H: E.H,
-      shapes: showShapes ? d.freeze.shapes : null,
-      draft: E.drawDraft || null,
-      title: d.titleBar !== false ? WP.titleLines(d, cat, G) : null
-    });
+    const title = d.titleBar !== false ? WP.titleLines(d, cat, G) : null;
+    if (E.mode === 'record' && E.rec) {
+      const rt = recT();
+      WP.addRecKey(E.rec, rt, d.zoom);
+      WPRender.renderFrame(edCtx(), v, { zoom: d.zoom, W: E.W, H: E.H, shapes: WP.recShapesAt(E.rec, WP.recOut(E.rec, rt)), draft: E.drawDraft || null, title });
+      $('e-ov').replaceChildren(el('span', { class: 'recdot' }), 'REC ' + WP.formatTime(rt, true) + (E.rec.rate === 0.5 ? ' \u00b7 half speed' : '') + (E.rec.voice ? ' \u00b7 mic on' : ''));
+      if (t >= d.end - 0.03 || (E.recStarted && paused)) stopRecording();
+      const head0 = $('e-trim-head');
+      if (head0) head0.style.left = trimPct(t) + '%';
+      return;
+    }
+    if (WP.hasRec(d) && E.mode !== 'countdown') {
+      const outT = E.mode === 'preview' ? E.outT : Math.max(0, (t - d.start) / WP.recExportRate(d.rec));
+      WPRender.renderFrame(edCtx(), v, { zoom: WP.recZoomAt(d.rec, outT), W: E.W, H: E.H, shapes: WP.recShapesAt(d.rec, outT), title });
+    } else {
+      const atFreeze = d.freeze && Math.abs(t - d.freeze.at) < 0.06 && paused && E.mode !== 'preview';
+      const showShapes = d.freeze && (E.mode === 'draw' || E.holdActive || atFreeze);
+      WPRender.renderFrame(edCtx(), v, {
+        zoom: d.zoom, W: E.W, H: E.H,
+        shapes: showShapes ? d.freeze.shapes : null,
+        draft: E.drawDraft || null,
+        title
+      });
+    }
     const inClip = Math.max(0, t - d.start);
     $('e-ov').textContent = E.mode === 'preview'
       ? 'Finished clip ' + WP.formatTime(E.outT, true) + ' / ' + WP.formatTime(WP.planDuration(WP.buildPlan(d)), true)
@@ -898,6 +919,9 @@
     $('e-len').textContent = 'Clip ' + Math.round((d.end - d.start) * 10) / 10 + ' s → finished video ' + Math.round(WP.planDuration(plan) * 10) / 10 + ' s';
     renderFreezePanel();
     renderSpeedPanel();
+    renderRecPanel();
+    $('e-edits').classList.toggle('dim', WP.hasRec(d) || E.mode === 'record' || E.mode === 'countdown');
+    $('stage').classList.toggle('recording', E.mode === 'record');
     // details
     $('e-cat').replaceChildren(...S.settings.categories.map((x) => el('option', { value: x.id }, x.name + (x.hidden ? ' (hidden)' : ''))));
     $('e-cat').value = d.categoryId;
@@ -923,7 +947,7 @@
     $('e-ov-mode').classList.toggle('hidden', E.mode !== 'draw');
     $('e-ov-mode').textContent = 'Drawing — drag on the picture';
     $('e-play-label').textContent = E.mode === 'preview' ? '⏸ Stop preview' : '▶ Preview finished clip';
-    const busy = edBusy();
+    const busy = edBusy() || E.mode === 'record' || E.mode === 'countdown';
     for (const id of ['e-export', 'e-play', 'e-delete']) $(id).disabled = busy;
     if (busy) { $('e-prev').disabled = true; $('e-next').disabled = true; }
   }
@@ -970,6 +994,134 @@
     );
   }
 
+
+  // ---- record a breakdown (milestone 2b) ----
+  function renderRecPanel() {
+    if (!E) return;
+    const d = E.d;
+    const box = $('e-rec');
+    $('e-rec-sum').textContent = WP.hasRec(d) ? WP.recSummary(d.rec) : '';
+    if (E.mode === 'record' || E.mode === 'countdown') {
+      const tool = (id, label) => el('button', { type: 'button', class: 'btn small tool', 'aria-pressed': String(E.recDraw && E.tool === id), onclick: () => { E.tool = id; E.recDraw = true; renderRecPanel(); } }, label);
+      const sw = (name, hex) => el('button', { type: 'button', class: 'swatch', 'aria-label': name, 'aria-pressed': String(E.color === hex), style: 'background:' + hex, onclick: () => { E.color = hex; E.recDraw = true; renderRecPanel(); } });
+      box.replaceChildren(
+        el('div', { class: 'row' },
+          el('button', { type: 'button', class: 'btn small tool', 'aria-pressed': String(!E.recDraw), onclick: () => { E.recDraw = false; renderRecPanel(); } }, 'Move / zoom'),
+          tool('arrow', 'Arrow'), tool('circle', 'Circle'), tool('free', 'Freehand'),
+          sw('Yellow', WP.COLORS.yellow), sw('White', WP.COLORS.white), sw('Red', WP.COLORS.red),
+          el('button', { type: 'button', class: 'btn small', onclick: () => E.rec && WP.addRecClear(E.rec, recT()) }, 'Clear drawings'),
+          el('button', { type: 'button', class: 'btn small danger', id: 'e-rec-stop', onclick: () => stopRecording() }, '\u25A0 Stop')),
+        el('span', { class: 'small muted' }, 'Scroll to zoom, drag to move. Press D to switch between moving and drawing, C to clear drawings, Esc to stop. Drawings fade after 3 s.' + (E.rec ? ' ' + (E.rec.shapes.length) + ' drawings so far.' : ''))
+      );
+      return;
+    }
+    const voiceCb = el('input', { type: 'checkbox', id: 'e-rec-voice', style: 'width:20px;height:20px;flex:none' });
+    const halfCb = el('input', { type: 'checkbox', id: 'e-rec-half', style: 'width:20px;height:20px;flex:none' });
+    voiceCb.checked = E.recOpts ? E.recOpts.voice : true;
+    halfCb.checked = E.recOpts ? E.recOpts.half : true;
+    const opts = el('div', { class: 'row', style: 'gap:16px' },
+      el('label', { style: 'display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px' }, voiceCb, 'Voice-over (uses the microphone)'),
+      el('label', { style: 'display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px' }, halfCb, 'Record at half speed'));
+    const startBtn = el('button', { type: 'button', class: 'btn primary', id: 'e-rec-start', disabled: edBusy() || E.mode === 'preview', onclick: () => startRecording({ voice: voiceCb.checked, half: halfCb.checked }) },
+      WP.hasRec(d) ? '\u25CF Record again' : '\u25CF Record breakdown');
+    const rule = el('span', { class: 'small muted' }, 'The clip plays from its start while you zoom, drag and draw' + ' \u2014 and talk, with voice-over on. With voice, the finished video plays at the speed you recorded so your words stay in sync; without voice it plays at normal speed.');
+    if (WP.hasRec(d)) {
+      box.replaceChildren(
+        el('span', { class: 'small' }, 'The export uses this recording. Slow-motion sections, freeze and the fixed zoom aren\u2019t used while it exists.'),
+        el('div', { class: 'row' },
+          el('button', { type: 'button', class: 'btn small', onclick: () => startPreview() }, '\u25B6 Play recording'),
+          el('button', { type: 'button', class: 'btn small danger', onclick: () => { if (!confirm('Delete this recording?')) return; idb.del('voice:' + d.id); commit({ rec: null }); } }, 'Delete recording')),
+        opts, startBtn);
+    } else box.replaceChildren(rule, opts, startBtn);
+  }
+
+  async function startRecording(opts) {
+    if (!E || edBusy() || edRecording()) return;
+    stopPreview();
+    exitDraw(true);
+    E.recOpts = opts;
+    const d = E.d;
+    let stream = null;
+    if (opts.voice) {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) { toast('This browser can\u2019t record sound. Use Chrome or Edge.', { err: true }); return; }
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } }); }
+      catch (e) { toast('Microphone not available: ' + (e.name === 'NotAllowedError' ? 'permission was refused' : e.message), { err: true }); return; }
+    }
+    E.mode = 'countdown';
+    E.recStarted = false;
+    E.rec = WP.newRecording(opts.half ? 0.5 : 1, opts.voice);
+    E.recDraw = false;
+    E.recStream = stream;
+    E.d.zoom = null;
+    renderEditor();
+    showStage();
+    E.player.pause();
+    E.player.setRate(E.rec.rate);
+    await E.player.seek(d.start);
+    const cd = $('e-count');
+    cd.classList.remove('hidden');
+    for (const n of ['3', '2', '1']) {
+      if (!E || E.mode !== 'countdown') { cd.classList.add('hidden'); return; }
+      cd.textContent = n;
+      await new Promise((r) => setTimeout(r, 700));
+    }
+    cd.classList.add('hidden');
+    if (!E || E.mode !== 'countdown') return;
+    E.recChunks = [];
+    if (stream) {
+      const type = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((t) => MediaRecorder.isTypeSupported(t)) || '';
+      E.recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+      E.recorder.ondataavailable = (ev) => { if (ev.data && ev.data.size) E.recChunks.push(ev.data); };
+      E.recorder.start(250);
+    }
+    WP.addRecKey(E.rec, 0, null, true);
+    E.mode = 'record';
+    renderEditor();
+    E.player.resume();
+    setTimeout(() => { if (E) E.recStarted = true; }, 400);
+  }
+
+  async function stopRecording() {
+    if (!E || !edRecording() || E.stopping) return;
+    if (E.mode === 'countdown') {
+      E.mode = 'idle';
+      if (E.recStream) E.recStream.getTracks().forEach((t) => t.stop());
+      E.recStream = null;
+      E.rec = null;
+      E.player.setRate(1);
+      E.d = clone(edClip());
+      renderEditor();
+      return;
+    }
+    E.stopping = true;
+    const rec = E.rec;
+    const atEnd = E.player.time() >= E.d.end - 0.1;
+    rec.duration = atEnd ? Math.round(((E.d.end - E.d.start) / rec.rate) * 100) / 100 : Math.round(recT() * 100) / 100;
+    WP.addRecKey(rec, rec.duration, E.d.zoom, true);
+    E.player.pause();
+    let blob = null;
+    if (E.recorder) {
+      const r = E.recorder;
+      await new Promise((res) => { r.onstop = res; try { r.stop(); } catch (e) { res(); } });
+      blob = new Blob(E.recChunks, { type: r.mimeType || 'audio/webm' });
+      E.recorder = null;
+    }
+    if (E.recStream) { E.recStream.getTracks().forEach((t) => t.stop()); E.recStream = null; }
+    E.mode = 'idle';
+    E.stopping = false;
+    E.player.setRate(1);
+    const clipId = E.d.id;
+    E.rec = null;
+    if (rec.duration < 1) { toast('Recording too short \u2014 nothing saved', { err: true }); renderEditor(); return; }
+    if (rec.voice) {
+      if (!blob || !blob.size) { toast('No sound was recorded \u2014 check the microphone', { err: true }); renderEditor(); return; }
+      await idb.put('voice:' + clipId, blob);
+    }
+    commit({ rec });
+    toast(WP.recSummary(rec) + '. Press Play recording to watch it.', { ms: 6000 });
+    E.player.seek(E.d.start);
+  }
+
   function undoShape() {
     const f = E.d.freeze;
     if (!f || !f.shapes.length) return;
@@ -983,6 +1135,12 @@
     E.player.seek(E.d.freeze.at);
     E.mode = 'draw';
     renderEditor();
+    showStage();
+  }
+
+  function showStage() {
+    const r = $('stage').getBoundingClientRect();
+    if (r.top < 0 || r.bottom > window.innerHeight) $('stage').scrollIntoView({ block: 'start' });
   }
 
   function exitDraw(quiet) {
@@ -1023,20 +1181,30 @@
 
   // ---- preview (same timing as the export) ----
   async function startPreview() {
-    if (!E || edBusy()) return;
+    if (!E || edBusy() || edRecording()) return;
     exitDraw(true);
     E.ctrl = new AbortController();
     E.mode = 'preview';
     E.outT = 0;
     renderEditor();
+    let audio = null;
+    if (WP.hasRec(E.d) && E.d.rec.voice) {
+      const blob = await idb.get('voice:' + E.d.id);
+      if (blob) { audio = new Audio(URL.createObjectURL(blob)); audio.preload = 'auto'; }
+      else toast('The voice-over for this clip isn\u2019t on this computer.', { err: true });
+    }
     try {
       await WPRender.runPlan(E.player, $('e-video'), WP.buildPlan(E.d), {
         mode: 'preview', signal: E.ctrl.signal,
         onFrame: (s, outT) => { if (E) E.outT = outT; },
         onTick: (outT) => { if (E) E.outT = outT; },
-        onSegment: (seg) => { if (E) E.holdActive = seg.kind === 'hold'; }
+        onSegment: (seg) => {
+          if (E) E.holdActive = seg.kind === 'hold';
+          if (audio && seg.outStart === 0) { audio.currentTime = 0; audio.play().catch(() => {}); }
+        }
       });
     } catch (e) { if (e.name !== 'AbortError') toast(e.message, { err: true }); }
+    if (audio) { audio.pause(); URL.revokeObjectURL(audio.src); }
     if (!E) return;
     E.holdActive = false;
     if (E.mode === 'preview') E.mode = 'idle';
@@ -1064,7 +1232,7 @@
       return Math.round((E.wa + Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * (E.wb - E.wa)) * 10) / 10;
     };
     tr.addEventListener('pointerdown', (e) => {
-      if (!E || edBusy()) return;
+      if (!E || edBusy() || edRecording()) return;
       const h = e.target.closest('.handle');
       tr.setPointerCapture(e.pointerId);
       stopPreview(); exitDraw();
@@ -1092,7 +1260,7 @@
       const dd = drag;
       drag = null;
       if (dd.which === 'start' || dd.which === 'end') {
-        if (dd.value != null) commit({ [dd.which]: dd.value });
+        if (dd.value != null && okToRetrim()) commit({ [dd.which]: dd.value });
         setWindow();
         renderEditor();
       } else renderFreezePanel();
@@ -1101,8 +1269,10 @@
     tr.addEventListener('pointercancel', end);
   })();
 
+  const okToRetrim = () => !WP.hasRec(E.d) || confirm('Changing the trim deletes the recorded breakdown. Continue?');
   const setTrim = (key, v) => {
     if (!Number.isFinite(v)) { toast('Use m:ss, e.g. 4:09.5', { err: true }); renderEditor(); return; }
+    if (v !== E.d[key] && !okToRetrim()) { renderEditor(); return; }
     if (commit({ [key]: v })) { setWindow(); renderEditor(); }
   };
   $('e-start').addEventListener('change', (e) => setTrim('start', WP.parseTime(e.target.value)));
@@ -1119,7 +1289,8 @@
       if (!E || edBusy() || e.button !== 0) return;
       const { fx, fy, r } = frac(e);
       cv.setPointerCapture(e.pointerId);
-      if (E.mode === 'draw') {
+      if (E.mode === 'countdown') return;
+      if (E.mode === 'draw' || (E.mode === 'record' && E.recDraw)) {
         const p = WP.viewToFrame(E.d.zoom, fx, fy);
         E.drawDraft = { type: E.tool, color: E.color, pts: [[p.x, p.y], [p.x, p.y]] };
         act = { kind: 'draw', x: e.clientX, y: e.clientY };
@@ -1147,31 +1318,41 @@
         const shape = E.drawDraft;
         E.drawDraft = null;
         if (moved && shape) {
-          try { commit({ freeze: WP.addShape(E.d.freeze, shape) }); } catch (err) { toast(err.message, { err: true }); }
+          try {
+            if (E.mode === 'record') { WP.addRecShape(E.rec, recT(), shape); renderRecPanel(); }
+            else commit({ freeze: WP.addShape(E.d.freeze, shape) });
+          } catch (err) { toast(err.message, { err: true }); }
         }
-      } else if (a.kind === 'pan') commit({ zoom: E.d.zoom }, true);
+      } else if (a.kind === 'pan' && E.mode !== 'record') commit({ zoom: E.d.zoom }, true);
     };
     cv.addEventListener('pointerup', end);
     cv.addEventListener('pointercancel', end);
     cv.addEventListener('wheel', (e) => {
-      if (!E || edBusy() || E.mode === 'draw') return;
+      if (!E || edBusy() || E.mode === 'draw' || E.mode === 'countdown') return;
+      if (WP.hasRec(E.d) && E.mode !== 'record') return;
       e.preventDefault();
       const { fx, fy } = frac(e);
       const z = WP.zoomAt(E.d.zoom || WP.FIT, e.deltaY < 0 ? 1.15 : 1 / 1.15, fx, fy);
       E.d.zoom = WP.isZoomed(z) ? z : null;
       clearTimeout(cv.t);
-      cv.t = setTimeout(() => commit({ zoom: E.d.zoom }), 250);
+      if (E.mode !== 'record') cv.t = setTimeout(() => commit({ zoom: E.d.zoom }), 250);
       $('ez-level').textContent = (E.d.zoom ? Math.round(E.d.zoom.scale * 10) / 10 : 1) + '×';
     }, { passive: false });
     cv.addEventListener('dblclick', (e) => {
-      if (!E || edBusy() || E.mode === 'draw') return;
+      if (!E || edBusy() || E.mode === 'draw' || E.mode === 'countdown') return;
       const { fx, fy } = frac(e);
-      commit({ zoom: E.d.zoom ? null : WP.zoomAt(WP.FIT, 2.5, fx, fy) });
+      setEdZoom(E.d.zoom ? null : WP.zoomAt(WP.FIT, 2.5, fx, fy));
     });
   })();
-  $('ez-in').addEventListener('click', () => commit({ zoom: WP.zoomAt(E.d.zoom || WP.FIT, 1.25) }));
-  $('ez-out').addEventListener('click', () => { const z = WP.zoomAt(E.d.zoom || WP.FIT, 1 / 1.25); commit({ zoom: WP.isZoomed(z) ? z : null }); });
-  $('ez-fit').addEventListener('click', () => commit({ zoom: null }));
+  function setEdZoom(z) {
+    const v = z && WP.isZoomed(z) ? z : null;
+    if (E.mode === 'record') { E.d.zoom = v; $('ez-level').textContent = (v ? Math.round(v.scale * 10) / 10 : 1) + '\u00d7'; }
+    else if (WP.hasRec(E.d)) toast('This clip uses its recorded zoom moves. Delete the recording to set a fixed zoom.');
+    else commit({ zoom: v });
+  }
+  $('ez-in').addEventListener('click', () => setEdZoom(WP.zoomAt(E.d.zoom || WP.FIT, 1.25)));
+  $('ez-out').addEventListener('click', () => setEdZoom(WP.zoomAt(E.d.zoom || WP.FIT, 1 / 1.25)));
+  $('ez-fit').addEventListener('click', () => setEdZoom(null));
 
   // ---- details ----
   $('e-cat').addEventListener('change', (e) => commit({ categoryId: e.target.value }));
@@ -1199,7 +1380,7 @@
   }
 
   async function exportCurrent() {
-    if (!E || edBusy()) return;
+    if (!E || edBusy() || edRecording()) return;
     stopPreview();
     exitDraw(true);
     const d = E.d;
@@ -1221,9 +1402,17 @@
     const setPct = (p) => { $('e-pct').textContent = Math.round(p * 100) + '%'; $('e-bar').style.width = (p * 100) + '%'; };
     setPct(0);
     try {
+      const rec = WP.hasRec(d) ? d.rec : null;
+      let voiceBlob = null;
+      if (rec && rec.voice) {
+        voiceBlob = await idb.get('voice:' + d.id);
+        if (!voiceBlob) throw new Error('the voice-over for this clip isn\u2019t on this computer. Record it again.');
+      }
       const res = await WPRender.exportClip({
         player: E.player, video: $('e-video'), plan: WP.buildPlan(d), W: E.W, H: E.H,
         zoom: d.zoom, shapes: d.freeze ? d.freeze.shapes : [], title: d.titleBar !== false ? WP.titleLines(d, cat, G) : null,
+        frameAt: rec ? (outT) => ({ zoom: WP.recZoomAt(rec, outT), shapes: WP.recShapesAt(rec, outT) }) : null,
+        voiceBlob,
         signal: E.ctrl.signal, onProgress: setPct
       });
       const finalName = handle ? handle.name : name;
@@ -1232,7 +1421,7 @@
         await w.write(res.blob);
         await w.close();
       } else downloadBlob(name, res.blob);
-      window.__bwp.lastExport = { name: finalName, size: res.blob.size, codec: res.codec, h264: res.h264, frames: res.frames, duration: res.duration, blob: res.blob };
+      window.__bwp.lastExport = { name: finalName, size: res.blob.size, codec: res.codec, h264: res.h264, audio: res.audio, frames: res.frames, duration: res.duration, blob: res.blob };
       E.mode = 'idle';
       commit({ exported: { at: Date.now(), name: finalName, size: res.blob.size, codec: res.codec } });
       const mb = (res.blob.size / 1e6).toFixed(1);
@@ -1255,6 +1444,17 @@
 
   function editorKey(e) {
     if (!E || edBusy()) return;
+    if (edRecording()) {
+      const tg = (e.target.tagName || '').toLowerCase();
+      if (tg === 'input' || tg === 'select' || tg === 'textarea') return;
+      if (e.key === 'Escape' || e.key === ' ') { e.preventDefault(); stopRecording(); }
+      else if (e.key === 'd' || e.key === 'D') { e.preventDefault(); E.recDraw = !E.recDraw; renderRecPanel(); }
+      else if ((e.key === 'c' || e.key === 'C') && E.rec) { e.preventDefault(); WP.addRecClear(E.rec, recT()); }
+      else if (e.key === '+' || e.key === '=') { e.preventDefault(); setEdZoom(WP.zoomAt(E.d.zoom || WP.FIT, 1.25)); }
+      else if (e.key === '-') { e.preventDefault(); setEdZoom(WP.zoomAt(E.d.zoom || WP.FIT, 1 / 1.25)); }
+      else if (e.key === '0') { e.preventDefault(); setEdZoom(null); }
+      return;
+    }
     const tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && E.mode === 'draw') { e.preventDefault(); undoShape(); return; }

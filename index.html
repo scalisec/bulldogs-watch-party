@@ -170,6 +170,13 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
 .swatch[aria-pressed="true"] { border: 3px solid var(--ink); }
 .spdrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; }
 .saved { font-size: 12px; color: var(--muted); }
+.countdown { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(11,18,32,.45); color: #fff; font: 700 96px var(--display); pointer-events: none; }
+.recdot { display: inline-block; width: 10px; height: 10px; border-radius: 5px; background: #EF4444; margin-right: 6px; animation: blink 1s steps(2, start) infinite; }
+@keyframes blink { to { visibility: hidden; } }
+#stage.recording { outline: 3px solid #EF4444; outline-offset: -3px; }
+.dim { opacity: .5; }
+.dim button, .dim input, .dim select { pointer-events: none; }
+.recpill { background: #FDE8E8; color: #991B1B; }
 #stage .zoombar { top: 12px; bottom: auto; right: 12px; }
 #stage #e-ov-mode { right: auto; left: 50%; transform: translateX(-50%); top: 12px; }
 </style>
@@ -329,6 +336,7 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
           <button type="button" id="ez-in" aria-label="Zoom in">+</button>
           <button type="button" id="ez-fit">Fit</button>
         </div>
+        <div class="countdown hidden" id="e-count" aria-live="assertive"></div>
         <div class="exporting hidden" id="e-exporting" role="status">
           <div>Making the MP4… <span id="e-pct">0%</span></div>
           <div class="bar"><div id="e-bar"></div></div>
@@ -344,6 +352,10 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
         <button type="button" class="btn" id="e-frame-f" aria-label="Forward one frame" title="Forward one frame (.)">frame ›</button>
         <span class="clock" id="e-clock"></span>
       </div>
+      <div class="card stack" id="e-rec-card">
+        <div class="row spread"><h2>Record a breakdown</h2><span class="small muted" id="e-rec-sum"></span></div>
+        <div class="stack" id="e-rec"></div>
+      </div>
       <div class="card stack" style="gap:8px">
         <div class="row spread"><h2>Trim</h2><span class="small muted" id="e-len"></span></div>
         <div class="trim" id="e-trim"></div>
@@ -356,7 +368,7 @@ kbd { font: 600 11px Inter, sans-serif; border: 1px solid var(--line); border-bo
         </div>
         <span class="small muted">Drag the blue handles to trim. Click the bar to move the playhead. Orange = speed change, yellow diamond = freeze.</span>
       </div>
-      <div class="grid2" style="align-items:start">
+      <div class="grid2" style="align-items:start" id="e-edits">
         <div class="card stack"><h2>Freeze and draw</h2><div class="stack" id="e-freeze"></div></div>
         <div class="card stack"><h2>Slow motion / speed up</h2><div class="stack" id="e-speeds" style="gap:8px"></div></div>
       </div>
