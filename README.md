@@ -122,5 +122,5 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 
 ## Coming next
 
-- **Milestone 3:** Google Drive sign-in, folders, and a shared library.
+- **Milestone 3b:** share exported clips to Drive folders (team, coaches, each player's family) and a shared clip library.
 - **Milestone 4:** tablet and phone layouts.
