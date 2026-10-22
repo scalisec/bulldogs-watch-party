@@ -163,20 +163,17 @@ App.ready.then(() => {
 
   async function ensureDestFolder(dest) {
     if (dest === 'private') { await App.ensurePrivateLibrary(); return S.lib.privSync.folderId; }
-    const folders = S.lib.team.folders || (S.lib.team.folders = {});
-    if (folders[dest]) return folders[dest];
-    const root = (S.sync && S.sync.folderId) || folders.root;
-    if (!root) throw new Error('the team’s Drive folders haven’t been set up yet. The head coach sets them up by saving one clip to Drive.');
-    let parent = root;
-    if (dest.startsWith('player:')) {
-      if (!folders.players) { folders.players = (await WPDrive.createFolder('Players (one folder per family)', root)).id; DB.touch('lib:team'); }
-      parent = folders.players;
+    // the admin account creates every team folder up front; coaches save into them once connected
+    if (!(S.lib.team.folders || {})[dest] && S.sync && S.sync.owner) await App.ensureTeamFolders();
+    const id = (S.lib.team.folders || {})[dest];
+    const label = WP.destLabel(dest, S.settings.roster);
+    if (!id) throw new Error('the ' + label + ' folder isn\u2019t set up yet. The admin account creates it the next time it opens the app.');
+    if (S.sync && !S.sync.owner && !(await App.hasFolderAccess(id))) {
+      const e = new Error('this account isn\u2019t connected to the ' + label + ' folder yet');
+      e.needsConnect = true;
+      throw e;
     }
-    folders[dest] = (await WPDrive.createFolder(WP.folderName(dest, S.settings.roster), parent)).id;
-    folders.root = root;
-    DB.touch('lib:team');
-    save();
-    return folders[dest];
+    return id;
   }
 
   /** Upload once, then let Google copy it into the other folders (no second upload).
@@ -236,7 +233,10 @@ App.ready.then(() => {
       const left = err.partial ? dests.filter((x) => !err.partial.done.includes(x)) : dests;
       if (err.partial && err.partial.done.length) commit({ drive: err.partial.list }, true);
       failedUploads.set(d.id, { blob, name, dests: left });
-      toast('Drive upload failed: ' + err.message + '. The video is kept \u2014 use \u201cRetry upload\u201d.', { err: true, ms: 12000 });
+      if (err.needsConnect || (err.code === 404 && S.sync && !S.sync.owner)) {
+        App.folderAccessReset();
+        toast('Not saved to Drive: ' + err.message + '. Connect the team folders, then use \u201cRetry upload\u201d.', { err: true, ms: 15000, action: { label: 'Connect team folders', fn: () => App.connectTeamFolders() } });
+      } else toast('Drive upload failed: ' + err.message + '. The video is kept \u2014 use \u201cRetry upload\u201d.', { err: true, ms: 12000 });
       return false;
     }
   }

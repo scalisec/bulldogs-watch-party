@@ -47,9 +47,10 @@ with sync_playwright() as p:
     A.click('button:has-text("Create team data in my Drive")')
     A.wait_for_function("window.__bwp.state.lib.teamSync && window.__bwp.state.lib.privSync", timeout=15000)
     idle(A)
-    check(len(by_name('Watch Party clip library.json')) == 1, 'A: clip library file created in _App')
-    app = [f for f in drive.values() if f['name'] == '_App'][0]
-    check(by_name('Watch Party clip library.json')[0]['parents'] == [app['id']], 'A: clip library lives in Bulldogs Watch Party › _App')
+    root = by_name('Bulldogs Watch Party')[0]
+    check(len(by_name('Watch Party clip library.json')) == 1 and by_name('Watch Party clip library.json')[0]['parents'] == [root['id']], 'A: clip library file created in the team folder')
+    check(all(len(by_name(n)) == 1 and by_name(n)[0]['parents'] == [root['id']] for n in ['Team clips', 'Coaches only', 'Family \u2013 #7 Sam', 'Family \u2013 #12 Leo']),
+          'A (admin): Team, Coaches only and both family folders created up front, side by side')
     pf = by_name('My Watch Party clips (private)')
     check(len(pf) == 1 and not pf[0]['parents'] and not pf[0]['perms'], 'A: private folder created at the top of A’s Drive, shared with nobody')
     check(len(by_name('My private clip library.json')) == 1, 'A: private library file created')
@@ -107,8 +108,8 @@ with sync_playwright() as p:
     A.check('#e-dests label:has-text("family folder") input')
     A.click('#e-export')
     A.wait_for_function("window.__bwp.editor.mode === 'idle' && (window.__bwp.editor.d.drive || []).length === 2", timeout=60000)
-    tc = by_name('Team clips'); fam = by_name('#7 Sam'); players = by_name('Players (one folder per family)')
-    check(len(tc) == 1 and len(fam) == 1 and fam[0]['parents'] == [players[0]['id']], 'Drive: Team clips and Players › #7 Sam folders created')
+    tc = by_name('Team clips'); fam = by_name('Family \u2013 #7 Sam')
+    check(len(tc) == 1 and len(fam) == 1 and fam[0]['parents'] == tc[0]['parents'], 'Drive: clip saved into the Team clips and Family \u2013 #7 Sam folders (no new folders)')
     vids = [f for f in drive.values() if (f['name'] or '').endswith('.mp4')]
     check(len(vids) == 2 and all(isinstance(v['content'], bytes) and len(v['content']) > 100000 for v in vids), 'two MP4 copies uploaded (%s bytes)' % [len(v['content']) for v in vids])
     check(all('Breakouts' in v['description'] and 'P1' in v['description'] and 'wall' not in v['description'] for v in vids), 'Drive description is neutral: category, game, period (no note)')
@@ -191,10 +192,9 @@ with sync_playwright() as p:
     # ---- coach B: open team data + library together, see A's clip, edit its note
     ctxB = b.new_context(viewport={'width': 1440, 'height': 1000})
     B, errB = setup(ctxB, 'b@team.com')
-    tf = by_name('Watch Party team data.json')[0]; lf = by_name('Watch Party clip library.json')[0]
-    B.add_init_script('window.__fakePickDocs = %s;' % json.dumps([{'id': tf['id'], 'name': tf['name']}, {'id': lf['id'], 'name': lf['name']}]))
     B.goto(APP + '#settings')
     B.click('button:has-text("Sign in with Google")')
+    B.evaluate('(d) => { window.__fakePickDocs = d; }', g['root_items']())
     B.click('button:has-text("Open shared team data")')
     B.wait_for_function("window.__bwp.state.lib.teamSync && Object.keys(window.__bwp.state.lib.team.entries).length === 1", timeout=15000)
     idle(B)
@@ -209,6 +209,24 @@ with sync_playwright() as p:
     B.fill('#rv-tags input[aria-label="Note"]', 'Quick up the wall, then drive the net'); B.press('#rv-tags input[aria-label="Note"]', 'Tab')
     B.wait_for_timeout(3200); idle(B)
     check(list(lib_json()['entries'].values())[0]['note'] == 'Quick up the wall, then drive the net', 'B’s tag edit reaches the library file')
+    # ---- B saves its own clip into the admin's Team folder (the coach path)
+    B.goto(APP + '#games')
+    B.set_input_files('#file-input', [P1, P2])
+    B.wait_for_function("!document.getElementById('g-start').disabled", timeout=20000)
+    B.fill('#g-opp', 'Kings'); B.click('#g-start')
+    B.wait_for_function("document.getElementById('clock').textContent.endsWith('1:10')", timeout=10000)
+    B.evaluate('window.__bwp.player.seek(30)'); B.wait_for_timeout(400)
+    B.keyboard.press('1'); B.wait_for_timeout(300)
+    B.locator('#clips .clip').first.locator('text=Edit').click()
+    B.wait_for_selector('#view-edit:not(.hidden)'); B.wait_for_timeout(600)
+    B.uncheck('#e-dests label:has-text("This computer") input')
+    B.check('#e-dests label:has-text("Team (players") input')
+    B.click('#e-export')
+    B.wait_for_function("window.__bwp.editor && window.__bwp.editor.mode === 'idle' && (window.__bwp.editor.d.drive || []).length === 1", timeout=60000)
+    bv = [f for f in drive.values() if (f['name'] or '').endswith('.mp4') and f['owner'] == 'b@team.com']
+    check(len(bv) == 1 and bv[0]['parents'] == [tc[0]['id']], 'B (coach): saved a clip into the admin\u2019s Team clips folder')
+    B.goto(APP + '#settings')
+
     # A syncs and gets the note in its own clip
     A.goto(APP + '#settings'); A.click('button:has-text("Sync now")')
     A.wait_for_timeout(3200); idle(A)
@@ -223,7 +241,7 @@ with sync_playwright() as p:
     Ph.click('button:has-text("Open shared team data")')
     Ph.wait_for_function("window.__bwp.state.lib.privSync && window.__bwp.state.lib.teamSync && Object.keys(window.__bwp.state.lib.priv.entries).length === 1", timeout=15000)
     idle(Ph)
-    check(Ph.evaluate('window.__bwp.state.sync.owner') is True, 'phone: recognised as the owner (no file picking)')
+    check(Ph.evaluate('window.__bwp.state.sync.owner') is True, 'phone: recognised as the owner of the team folder (no file picking)')
     Ph.goto(APP + '#review')
     Ph.click('#rv-scope [data-scope="private"]')
     check('1 clip' in Ph.text_content('#rv-count'), 'phone: private clip shows in Review')
@@ -238,10 +256,12 @@ with sync_playwright() as p:
     A.wait_for_timeout(500)
     A.locator('#clips .clip', has_text='Breakouts').locator('text=Edit').click()
     A.wait_for_selector('#view-edit:not(.hidden)')
+    gone_id = A.evaluate('window.__bwp.editor.clipId')
     A.click('#e-delete')
     A.wait_for_selector('#dlg-ask[open]'); A.click('#ask-ok')
     A.wait_for_timeout(3400); idle(A)
-    check(len(lib_json()['entries']) == 0, 'deleting a clip removes it from the team library')
+    left = lib_json()['entries']
+    check(gone_id not in left and len(left) == 1 and list(left.values())[0]['by'] == 'B', 'deleting a clip removes it from the team library (B\u2019s clip stays)')
 
     check(not errA and not errB and not errP, 'no page errors: ' + '; '.join((errA + errB + errP)[:3]))
     b.close()

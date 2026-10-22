@@ -90,22 +90,34 @@ In the clip editor, tick **Voice-over** and/or **Record at half speed**, then cl
 
 Press **?** anywhere for the full list. `shortcuts.html` is a one-page version to print.
 
-## Shared team data (milestone 3a)
+## Shared team data and the team's Drive folder
 
-The roster, categories, coaches, opponents, rinks, and team name and season are shared by all coaches through one file in Google Drive. This works on the web version only (https://scalisec.github.io/bulldogs-watch-party/).
+The roster, categories, coaches, opponents, rinks, and team name and season are shared by all coaches through Google Drive. This works on the web version only (https://scalisec.github.io/bulldogs-watch-party/).
 
-- **Head coach (once):**
-  1. Add the coaches' Google emails in **Settings › Coaches**.
+**Who owns what (v0.9):** one **admin account** (benchbosslabs@gmail.com) owns the team's Drive folder. Coaches, including the head coach, sign in with their own Google accounts.
+
+- **Admin account (once), in its own Chrome profile:**
+  1. Add the roster and the coaches' Google emails in Settings.
   2. Click **Sign in with Google**, then **Create team data in my Drive**.
-  3. The app makes **Bulldogs Watch Party › _App › Watch Party team data.json** and shares the **Bulldogs Watch Party** folder with the coaches.
-- **Other coaches (once per device):** open Settings, click **Sign in with Google**, then **Open shared team data**, and pick the file.
+  3. The app makes one **Bulldogs Watch Party** folder holding:
+     - `Watch Party team data.json` and `Watch Party clip library.json`
+     - **Team clips** and **Coaches only**
+     - **Family – #7 Sam** (one per player)
+  4. It shares the folder with the coaches.
+  5. When a player is added later, the admin's app creates their family folder the next time it opens.
+- **Coaches (once per Google account):**
+  1. Open Settings, **Sign in with Google**, then **Open shared team data**.
+  2. In Google's picker, open **Bulldogs Watch Party**, select everything inside it, and click **Select**.
+  3. Picking is how Google lets this app use folders another account created; it's needed once, not per device.
+  4. Later, if a new family folder appears, **Settings › Connect team folders** does the same for it. Settings shows how many team folders are connected.
 - **Syncing:**
   - Changes sync automatically. **Sync now** pulls the latest.
   - If two coaches change the same thing at once, the version already in Drive is kept and you're told what clashed.
   - Offline changes wait and sync later.
 - **Privacy:**
   - The app uses Google's `drive.file` permission, so it only sees files it created or that you picked. It never sees the rest of your Drive.
-  - Never share the top **Bulldogs Watch Party** folder with families. It holds the roster. Family folders come in milestone 3b.
+  - Share **Team clips** with all families, and each **Family – …** folder with that family only. Never share the top **Bulldogs Watch Party** folder with families: it holds the roster, notes and Coaches only clips.
+  - Clips a coach saves are owned by that coach's account, inside the admin's folders.
 - **New coaches** must also be added as test users in Google Cloud (Google Auth Platform › Audience).
 
 Each coach's own name (shown on their clips) stays on their device.

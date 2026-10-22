@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.0 — 2026-10-22 (admin account owns the team folder)
+
+- **One admin account owns the team's Drive folder.**
+  - Creating team data now also creates **Team clips**, **Coaches only** and a **Family – #N Name** folder for every player, up front.
+  - New players get their family folder automatically on the admin's next visit.
+- **Flatter layout:** everything sits side by side in **Bulldogs Watch Party**. There's no more `_App` or `Players` sub-folder.
+- **Coaches join in one pick:** **Open shared team data** asks them to select everything in the shared folder. This gives the app Google's permission to save into folders the admin created.
+- **Settings shows "Team folders: N of M connected"** for coaches. **Connect team folders** picks up new ones, and an export to an unconnected folder offers the same button, keeping the video for **Retry upload**.
+- **"Owner" is what Drive says:** the app checks who actually owns the team data file, so a coach's phone no longer thinks it's the owner.
+- Tests now simulate Google's per-app file access, and cover a coach saving a clip into the admin's folder.
+
 ## 0.8.0 — 2026-10-21 (code clean-up)
 
 No new features. The same app, reorganised so it's easier to change safely:

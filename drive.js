@@ -98,7 +98,7 @@
   }
 
   const json = (o) => ({ body: JSON.stringify(o), headers: { 'Content-Type': 'application/json' } });
-  const META = 'id,name,version,modifiedTime,trashed,parents,lastModifyingUser(displayName,emailAddress)';
+  const META = 'id,name,version,modifiedTime,trashed,parents,owners(emailAddress),lastModifyingUser(displayName,emailAddress)';
 
   async function whoAmI() {
     const r = await call('GET', API + '/about?fields=' + encodeURIComponent('user(displayName,emailAddress)'));
@@ -217,7 +217,11 @@
     await new Promise((res, rej) => root.gapi.load('picker', { callback: res, onerror: () => rej(new Error('Couldn’t open the Google file picker')) }));
     const P = root.google.picker;
     return new Promise((resolve) => {
-      const view = new P.DocsView(P.ViewId.DOCS).setMimeTypes('application/json').setQuery(o.query || 'Watch Party').setIncludeFolders(true);
+      // folders: true -> pick folders and files inside the team folder (o.parentId), or browse "Shared with me" to find it
+      const view = o.folders
+        ? (o.parentId ? new P.DocsView(P.ViewId.DOCS).setIncludeFolders(true).setSelectFolderEnabled(true).setParent(o.parentId)
+          : new P.DocsView(P.ViewId.DOCS).setIncludeFolders(true).setSelectFolderEnabled(true).setOwnedByMe(false))
+        : new P.DocsView(P.ViewId.DOCS).setMimeTypes('application/json').setQuery(o.query || 'Watch Party').setIncludeFolders(true);
       const builder = new P.PickerBuilder();
       if (o.multi && P.Feature && P.Feature.MULTISELECT_ENABLED) builder.enableFeature(P.Feature.MULTISELECT_ENABLED);
       const picker = builder
@@ -227,7 +231,7 @@
         .setDeveloperKey(c.googleApiKey)
         .setAppId(c.googleAppId)
         .setCallback((d) => {
-          if (d.action === P.Action.PICKED) resolve(o.multi ? (d.docs || []).map((x) => ({ id: x.id, name: x.name })) : (d.docs && d.docs[0] ? d.docs[0].id : null));
+          if (d.action === P.Action.PICKED) resolve(o.multi ? (d.docs || []).map((x) => ({ id: x.id, name: x.name, mimeType: x.mimeType })) : (d.docs && d.docs[0] ? d.docs[0].id : null));
           else if (d.action === P.Action.CANCEL) resolve(null);
         })
         .build();

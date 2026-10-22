@@ -35,13 +35,20 @@ window.google = window.google || {};
 google.picker = {
   Feature: { MULTISELECT_ENABLED: 'multi' },
   ViewId: { DOCS: 'docs' }, Action: { PICKED: 'picked', CANCEL: 'cancel' },
-  DocsView: function () { this.setMimeTypes = () => this; this.setQuery = () => this; this.setIncludeFolders = () => this; },
+  DocsView: function () { ['setMimeTypes', 'setQuery', 'setIncludeFolders', 'setSelectFolderEnabled', 'setParent', 'setOwnedByMe'].forEach((m) => { this[m] = () => this; }); },
   PickerBuilder: function () {
-    let cb; const b = this;
-    ['setTitle', 'addView', 'setOAuthToken', 'setDeveloperKey', 'setAppId'].forEach((m) => { b[m] = () => b; });
+    let cb; let tok = ''; const b = this;
+    ['setTitle', 'addView', 'setDeveloperKey', 'setAppId'].forEach((m) => { b[m] = () => b; });
+    b.setOAuthToken = (t) => { tok = t; return b; };
     b.setCallback = (f) => { cb = f; return b; };
     b.enableFeature = () => b;
-    b.build = () => ({ setVisible() { setTimeout(() => cb({ action: 'picked', docs: (window.__fakePickDocs || [{ id: window.__fakePickId, name: 'Watch Party team data.json' }]) }), 10); } });
+    // like the real Picker, picking grants this app access to the picked items (drive.file)
+    b.build = () => ({ setVisible() {
+      const docs = window.__fakePickDocs || [{ id: window.__fakePickId, name: 'Watch Party team data.json' }];
+      window.__pickCount = (window.__pickCount || 0) + 1;
+      fetch('https://www.googleapis.com/__fake/pick', { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body: JSON.stringify(docs.map((d) => d.id)) })
+        .then(() => cb({ action: 'picked', docs }));
+    } });
   }
 };"""
 
@@ -55,13 +62,22 @@ def can_access(user, f):
         f = drive.get(f['parents'][0]) if f['parents'] else None
     return False
 
+# drive.file: the app only reaches files this user created with it, or picked in the Picker
+grants = {}
+def grant(user, fid): grants.setdefault(user, set()).add(fid)
+def app_ok(user, f): return bool(f) and can_access(user, f) and f['id'] in grants.get(user, set())
+def root_items(root_name='Bulldogs Watch Party'):
+    root = next(f for f in drive.values() if f['name'] == root_name and not f['trashed'])
+    return [{'id': f['id'], 'name': f['name'], 'mimeType': f['mime']} for f in drive.values() if f['parents'] == [root['id']] and not f['trashed']]
+
 def meta(f):
     return {'id': f['id'], 'name': f['name'], 'version': str(f['version']), 'modifiedTime': '2026-10-20T00:00:00Z', 'trashed': False,
-            'parents': f['parents'], 'lastModifyingUser': {'emailAddress': f['lastBy'], 'displayName': f['lastBy'].split('@')[0]}}
+            'parents': f['parents'], 'owners': [{'emailAddress': f['owner']}], 'lastModifyingUser': {'emailAddress': f['lastBy'], 'displayName': f['lastBy'].split('@')[0]}}
 
 def new_file(user, name, mime, parents, content='', description=''):
     fid = 'f%d' % next(ids)
     drive[fid] = {'id': fid, 'name': name, 'mime': mime, 'parents': parents or [], 'owner': user, 'perms': set(), 'content': content, 'version': 1, 'lastBy': user, 'description': description, 'trashed': False}
+    grant(user, fid)
     return drive[fid]
 
 def handle(route):
@@ -78,6 +94,10 @@ def handle(route):
         route.fulfill(status=204, headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*'}); return
     if not user: return reply({'error': {'message': 'no auth'}}, 401)
     p = u.path
+    if p == '/__fake/pick':
+        for fid in json.loads(req.post_data or '[]'):
+            if fid in drive and can_access(user, drive[fid]): grant(user, fid)
+        return reply({'ok': True})
     if p == '/drive/v3/about':
         return reply({'user': {'emailAddress': user, 'displayName': user.split('@')[0].title()}})
     if p == '/drive/v3/files' and req.method == 'GET':
@@ -86,14 +106,14 @@ def handle(route):
         import re
         nm = re.search(r"name = '((?:[^'\\]|\\.)*)'", qq)
         mt = re.search(r"mimeType = '([^']*)'", qq)
-        out = [meta(f) for f in drive.values() if f['owner'] == user and not f['trashed']
+        out = [meta(f) for f in drive.values() if app_ok(user, f) and not f['trashed']
                and (not nm or f['name'] == nm.group(1).replace("\\'", "'")) and (not mt or f['mime'] == mt.group(1))]
         return reply({'files': out})
     if p == '/drive/v3/files' and req.method == 'POST':
         b = json.loads(req.post_data)
         if b.get('parents'):
             par = drive.get(b['parents'][0])
-            if not par or not can_access(user, par): return reply({'error': {'message': 'File not found: ' + b['parents'][0]}}, 404)
+            if not app_ok(user, par): return reply({'error': {'message': 'File not found: ' + b['parents'][0]}}, 404)
         f = new_file(user, b['name'], b.get('mimeType'), b.get('parents'), description=b.get('description', ''))
         return reply({'id': f['id'], 'name': f['name']})
     if p == '/upload/drive/v3/files' and req.method == 'POST':
@@ -102,27 +122,28 @@ def handle(route):
         parts = [x for x in req.post_data.split('--' + boundary) if x.strip() and x.strip() != '--']
         m = json.loads(parts[0].split('\r\n\r\n', 1)[1].strip())
         content = parts[1].split('\r\n\r\n', 1)[1].rsplit('\r\n', 1)[0]
+        if m.get('parents') and not app_ok(user, drive.get(m['parents'][0])): return reply({'error': {'message': 'File not found: ' + m['parents'][0]}}, 404)
         f = new_file(user, m['name'], m.get('mimeType'), m.get('parents'), content)
         return reply(meta(f))
     segs = p.split('/')
     if p.startswith('/drive/v3/files/') and p.endswith('/copy') and req.method == 'POST':
         src = drive.get(segs[4])
-        if not src or not can_access(user, src): return reply({'error': {'message': 'File not found'}}, 404)
+        if not app_ok(user, src): return reply({'error': {'message': 'File not found'}}, 404)
         b = json.loads(req.post_data or '{}')
         if b.get('parents'):
             par = drive.get(b['parents'][0])
-            if not par or not can_access(user, par): return reply({'error': {'message': 'File not found: ' + b['parents'][0]}}, 404)
+            if not app_ok(user, par): return reply({'error': {'message': 'File not found: ' + b['parents'][0]}}, 404)
         f = new_file(user, b.get('name') or src['name'], src['mime'], b.get('parents') or src['parents'], src['content'], b.get('description', ''))
         f['copiedFrom'] = src['id']
         return reply({'id': f['id'], 'name': f['name']})
     if p.startswith('/drive/v3/files/') and len(segs) == 5 and req.method == 'DELETE':
         f = drive.get(segs[4])
-        if not f or f['owner'] != user: return reply({'error': {'message': 'File not found'}}, 404)
+        if not app_ok(user, f) or f['owner'] != user: return reply({'error': {'message': 'File not found'}}, 404)
         del drive[segs[4]]
         route.fulfill(status=204, headers={'Access-Control-Allow-Origin': '*'}); return
     if p.startswith('/drive/v3/files/') and len(segs) == 5:
         f = drive.get(segs[4])
-        if not f or not can_access(user, f): return reply({'error': {'message': 'File not found'}}, 404)
+        if not app_ok(user, f): return reply({'error': {'message': 'File not found'}}, 404)
         if q.get('alt') == ['media']:
             if isinstance(f['content'], bytes):
                 route.fulfill(status=200, headers={'Access-Control-Allow-Origin': '*', 'Content-Type': f['mime'] or 'video/mp4'}, body=f['content']); return
@@ -130,7 +151,7 @@ def handle(route):
         return reply(meta(f))
     if p.startswith('/upload/drive/v3/files/') and req.method == 'PATCH':
         f = drive.get(segs[5])
-        if not f or not can_access(user, f): return reply({'error': {'message': 'File not found'}}, 404)
+        if not app_ok(user, f): return reply({'error': {'message': 'File not found'}}, 404)
         ct = req.headers.get('content-type', '')
         f['content'] = req.post_data_buffer if not ct.startswith('application/json') else req.post_data
         f['version'] += 1
@@ -138,7 +159,7 @@ def handle(route):
         return reply(meta(f))
     if p.endswith('/permissions') and req.method == 'POST':
         f = drive.get(segs[4])
-        if not f or f['owner'] != user: return reply({'error': {'message': 'Insufficient permissions'}}, 403)
+        if not app_ok(user, f) or f['owner'] != user: return reply({'error': {'message': 'Insufficient permissions'}}, 403)
         f['perms'].add(json.loads(req.post_data)['emailAddress'])
         return reply({'id': 'perm'})
     return reply({'error': {'message': 'unhandled ' + req.method + ' ' + p}}, 400)
@@ -185,8 +206,9 @@ with sync_playwright() as p:
     wait_synced(A)
     tf = team_file()
     root = next(f for f in drive.values() if f['name'] == 'Bulldogs Watch Party')
-    app_folder = next(f for f in drive.values() if f['name'] == '_App')
-    check(tf['parents'] == [app_folder['id']] and app_folder['parents'] == [root['id']], 'A: Drive has Bulldogs Watch Party › _App › team data file')
+    names = sorted(x['name'] for x in root_items())
+    check(tf['parents'] == [root['id']] and names == sorted(['Watch Party team data.json', 'Watch Party clip library.json', 'Team clips', 'Coaches only', 'Family \u2013 #7 Sam']),
+          'A (admin): one team folder holds team data, clip library, Team clips, Coaches only and a family folder per player: %s' % names)
     data = json.loads(tf['content'])
     check(data['roster'] == [{'number': '7', 'name': 'Sam'}] and data['team']['season'] == '2026-27', 'A: roster and season are in the Drive file')
     check({c['email'] for c in data['coaches']} == {'a@team.com', 'b@team.com'}, 'A: A is added as a coach automatically')
@@ -196,11 +218,14 @@ with sync_playwright() as p:
     A.screenshot(path=SHOTS + '/d1-owner-settings.png', full_page=True)
 
     # ---- coach B: open the shared team data ----
-    B.add_init_script('window.__fakePickId = %s;' % json.dumps(tf['id']))
     B.goto(APP + '#settings')
     B.click('button:has-text("Sign in with Google")')
+    B.evaluate('(d) => { window.__fakePickDocs = d; }', root_items())
     B.click('button:has-text("Open shared team data")')
     wait_synced(B)
+    check(B.evaluate('window.__pickCount') == 1, 'B: joins with one pick (everything in the team folder)')
+    B.wait_for_function("document.querySelector('#team-folders') && /3 of 3 connected/.test(document.querySelector('#team-folders').textContent)", timeout=8000)
+    check(True, 'B: Settings shows all 3 team folders connected')
     check(roster(B) == [('7', 'Sam')], 'B: gets the roster from Drive')
     check(B.evaluate('window.__bwp.state.settings.team.season') == '2026-27', 'B: gets the season')
     check(B.evaluate('window.__bwp.state.sync.owner') is False, 'B: is a coach, not the owner')
@@ -220,6 +245,19 @@ with sync_playwright() as p:
     check([p['number'] for p in d3['roster']] == ['7', '12'] and 'Milton' in d3['opponents'] and 'Appleby Ice Centre' in d3['rinks'],
           'A: its change merged with B’s; both kept in Drive')
     check(roster(A) == [('7', 'Sam'), ('12', 'Leo')], 'A: picked up B’s player while syncing')
+    # the admin's app creates the new player's family folder; B connects it with "Connect team folders"
+    A.wait_for_function("(window.__bwp.state.lib.team.folders || {})['player:12']", timeout=8000)
+    fam12 = [f for f in drive.values() if f['name'] == 'Family \u2013 #12 Leo']
+    check(len(fam12) == 1 and fam12[0]['owner'] == 'a@team.com', 'A (admin): creates the family folder for the new player #12')
+    B.click('button:has-text("Sync now")'); wait_synced(B)
+    B.wait_for_timeout(3500)
+    B.goto(APP + '#settings')
+    B.wait_for_function("document.querySelector('#team-folders') && /3 of 4 connected/.test(document.querySelector('#team-folders').textContent)", timeout=8000)
+    check(True, 'B: Settings shows the new family folder is not connected yet (3 of 4)')
+    B.evaluate('(d) => { window.__fakePickDocs = d; }', root_items())
+    B.click('button:has-text("Connect team folders")')
+    B.wait_for_function("document.querySelector('#team-folders') && /4 of 4 connected/.test(document.querySelector('#team-folders').textContent)", timeout=8000)
+    check(True, 'B: after Connect team folders, all 4 are connected')
 
     # ---- same player renamed on both devices: Drive version wins, A is told ----
     B.click('button:has-text("Sync now")'); wait_synced(B)
@@ -262,7 +300,7 @@ with sync_playwright() as p:
     A.screenshot(path=SHOTS + '/d2-settings-after.png', full_page=True)
 
     # ---- tokens are not sent anywhere except Google ----
-    check(all(u[0] in ('GET', 'POST', 'PATCH', 'OPTIONS') for u in calls), 'only expected Drive calls were made')
+    check(all(u[0] in ('GET', 'POST', 'PATCH', 'OPTIONS', 'DELETE') for u in calls), 'only expected Drive calls were made')
     check(not errA and not errB, 'no page errors: ' + '; '.join((errA + errB)[:3]))
     b.close()
 

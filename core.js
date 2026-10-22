@@ -2,8 +2,8 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '0.8.0';
-  const APP_RELEASED = '2026-10-21';
+  const APP_VERSION = '0.9.0';
+  const APP_RELEASED = '2026-10-22';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
   const DEFAULT_AFTER = 4;
@@ -1071,23 +1071,33 @@
   }
 
   /** Drive folder names for clip destinations. */
+  function playerLabel(dest, roster) {
+    const m = /^player:(\d{1,2})$/.exec(dest || '');
+    if (!m) return null;
+    const p = (roster || []).find((x) => x.number === m[1]);
+    return '#' + m[1] + (p && p.name ? ' ' + p.name : '');
+  }
+
+  /** Drive folder names. All sit side by side in the team folder, so a coach can connect them in one pick. */
   function folderName(dest, roster) {
     if (dest === 'team') return 'Team clips';
     if (dest === 'coaches') return 'Coaches only';
     if (dest === 'private') return 'My private clips';
-    const m = /^player:(\d{1,2})$/.exec(dest || '');
-    if (m) {
-      const p = (roster || []).find((x) => x.number === m[1]);
-      return '#' + m[1] + (p && p.name ? ' ' + p.name : '');
-    }
+    const who = playerLabel(dest, roster);
+    if (who) return 'Family \u2013 ' + who;
     throw new Error('Unknown folder');
+  }
+
+  /** The Drive folders the admin account creates up front: Team, Coaches only and one per player. */
+  function teamFolderKeys(roster) {
+    return ['team', 'coaches'].concat((roster || []).map((p) => 'player:' + p.number));
   }
 
   function destLabel(dest, roster) {
     if (dest === 'team') return 'Team';
     if (dest === 'coaches') return 'Coaches';
     if (dest === 'private') return 'My private folder';
-    return folderName(dest, roster) + ' family';
+    return playerLabel(dest, roster) + ' family';
   }
 
   // ---------- games ----------
@@ -1335,7 +1345,7 @@
     EVENTS, EVENT_IDS, GAME_TYPES, HOME_AWAY, ZONES, SITUATIONS, label, eventLabel, gameMarks, togglePeriod, addGoal, removeGoal, removePeriod, periodName,
     clipAuto, clipEvents, toggleEvent, normalizeTags, clipFeatures, libraryEntry, SHARED_TAG_FIELDS, emptyFilters, normalizeFilters, filterCount, entryMatches,
     sortEntries, describeFilters, addView, removeView, normalizeLibrary, libraryFileText, parseLibraryFile, mergeLibrary, syncLibraryStep, buildMyLibrary,
-    applyEntryTags, folderName, destLabel
+    applyEntryTags, folderName, teamFolderKeys, destLabel
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = WP;

@@ -766,8 +766,9 @@ test('applyEntryTags copies other coaches’ tag edits into my clip', () => {
 test('folder names for destinations', () => {
   const roster = [{ number: '7', name: 'Sam' }, { number: '12', name: '' }];
   assert.equal(WP.folderName('team'), 'Team clips');
-  assert.equal(WP.folderName('player:7', roster), '#7 Sam');
-  assert.equal(WP.folderName('player:12', roster), '#12');
+  assert.equal(WP.folderName('player:7', roster), 'Family \u2013 #7 Sam');
+  assert.equal(WP.folderName('player:12', roster), 'Family \u2013 #12');
+  assert.deepEqual(WP.teamFolderKeys(roster).slice(0, 3), ['team', 'coaches', 'player:7']);
   assert.equal(WP.destLabel('player:7', roster), '#7 Sam family');
   assert.throws(() => WP.folderName('x'), /Unknown folder/);
 });

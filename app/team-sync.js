@@ -103,18 +103,33 @@ App.ready.then(() => {
       Team.account = who.email;
       Team.busy = true; renderTeamCard();
       if (!S.settings.coaches.some((c) => c.email === who.email)) S.settings.coaches = WP.addCoach(S.settings.coaches, S.settings.coachName || 'Head coach', who.email);
+      // everything sits side by side in one folder, so coaches connect it all in one pick
       const root = await WPDrive.createFolder('Bulldogs Watch Party');
-      const appFolder = await WPDrive.createFolder('_App', root.id);
-      const file = await WPDrive.createFile('Watch Party team data.json', appFolder.id, WP.teamFileText(S.settings, who.email));
-      S.sync = { fileId: file.id, folderId: root.id, appFolderId: appFolder.id, version: file.version, base: WP.normalizeTeamData(WP.teamSnapshot(S.settings)), dirty: false, account: who.email, owner: true, lastSyncAt: Date.now(), lastBy: 'you', sharedWith: [] };
+      const file = await WPDrive.createFile('Watch Party team data.json', root.id, WP.teamFileText(S.settings, who.email));
+      S.sync = { fileId: file.id, folderId: root.id, appFolderId: root.id, version: file.version, base: WP.normalizeTeamData(WP.teamSnapshot(S.settings)), dirty: false, account: who.email, owner: true, lastSyncAt: Date.now(), lastBy: 'you', sharedWith: [] };
       Team.lastErr = null;
       save();
+      await App.ensureTeamFolders();
+      await App.ensureTeamLibrary(); // before sharing, so a coach who joins right away gets the clip library too
       Team.busy = false;
-      toast('Team data created in your Google Drive (Bulldogs Watch Party › _App)');
-      App.libSyncAll(true);
+      toast('Team data and team folders created in your Google Drive (Bulldogs Watch Party)');
+      await App.libSyncAll(true);
       if (S.settings.coaches.length > 1) await shareWithCoaches();
     } catch (e) { toast('Couldn’t create team data: ' + e.message, { err: true, ms: 8000 }); }
     finally { Team.busy = false; renderTeamCard(); renderSyncBadge(); }
+  }
+
+  /** A coach (not the admin) gives this app access to the team folders: pick everything in the team folder. */
+  async function connectTeamFolders() {
+    try {
+      await ensureSignedIn();
+      const picked = await WPDrive.pickFile({ multi: true, folders: true, parentId: S.sync && S.sync.folderId, title: 'Select everything in \u201cBulldogs Watch Party\u201d, then click Select' });
+      if (!picked || !picked.length) return;
+      App.folderAccessReset();
+      const st = await App.folderStatus();
+      toast(st.ok === st.total ? 'All ' + st.total + ' team folders connected' : st.ok + ' of ' + st.total + ' team folders connected. Pick the rest the same way.', { err: st.ok !== st.total, ms: 7000 });
+    } catch (e) { toast('Couldn\u2019t connect the team folders: ' + e.message, { err: true }); }
+    renderTeamCard();
   }
 
   async function shareWithCoaches() {
@@ -143,14 +158,20 @@ App.ready.then(() => {
       const who = Team.account ? { email: Team.account } : await WPDrive.whoAmI();
       Team.account = who.email;
       let id = null;
-      let owner = false;
       let libId = null;
-      const mineFound = await WPDrive.findByName('Watch Party team data.json');
-      if (mineFound.length) { id = mineFound[0].id; owner = true; }
-      else {
-        const picked = await WPDrive.pickFile({ multi: true });
+      // this Google account already connected (e.g. on another device): the app can see the files without picking
+      const found = await WPDrive.findByName('Watch Party team data.json');
+      if (found.length) {
+        id = found[0].id;
+        const lf = await WPDrive.findByName('Watch Party clip library.json');
+        libId = lf.length ? lf[0].id : null;
+      } else {
+        // a coach joining: open the shared team folder in Google's picker and select everything in it.
+        // Picking is how Google lets this app use files and folders another account created.
+        const picked = await WPDrive.pickFile({ multi: true, folders: true, title: 'Open \u201cBulldogs Watch Party\u201d (shared with you), select everything inside it, then click Select' });
         if (!picked || !picked.length) return;
-        const t = picked.find((x) => /team data/i.test(x.name || '')) || picked[0];
+        const t = picked.find((x) => /team data/i.test(x.name || ''));
+        if (!t) throw new Error('\u201cWatch Party team data\u201d wasn\u2019t selected. Open the Bulldogs Watch Party folder and select everything inside it.');
         const l = picked.find((x) => /clip library/i.test(x.name || ''));
         id = t.id;
         libId = l ? l.id : null;
@@ -159,13 +180,14 @@ App.ready.then(() => {
       const meta = await WPDrive.getMeta(id);
       const data = WP.parseTeamFile(await WPDrive.readText(id));
       S.settings = WP.applyTeamData(S.settings, data);
-      let rootId = null;
-      if (owner && meta.parents && meta.parents[0]) { try { rootId = ((await WPDrive.getMeta(meta.parents[0])).parents || [])[0] || null; } catch (e) { rootId = null; } }
+      const owner = (meta.owners || []).some((o) => String(o.emailAddress || '').toLowerCase() === who.email);
+      const rootId = (meta.parents || [])[0] || null;
       if (libId) S.lib.teamSync = { fileId: libId, version: null, base: null };
-      S.sync = { fileId: id, folderId: rootId, appFolderId: (meta.parents || [])[0] || null, version: meta.version, base: data, dirty: false, account: who.email, owner, lastSyncAt: Date.now(), lastBy: meta.lastModifyingUser ? (meta.lastModifyingUser.displayName || meta.lastModifyingUser.emailAddress) : '' };
+      S.sync = { fileId: id, folderId: rootId, appFolderId: rootId, version: meta.version, base: data, dirty: false, account: who.email, owner, lastSyncAt: Date.now(), lastBy: meta.lastModifyingUser ? (meta.lastModifyingUser.displayName || meta.lastModifyingUser.emailAddress) : '' };
       Team.lastErr = null;
+      App.folderAccessReset();
       save();
-      toast(owner ? 'Found your team data in Google Drive' : 'Connected to the team’s shared roster and categories' + (libId ? ' and clip library' : ''));
+      toast(owner ? 'Found your team data in Google Drive' : 'Connected to the team\u2019s Drive folder: roster, categories' + (libId ? ', clip library' : '') + ' and clip folders');
       App.libSyncAll(true);
     } catch (e) { toast('Couldn’t open team data: ' + e.message, { err: true, ms: 8000 }); }
     finally { Team.busy = false; renderTeamCard(); renderSyncBadge(); refreshAfterSync(); }
@@ -232,7 +254,17 @@ App.ready.then(() => {
       else actions.push(btn('Sync now', () => syncNow(true), 'primary'));
       lines.push(el('span', { class: 'small muted' }, S.lib.teamSync ? 'Clip library: ' + (App.LIB.err ? 'problem — ' + App.LIB.err : 'connected' + (S.lib.teamSync.lastSyncAt ? ', synced ' + ago(S.lib.teamSync.lastSyncAt) : '')) + ' · ' + Object.keys(S.lib.team.entries).length + ' team clips' : S.sync.owner ? 'Clip library: created on next sync' : 'Clip library: not opened yet on this device'));
       if (!S.lib.teamSync && !S.sync.owner) actions.push(btn('Open shared clip library', openSharedLibrary));
-      if (S.sync.owner) actions.push(btn('Share with coaches', shareWithCoaches));
+      if (S.sync.owner) {
+        actions.push(btn('Share with coaches', shareWithCoaches));
+        lines.push(el('span', { class: 'small muted' }, 'This account owns the team\u2019s Drive folder: it creates the Team, Coaches only and family folders, and shares the folder with the coaches on the list.'));
+      } else if (WPDrive.hasToken()) {
+        const st = el('span', { class: 'small muted', id: 'team-folders' }, 'Team folders: checking\u2026');
+        lines.push(st);
+        App.folderStatus().then((x) => {
+          st.textContent = x.total ? 'Team folders: ' + x.ok + ' of ' + x.total + ' connected on this account' + (x.ok < x.total ? ' \u2014 use \u201cConnect team folders\u201d to save clips into the rest.' : '.') : 'Team folders: not set up yet (the admin account creates them).';
+        }).catch(() => { st.textContent = ''; });
+        actions.push(btn('Connect team folders', connectTeamFolders));
+      }
       actions.push(btn('Stop syncing on this device', disconnectTeam, 'danger'));
     }
     box.replaceChildren(...lines, actions.length ? el('div', { class: 'row' }, ...actions) : '');
@@ -292,7 +324,7 @@ App.ready.then(() => {
     if (Date.now() - last > ms) App.libSyncAll(false);
   }
   Object.assign(App, {
-    Team, libSyncIfStale, renderGameLists, renderSyncBadge, renderTeamCard, renderTeamSettings,
+    Team, connectTeamFolders, libSyncIfStale, renderGameLists, renderSyncBadge, renderTeamCard, renderTeamSettings,
     syncNow, teamChanged
   });
 }).catch((e) => setTimeout(() => { throw e; }));
