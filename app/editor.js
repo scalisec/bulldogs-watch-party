@@ -177,14 +177,16 @@ App.ready.then(() => {
     // details
     $('e-cat').replaceChildren(...S.settings.categories.map((x) => el('option', { value: x.id }, x.name + (x.hidden ? ' (hidden)' : ''))));
     $('e-cat').value = d.categoryId;
-    $('e-chips').replaceChildren(...S.settings.roster.map((p) => el('button', {
-      type: 'button', class: 'chip', 'aria-pressed': String(d.players.includes(p.number)), title: p.name || null,
+    // players who played in this game (from its lineup), plus anyone already tagged
+    const lineupRows = WP.gameLineup(App.G, S.settings.roster).filter((r) => !r.away || d.players.includes(r.number));
+    $('e-chips').replaceChildren(...lineupRows.map((p) => el('button', {
+      type: 'button', class: 'chip', 'aria-pressed': String(d.players.includes(p.number)), title: [p.name, p.pos ? WP.positionLabel(p.pos) : '', p.guest ? 'guest' : ''].filter(Boolean).join(' \u00b7 ') || null,
       onclick: () => {
         const has = d.players.includes(p.number);
         commit({ players: has ? d.players.filter((n) => n !== p.number) : d.players.concat([p.number]) });
       }
     }, '#' + p.number)));
-    $('e-chips').hidden = !S.settings.roster.length;
+    $('e-chips').hidden = !lineupRows.length;
     if (document.activeElement !== $('e-players')) $('e-players').value = d.players.join(', ');
     for (const b of $('e-flag').children) b.setAttribute('aria-pressed', String(b.dataset.flag === d.flag));
     if (document.activeElement !== $('e-note')) $('e-note').value = d.note;

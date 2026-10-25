@@ -339,14 +339,16 @@ with sync_playwright() as p:
     # settings: per-category window, then tap uses it
     page.goto(APP + '#settings')
     page.fill('#s-coach', 'Cristian'); page.press('#s-coach', 'Tab')
+    page.goto(APP + '#team/categories'); page.wait_for_selector('section[data-tsec="categories"]:not(.hidden)')
     page.fill('input[aria-label="Seconds before for Faceoffs"]', '2'); page.press('input[aria-label="Seconds before for Faceoffs"]', 'Tab')
     page.fill('input[aria-label="Seconds after for Faceoffs"]', '6'); page.press('input[aria-label="Seconds after for Faceoffs"]', 'Tab')
     page.uncheck('input[aria-label="Show Passing & support"]')
     page.fill('#cat-new', 'Power play'); page.click('text=Add category')
-    page.fill('#r-num', '7'); page.fill('#r-name', 'Sam'); page.click('text=Add player')
+    page.goto(APP + '#team/roster'); page.wait_for_selector('section[data-tsec="roster"]:not(.hidden)')
+    page.fill('#r-num', '7'); page.fill('#r-name', 'Sam'); page.select_option('#r-pri', 'C'); page.click('#roster-add button[type=submit]')
     page.screenshot(path=SHOTS + '/4-settings.png', full_page=True)
     check('only works on the web version' in page.text_content('#team-sync'), 'opened from a file, the team data card points to the web version')
-    check(page.text_content('#app-version') == 'v0.9.0' and 'v0.9.0' in page.text_content('#brand-version'), 'version shows in Settings and the header')
+    check(page.text_content('#app-version') == 'v1.0.0' and 'v1.0.0' in page.text_content('#brand-version'), 'version shows in Settings and the header')
     st = page.evaluate('window.__bwp.state.settings')
     fo = [c for c in st['categories'] if c['name'] == 'Faceoffs'][0]
     check(fo['before'] == 2 and fo['after'] == 6, 'faceoff window saved 2/6')

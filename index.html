@@ -3,24 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bulldogs Watch Party</title>
+<title>Watch Party · Bench Boss Labs</title>
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#0E1A2B">
-<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0B1B31">
+<link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=0.9.0">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=1.0.0">
 </head>
 <body>
 <header class="topbar">
-  <div class="brand">
-    <svg width="34" height="34" viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="16" cy="18.5" rx="12" ry="6" fill="#1D4ED8"/><ellipse cx="16" cy="14" rx="12" ry="6" fill="#3B6FF0"/></svg>
-    <div><div class="brand-name">Bulldogs Watch Party</div><div class="brand-sub">U10 Blue · video clips · <span id="brand-version"></span></div></div>
-  </div>
+  <a class="brand" href="#games" aria-label="Watch Party by Bench Boss Labs, home">
+    <img src="icons/icon.svg" alt="" width="40" height="40">
+    <div><div class="brand-name">Watch Party</div><div class="brand-sub">by Bench Boss Labs · <span id="brand-version"></span></div></div>
+  </a>
+  <span class="teampill" id="team-pill"></span>
   <nav class="nav" aria-label="Main">
     <a href="#games" data-nav="games">Games</a>
     <a href="#review" data-nav="review">Review</a>
+    <a href="#team" data-nav="team">Team</a>
     <a href="#settings" data-nav="settings">Settings</a>
   </nav>
   <div class="row" style="gap:12px"><a href="#settings" id="sync-badge" class="syncbadge"></a><div class="who" id="who"></div><button type="button" class="keysbtn" id="keys-open" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button></div>
@@ -35,7 +37,7 @@
         <p class="muted" style="margin:4px 0 0">Add the LiveBarn downloads for one game. They play as one timeline and never leave this computer.</p>
       </div>
       <div class="drop" id="drop">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1D4ED8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#078DFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
         <strong>Drag video files here</strong>
         <button type="button" class="btn outline" id="pick-files">Or choose files</button>
         <input type="file" id="file-input" accept="video/*,.mp4,.mov,.webm,.mkv" multiple class="hidden">
@@ -53,6 +55,7 @@
         <label class="field">Game type<select id="g-type"><option value="">Not set</option><option value="league">League</option><option value="tournament">Tournament</option><option value="exhibition">Exhibition</option><option value="playoff">Playoff</option></select></label>
         <label class="field">Home or away<select id="g-ha"><option value="">Not set</option><option value="home">Home</option><option value="away">Away</option></select></label>
       </div>
+      <div class="stack lineup" id="g-lineup" aria-label="Lineup for this game"></div>
       <div class="row" style="justify-content:flex-end">
         <button type="button" class="btn" id="g-clear">Clear</button>
         <button type="button" class="btn primary" id="g-start" disabled>Start tagging</button>
@@ -118,13 +121,17 @@
         <div class="tl" id="tl" role="slider" tabindex="0" aria-label="Game timeline" aria-valuemin="0" aria-valuenow="0"></div>
         <div class="tl-labels" id="tl-labels"></div>
       </div>
+      <details class="card stack lineup" id="t-lineup-card">
+        <summary><h2 style="display:inline">Lineup for this game</h2> <span class="small muted" id="t-lineup-sum"></span></summary>
+        <div class="stack" id="t-lineup" style="margin-top:10px"></div>
+      </details>
       <div class="card stack" id="marks-card" style="gap:10px">
         <div class="row spread">
           <h2>Periods and goals</h2>
           <div class="row">
             <button type="button" class="btn small" id="b-period" title="Period start / end (P)">Period start <kbd>P</kbd></button>
-            <button type="button" class="btn small" id="b-goal-for" title="Goal for (G)" style="color:#166534">Goal for <kbd>G</kbd></button>
-            <button type="button" class="btn small" id="b-goal-against" title="Goal against (H)" style="color:#991B1B">Goal against <kbd>H</kbd></button>
+            <button type="button" class="btn small" id="b-goal-for" title="Goal for (G)" style="color:#86EFAC">Goal for <kbd>G</kbd></button>
+            <button type="button" class="btn small" id="b-goal-against" title="Goal against (H)" style="color:#FCA5A5">Goal against <kbd>H</kbd></button>
           </div>
         </div>
         <div class="chips" id="marks-list"></div>
@@ -270,8 +277,8 @@
 <main id="view-review" class="hidden">
   <div class="cols">
     <aside class="col-side card stack" aria-label="Filters" style="flex:1 1 300px;max-width:340px;gap:14px" id="rv-filters">
-      <label class="row" style="border:1px solid #C3CCD9;border-radius:8px;padding:0 10px;gap:8px;min-height:44px;flex-wrap:nowrap">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4A5568" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <label class="row" style="border:1px solid #33557F;background:var(--field);border-radius:8px;padding:0 10px;gap:8px;min-height:44px;flex-wrap:nowrap">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A9B8CC" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
         <input type="text" id="rv-q" placeholder="Search notes and tags" aria-label="Search notes and tags" style="border:none;outline:none;flex:1 1 auto;min-width:0;min-height:40px;padding:0">
       </label>
       <div class="scope" role="group" aria-label="Which clips" id="rv-scope">
@@ -316,62 +323,114 @@
   </div>
 </main>
 
+<main id="view-team" class="hidden">
+  <div class="teamwrap">
+    <nav class="teamnav" aria-label="Team sections">
+      <span class="navlabel">Team</span>
+      <a href="#team/roster" data-tsec="roster">Roster <span class="count" id="tn-roster"></span></a>
+      <a href="#team/coaches" data-tsec="coaches">Coaches <span class="count" id="tn-coaches"></span></a>
+      <a href="#team/categories" data-tsec="categories">Clip categories <span class="count" id="tn-cats"></span></a>
+      <a href="#team/lists" data-tsec="lists">Opponents and rinks</a>
+      <a href="#team/info" data-tsec="info">Team name and season</a>
+      <span class="navlabel admin hidden" id="tn-admin-label">Admin</span>
+      <a href="#team/admin" data-tsec="admin" class="admin hidden" id="tn-admin">Drive and access</a>
+      <span class="small muted navnote">Everything here is shared with all coaches, and any coach can change it.</span>
+    </nav>
+    <div class="teammain">
+      <section data-tsec="roster" class="stack" aria-labelledby="roster-h">
+        <div class="row spread" style="align-items:flex-end">
+          <div class="stack" style="gap:2px"><h1 id="roster-h">Roster</h1><span class="muted" id="roster-sub"></span></div>
+        </div>
+        <div class="chips" id="r-filter" role="group" aria-label="Filter by position"></div>
+        <div class="card flush"><div class="tablewrap"><table class="roster">
+          <thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">Primary</th><th scope="col">Secondary</th><th scope="col">Clips</th><th scope="col"><span class="sr">Actions</span></th></tr></thead>
+          <tbody id="roster"></tbody>
+        </table></div></div>
+        <form class="card stack" id="roster-add" aria-labelledby="radd-h">
+          <h2 id="radd-h">Add a player</h2>
+          <div class="row" style="align-items:flex-end">
+            <label class="field" style="width:90px">Number<input type="text" id="r-num" placeholder="#" inputmode="numeric" autocomplete="off"></label>
+            <label class="field" style="flex:1 1 140px">First name<input type="text" id="r-name" autocomplete="off"></label>
+            <label class="field" style="flex:1 1 160px">Last name<input type="text" id="r-last" autocomplete="off"></label>
+            <label class="field" style="width:150px">Primary position<select id="r-pri"></select></label>
+            <label class="field" style="width:150px">Secondary<select id="r-sec"></select></label>
+            <button type="submit" class="btn primary">Add player</button>
+          </div>
+          <span class="small muted">Names show as first initial and last name (e.g. S. Smith). The roster is shared with coaches only, never with families.</span>
+        </form>
+      </section>
+
+      <section data-tsec="coaches" class="stack" aria-labelledby="coaches-h">
+        <div class="stack" style="gap:2px"><h1 id="coaches-h">Coaches</h1><span class="muted">Their Google accounts get access to the team folder in Drive.</span></div>
+        <div class="card stack" id="coaches" style="gap:8px"></div>
+        <form class="row" id="coach-add">
+          <input type="text" id="c-name" placeholder="Name" aria-label="Coach name" style="max-width:200px">
+          <input type="text" id="c-email" placeholder="Google email" aria-label="Coach Google email" style="max-width:260px" inputmode="email" autocomplete="off">
+          <button type="submit" class="btn outline">Add coach</button>
+        </form>
+      </section>
+
+      <section data-tsec="categories" class="stack" aria-labelledby="cats-h">
+        <div class="stack" style="gap:2px"><h1 id="cats-h">Clip categories</h1><span class="muted">The first 9 shown get keys 1–9.</span></div>
+        <p class="small muted" style="margin:0">Before / after = seconds kept either side of a tap for that category. Changes apply to new clips only. Hidden categories lose their button but keep their clips.</p>
+        <div class="card flush"><div class="tablewrap"><table class="cats">
+          <thead><tr><th scope="col">Key</th><th scope="col">Colour</th><th scope="col">Name</th><th scope="col">Before (s)</th><th scope="col">After (s)</th><th scope="col">Shown</th><th scope="col"><span class="sr">Actions</span></th></tr></thead>
+          <tbody id="cat-rows"></tbody>
+        </table></div></div>
+        <form class="row" id="cat-add">
+          <input type="text" id="cat-new" placeholder="New category name" aria-label="New category name" class="grow" style="max-width:320px">
+          <button type="submit" class="btn outline">Add category</button>
+        </form>
+      </section>
+
+      <section data-tsec="lists" class="stack" aria-labelledby="lists-h">
+        <h1 id="lists-h">Opponents and rinks</h1>
+        <div class="grid2">
+          <div class="card stack" style="gap:8px"><h3>Opponents</h3><div class="chips" id="opponents"></div>
+            <form class="row" id="opp-add"><input type="text" id="o-new" placeholder="Add an opponent" aria-label="New opponent" class="grow"><button type="submit" class="btn small outline">Add</button></form></div>
+          <div class="card stack" style="gap:8px"><h3>Rinks</h3><div class="chips" id="rinks"></div>
+            <form class="row" id="rink-add"><input type="text" id="k-new" placeholder="Add a rink" aria-label="New rink" class="grow"><button type="submit" class="btn small outline">Add</button></form></div>
+        </div>
+        <span class="small muted">New opponents and rinks are also added automatically when you start a game.</span>
+      </section>
+
+      <section data-tsec="info" class="stack" aria-labelledby="info-h">
+        <h1 id="info-h">Team name and season</h1>
+        <div class="card grid2">
+          <label class="field">Team name<input type="text" id="t-name" autocomplete="off"></label>
+          <label class="field">Season<input type="text" id="t-season" placeholder="e.g. 2026–27" autocomplete="off"></label>
+        </div>
+      </section>
+
+      <section data-tsec="admin" class="stack" aria-labelledby="admin-h">
+        <div class="stack" style="gap:2px"><h1 id="admin-h">Drive and access</h1><span class="muted">The team's Drive folder, who can use it, and the clip folders inside it.</span></div>
+        <div class="stack" id="admin-body"></div>
+      </section>
+    </div>
+  </div>
+</main>
+
 <main id="view-settings" class="hidden">
-  <div class="stack" style="max-width:980px; margin:0 auto">
+  <div class="stack" style="max-width:880px; margin:0 auto">
+    <h1>Settings</h1>
     <section class="card stack">
-      <h1>Settings</h1>
+      <h2>You</h2>
       <label class="field" style="max-width:360px">Your name (shown on clips you make)
         <input type="text" id="s-coach" placeholder="e.g. Coach Cristian" autocomplete="name">
       </label>
     </section>
     <section class="card stack" aria-labelledby="team-h">
-      <div class="row spread"><h2 id="team-h">Team data — shared with coaches</h2><span class="small muted">Roster, categories, coaches, opponents and rinks</span></div>
+      <div class="row spread"><h2 id="team-h">Google sign-in and team data</h2><span class="small muted">Roster, categories and clips shared through Google Drive</span></div>
       <div class="stack" id="team-sync" style="gap:8px"></div>
-      <div class="grid2">
-        <label class="field">Team name<input type="text" id="t-name" autocomplete="off"></label>
-        <label class="field">Season<input type="text" id="t-season" placeholder="e.g. 2026–27" autocomplete="off"></label>
-      </div>
-      <h3>Coaches</h3>
-      <div class="stack" id="coaches" style="gap:6px"></div>
-      <form class="row" id="coach-add">
-        <input type="text" id="c-name" placeholder="Name" aria-label="Coach name" style="max-width:200px">
-        <input type="text" id="c-email" placeholder="Google email" aria-label="Coach Google email" style="max-width:260px" inputmode="email" autocomplete="off">
-        <button type="submit" class="btn outline">Add coach</button>
-      </form>
-      <div class="grid2">
-        <div class="stack" style="gap:8px"><h3>Opponents</h3><div class="chips" id="opponents"></div>
-          <form class="row" id="opp-add"><input type="text" id="o-new" placeholder="Add an opponent" aria-label="New opponent" class="grow"><button type="submit" class="btn small outline">Add</button></form></div>
-        <div class="stack" style="gap:8px"><h3>Rinks</h3><div class="chips" id="rinks"></div>
-          <form class="row" id="rink-add"><input type="text" id="k-new" placeholder="Add a rink" aria-label="New rink" class="grow"><button type="submit" class="btn small outline">Add</button></form></div>
-      </div>
-      <span class="small muted">New opponents and rinks are also added automatically when you start a game.</span>
     </section>
-    <section class="card stack" aria-labelledby="cats-h">
-      <div class="row spread"><h2 id="cats-h">Categories</h2><span class="small muted">The first 9 shown get keys 1–9</span></div>
-      <p class="small muted" style="margin:0">Before / after = seconds kept either side of a tap for that category. Changes apply to new clips only. Hidden categories lose their button but keep their clips.</p>
-      <div class="tablewrap"><table class="cats">
-        <thead><tr><th scope="col">Key</th><th scope="col">Colour</th><th scope="col">Name</th><th scope="col">Before (s)</th><th scope="col">After (s)</th><th scope="col">Shown</th><th scope="col"><span class="hidden">Actions</span></th></tr></thead>
-        <tbody id="cat-rows"></tbody>
-      </table></div>
-      <form class="row" id="cat-add">
-        <input type="text" id="cat-new" placeholder="New category name" aria-label="New category name" class="grow" style="max-width:320px">
-        <button type="submit" class="btn outline">Add category</button>
-      </form>
-    </section>
-    <section class="card stack" aria-labelledby="roster-h">
-      <h2 id="roster-h">Roster</h2>
-      <p class="small muted" style="margin:0">Jersey numbers appear as quick buttons when you tag players on a clip. With team data on, the roster is shared with the coaches only — never with families.</p>
-      <div class="chips" id="roster"></div>
-      <form class="row" id="roster-add">
-        <input type="text" id="r-num" placeholder="#" aria-label="Jersey number" style="width:80px" inputmode="numeric">
-        <input type="text" id="r-name" placeholder="Name (optional)" aria-label="Player name" style="max-width:240px">
-        <button type="submit" class="btn outline">Add player</button>
-      </form>
+    <section class="card stack" aria-labelledby="keys2-h">
+      <h2 id="keys2-h">Keyboard shortcuts</h2>
+      <div class="row"><button type="button" class="btn outline" id="s-keys">Show shortcuts</button><a class="btn outline" href="shortcuts.html" target="_blank" rel="noopener">Printable page</a></div>
     </section>
     <section class="card stack" aria-labelledby="about-h">
       <h2 id="about-h">About</h2>
       <div class="row" style="gap:16px">
-        <span><strong>Bulldogs Watch Party</strong> <span id="app-version"></span></span>
+        <span><strong>Watch Party</strong> by Bench Boss Labs <span id="app-version"></span></span>
         <span class="small muted" id="app-released"></span>
       </div>
       <span class="small muted">Games and clips are stored in this browser (data format v<span id="app-schema"></span>). What's new in each version is in CHANGELOG.md.</span>
@@ -413,7 +472,7 @@
       <button type="button" class="btn small" id="dm-end-now">End = now</button>
     </div>
     <label class="field">Category<select id="dm-cat"></select></label>
-    <span class="small" id="dm-err" style="color:#B91C1C" role="alert"></span>
+    <span class="small" id="dm-err" style="color:#FCA5A5" role="alert"></span>
     <div class="row" style="justify-content:flex-end">
       <button type="button" class="btn" id="dm-cancel">Cancel</button>
       <button type="submit" class="btn primary" id="dm-ok" value="ok">Create clip</button>
@@ -423,23 +482,25 @@
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
-<script src="config.js?v=0.9.0"></script>
-<script src="core.js?v=0.9.0"></script>
-<script src="storage.js?v=0.9.0"></script>
-<script src="vendor/mp4-muxer.js?v=0.9.0"></script>
-<script src="render.js?v=0.9.0"></script>
-<script src="drive.js?v=0.9.0"></script>
-<script src="app/base.js?v=0.9.0"></script>
-<script src="app/player.js?v=0.9.0"></script>
-<script src="app/games.js?v=0.9.0"></script>
-<script src="app/tag.js?v=0.9.0"></script>
-<script src="app/editor.js?v=0.9.0"></script>
-<script src="app/record.js?v=0.9.0"></script>
-<script src="app/export.js?v=0.9.0"></script>
-<script src="app/settings.js?v=0.9.0"></script>
-<script src="app/team-sync.js?v=0.9.0"></script>
-<script src="app/library.js?v=0.9.0"></script>
-<script src="app/review.js?v=0.9.0"></script>
-<script src="app/main.js?v=0.9.0"></script>
+<script src="config.js?v=1.0.0"></script>
+<script src="core.js?v=1.0.0"></script>
+<script src="storage.js?v=1.0.0"></script>
+<script src="vendor/mp4-muxer.js?v=1.0.0"></script>
+<script src="render.js?v=1.0.0"></script>
+<script src="drive.js?v=1.0.0"></script>
+<script src="app/base.js?v=1.0.0"></script>
+<script src="app/player.js?v=1.0.0"></script>
+<script src="app/lineup.js?v=1.0.0"></script>
+<script src="app/games.js?v=1.0.0"></script>
+<script src="app/tag.js?v=1.0.0"></script>
+<script src="app/editor.js?v=1.0.0"></script>
+<script src="app/record.js?v=1.0.0"></script>
+<script src="app/export.js?v=1.0.0"></script>
+<script src="app/settings.js?v=1.0.0"></script>
+<script src="app/team.js?v=1.0.0"></script>
+<script src="app/team-sync.js?v=1.0.0"></script>
+<script src="app/library.js?v=1.0.0"></script>
+<script src="app/review.js?v=1.0.0"></script>
+<script src="app/main.js?v=1.0.0"></script>
 </body>
 </html>

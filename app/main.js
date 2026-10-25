@@ -10,7 +10,7 @@ App.ready.then(() => {
 
   // ---------- routing ----------
   function show(view) {
-    for (const v of ['games', 'tag', 'edit', 'review', 'settings']) $('view-' + v).classList.toggle('hidden', v !== view);
+    for (const v of ['games', 'tag', 'edit', 'review', 'team', 'settings']) $('view-' + v).classList.toggle('hidden', v !== view);
     if (view !== 'edit') closeEditor();
     for (const a of document.querySelectorAll('[data-nav]')) {
       const on = a.dataset.nav === view || ((view === 'tag' || view === 'edit') && a.dataset.nav === 'games');
@@ -26,6 +26,7 @@ App.ready.then(() => {
     if (view === 'tag' && id) { if (openGame(id)) show('tag'); }
     else if (view === 'edit' && id && sub) { show('edit'); if (!openEditor(id, sub)) return; }
     else if (view === 'settings') { renderSettings(); show('settings'); }
+    else if (view === 'team') { renderSettings(); App.renderTeam(id); show('team'); }
     else if (view === 'review') { show('review'); renderReview(); libSyncIfStale(20000); }
     else { renderGames(); show('games'); }
   }
@@ -38,6 +39,7 @@ App.ready.then(() => {
     $('dlg-keys').showModal();
   }
   $('keys-open').addEventListener('click', openKeys);
+  App.openKeys = openKeys;
   $('keys-close').addEventListener('click', () => $('dlg-keys').close());
 
   // ---- keyboard ----

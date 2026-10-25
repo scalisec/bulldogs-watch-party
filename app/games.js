@@ -69,8 +69,16 @@ App.ready.then(() => {
 
   function clearDraft() {
     session.draftParts = [];
+    session.draftLineup = null;
     for (const id of ['g-date', 'g-opp', 'g-rink', 'g-result', 'g-type', 'g-ha']) $(id).value = '';
     renderParts();
+    renderDraftLineup();
+  }
+
+  // the new game's lineup: starts with everyone on the roster playing their usual position
+  function renderDraftLineup() {
+    App.renderLineup($('g-lineup'), { lineup: session.draftLineup, gameId: null, idPrefix: 'gl', title: 'Lineup',
+      onChange: (L) => { session.draftLineup = L; renderDraftLineup(); } });
   }
 
   async function startGame() {
@@ -82,6 +90,7 @@ App.ready.then(() => {
         date: $('g-date').value, opponent: $('g-opp').value, rink: $('g-rink').value, result: $('g-result').value, gameType: $('g-type').value, homeAway: $('g-ha').value
       });
     } catch (e) { toast(e.message, { err: true }); return; }
+    if (session.draftLineup) game.lineup = WP.normalizeLineup(session.draftLineup);
     S.games.push(game);
     save();
     let listsChanged = false;
@@ -96,6 +105,7 @@ App.ready.then(() => {
   }
 
   function renderGames() {
+    renderDraftLineup();
     renderWho();
     App.renderGameLists();
     const games = S.games.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.createdAt - a.createdAt);
@@ -166,6 +176,7 @@ App.ready.then(() => {
     } catch (err) { toast(err.message, { err: true }); }
   });
   Object.assign(App, {
+    renderDraftLineup,
     renderGames
   });
 }).catch((e) => setTimeout(() => { throw e; }));

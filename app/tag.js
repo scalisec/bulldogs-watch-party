@@ -127,11 +127,19 @@ App.ready.then(() => {
     $('t-title').textContent = WP.gameTitle(App.G);
     $('t-sub').textContent = [App.G.rink, App.G.result, App.G.parts.length + (App.G.parts.length === 1 ? ' part' : ' parts') + ' · ' + WP.formatTime(App.TL.total)].filter(Boolean).join(' · ');
     renderTags();
+    renderTagLineup();
     renderMarks();
     renderTimelineStatic();
     renderClips();
     updateMarks();
     onTick();
+  }
+
+  function renderTagLineup() {
+    if (!App.G) return;
+    $('t-lineup-sum').textContent = App.lineupSummary(App.G);
+    App.renderLineup($('t-lineup'), { lineup: App.G.lineup, gameId: App.G.id, idPrefix: 'tl',
+      onChange: (L) => { App.G.lineup = L; save(); renderTagLineup(); } });
   }
 
   function renderTags() {
@@ -393,7 +401,7 @@ App.ready.then(() => {
         WP.hasRec(c) ? el('span', { class: 'pill recpill' }, '\u25CF Breakdown' + (c.rec.voice ? ' + voice' : '')) : (c.zoom ? el('span', { class: 'pill zoompill' }, zoomLabel(c.zoom)) : null),
         c.by ? el('span', {}, 'by ' + c.by) : null
       ),
-      (WP.clipEvents(App.G, c).length || autoLine(App.G, c) || c.private || c.starred) ? el('div', { class: 'meta' }, ...evBadges(App.G, c), autoLine(App.G, c) ? el('span', {}, autoLine(App.G, c)) : '', c.starred ? el('span', { style: 'color:#CA8A04' }, '\u2605') : '', c.private ? el('span', { class: 'pill lockpill' }, '\uD83D\uDD12 Private') : '') : null,
+      (WP.clipEvents(App.G, c).length || autoLine(App.G, c) || c.private || c.starred) ? el('div', { class: 'meta' }, ...evBadges(App.G, c), autoLine(App.G, c) ? el('span', {}, autoLine(App.G, c)) : '', c.starred ? el('span', { style: 'color:#FACC15' }, '\u2605') : '', c.private ? el('span', { class: 'pill lockpill' }, '\uD83D\uDD12 Private') : '') : null,
       c.note ? el('div', { class: 'small' }, c.note) : null,
       el('div', { class: 'row' },
         el('button', { type: 'button', class: 'btn small', onclick: () => { App.selectedClipId = c.id; renderTimelineStatic(); renderClips(); applyZoom(c.zoom); App.player && App.player.playRange(c.start, c.end); } }, '▶ Play clip'),
@@ -485,6 +493,7 @@ App.ready.then(() => {
     return bits.join(' · ');
   }
   Object.assign(App, {
+    renderTagLineup,
     applyZoom, autoLine, cancelMarks, evBadges, markGoal, markIn, markOut, markPeriod, onCategory,
     openGame, removeClip, renderClips, renderTags, sameJ, selectOpts, zoomLabel
   });

@@ -21,7 +21,7 @@ App.ready.then(() => {
   }
 
   function myLibrary(kind) {
-    return WP.buildMyLibrary(S.lib[kind], S.games, S.settings.categories, S.settings.coachName, kind === 'priv', S.lib.deleted);
+    return WP.buildMyLibrary(S.lib[kind], S.games, S.settings.categories, S.settings.coachName, kind === 'priv', S.lib.deleted, S.settings.roster);
   }
 
   /** Admin account only: create the Team, Coaches only and one family folder per player, side by side in the team folder. */
@@ -146,6 +146,7 @@ App.ready.then(() => {
       LIB.busy = false;
       if (!$('view-review').classList.contains('hidden')) App.renderReview();
       if (!$('view-settings').classList.contains('hidden')) renderTeamCard();
+      if (!$('view-team').classList.contains('hidden')) App.renderTeam();
       if (LIB.again) { LIB.again = false; libSyncAll(false); }
     }
   }

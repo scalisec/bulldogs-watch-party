@@ -75,9 +75,9 @@ App.ready.then(() => {
   }
 
   function refreshAfterSync() {
-    if (!$('view-settings').classList.contains('hidden')) renderSettings();
-    else if (!$('view-tag').classList.contains('hidden') && App.G) { renderTags(); renderClips(); }
-    else if (!$('view-games').classList.contains('hidden')) renderGameLists();
+    if (!$('view-settings').classList.contains('hidden') || !$('view-team').classList.contains('hidden')) renderSettings();
+    else if (!$('view-tag').classList.contains('hidden') && App.G) { renderTags(); renderClips(); App.renderTagLineup(); }
+    else if (!$('view-games').classList.contains('hidden')) { renderGameLists(); App.renderDraftLineup(); }
     if (App.E) renderEditor();
   }
 
@@ -256,6 +256,7 @@ App.ready.then(() => {
       if (!S.lib.teamSync && !S.sync.owner) actions.push(btn('Open shared clip library', openSharedLibrary));
       if (S.sync.owner) {
         actions.push(btn('Share with coaches', shareWithCoaches));
+        lines.push(el('span', { class: 'small' }, 'Admin tools: ', el('a', { href: '#team/admin' }, 'Team \u203a Drive and access'), '.'));
         lines.push(el('span', { class: 'small muted' }, 'This account owns the team\u2019s Drive folder: it creates the Team, Coaches only and family folders, and shares the folder with the coaches on the list.'));
       } else if (WPDrive.hasToken()) {
         const st = el('span', { class: 'small muted', id: 'team-folders' }, 'Team folders: checking\u2026');
@@ -324,7 +325,7 @@ App.ready.then(() => {
     if (Date.now() - last > ms) App.libSyncAll(false);
   }
   Object.assign(App, {
-    Team, connectTeamFolders, libSyncIfStale, renderGameLists, renderSyncBadge, renderTeamCard, renderTeamSettings,
+    Team, connectTeamFolders, shareWithCoaches, libSyncIfStale, renderGameLists, renderSyncBadge, renderTeamCard, renderTeamSettings,
     syncNow, teamChanged
   });
 }).catch((e) => setTimeout(() => { throw e; }));

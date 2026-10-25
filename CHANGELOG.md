@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.0 — 2026-10-25 (Watch Party by Bench Boss Labs)
+
+- **New name and look:**
+  - The app is now *Watch Party by Bench Boss Labs*: dark navy throughout, Electric Blue actions and Montserrat headings.
+  - The Bench Boss Labs symbol is redrawn as a clean vector, with home-screen icons and a simplified browser-tab icon.
+- **Team page** (new menu item): roster, coaches, clip categories, opponents and rinks, team name and season. Any coach can edit.
+- **Admin section** (Team › Drive and access): only for the account that owns the team's Drive folder. It shows coach access with a "Share with new coaches" button, and every clip folder with its clip count and Drive link. Admin areas are marked in amber.
+- **Settings** is now just yours: name, Google sign-in and team data, shortcuts, about.
+- **Roster:** first and last name (shown as "S. Smith"), primary and secondary positions (C, LW, RW, D, G), position filters, and edit in place. Removing a player asks first.
+- **Game lineups:**
+  - Set on the New game form and changeable on the game screen.
+  - Mark players away, give a position for one game, add guest players, and copy the last game's lineup.
+  - The clip editor only offers players who played.
+- **Review:** a Position filter (Forwards, Defense, Goalies), based on each player's position in that game.
+- Older roster entries become a first name automatically; team data from older versions still syncs.
+
 ## 0.9.0 — 2026-10-22 (admin account owns the team folder)
 
 - **One admin account owns the team's Drive folder.**

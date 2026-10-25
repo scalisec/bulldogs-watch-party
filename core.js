@@ -2,8 +2,8 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '0.9.0';
-  const APP_RELEASED = '2026-10-22';
+  const APP_VERSION = '1.0.0';
+  const APP_RELEASED = '2026-10-25';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
   const DEFAULT_AFTER = 4;
@@ -615,15 +615,123 @@
   }
 
   // ---------- roster ----------
-  function addPlayer(roster, number, name) {
-    const n = String(number).replace(/^#/, '').trim();
-    if (!/^\d{1,2}$/.test(n)) throw new Error('Jersey number must be 0–99');
-    if (roster.some((p) => p.number === n)) throw new Error('#' + n + ' is already on the roster');
-    return roster.concat([{ number: n, name: String(name || '').trim().slice(0, 40) }]).sort((a, b) => Number(a.number) - Number(b.number));
+  const POSITIONS = [['C', 'Centre'], ['LW', 'Left wing'], ['RW', 'Right wing'], ['D', 'Defense'], ['G', 'Goalie']];
+  const POSITION_IDS = POSITIONS.map((p) => p[0]);
+  const POSITION_GROUPS = [['F', 'Forwards'], ['D', 'Defense'], ['G', 'Goalies']];
+  function positionGroup(code) { return code === 'D' ? 'D' : code === 'G' ? 'G' : POSITION_IDS.includes(code) ? 'F' : ''; }
+  function positionLabel(code) { const p = POSITIONS.find((x) => x[0] === code); return p ? p[1] : ''; }
+  function cleanPos(v) { const c = String(v || '').toUpperCase(); return POSITION_IDS.includes(c) ? c : ''; }
+
+  /** How a player's name shows in the app and in Drive folder names: "S. Smith" (first initial, last name);
+      just the first name when there's no last name. */
+  function displayName(first, last) {
+    const f = String(first || '').trim();
+    const l = String(last || '').trim();
+    if (!l) return f;
+    return (f ? f[0].toUpperCase() + '. ' : '') + l;
+  }
+
+  /** One roster entry. Older entries had only { number, name }: name becomes the first name. */
+  function normalizePlayer(p) {
+    const src = p || {};
+    const first = cleanText(src.first != null ? src.first : src.name, 30);
+    const last = cleanText(src.last, 30);
+    const primary = cleanPos(src.primary);
+    let secondary = cleanPos(src.secondary);
+    if (secondary === primary) secondary = '';
+    return { number: String(src.number == null ? '' : src.number).replace(/^#/, '').trim(), first, last, name: displayName(first, last), primary, secondary };
+  }
+
+  function sortRoster(r) { return r.slice().sort((a, b) => Number(a.number) - Number(b.number)); }
+
+  /** addPlayer(roster, { number, first, last, primary, secondary }) — or the older addPlayer(roster, number, name). */
+  function addPlayer(roster, fields, oldName) {
+    const f = fields && typeof fields === 'object' ? fields : { number: fields, first: oldName };
+    const p = normalizePlayer(f);
+    if (!/^\d{1,2}$/.test(p.number)) throw new Error('Jersey number must be 0–99');
+    if (roster.some((x) => x.number === p.number)) throw new Error('#' + p.number + ' is already on the roster');
+    return sortRoster(roster.concat([p]));
+  }
+
+  /** Change a player's name or positions (the number stays: clips and the family folder are keyed by it). */
+  function updatePlayer(roster, number, patch) {
+    const n = String(number);
+    if (!roster.some((p) => p.number === n)) throw new Error('#' + n + ' isn\u2019t on the roster');
+    return roster.map((p) => (p.number === n ? normalizePlayer(Object.assign({}, p, patch, { number: n })) : p));
   }
 
   function removePlayer(roster, number) {
     return roster.filter((p) => p.number !== String(number));
+  }
+
+  // ---------- game lineup: who played and where, starting from the roster ----------
+  function normalizeLineup(l) {
+    const src = l || {};
+    const away = [...new Set((Array.isArray(src.away) ? src.away : []).map(String))];
+    const pos = {};
+    for (const [k, v] of Object.entries(src.pos || {})) { const c = cleanPos(v); if (c) pos[String(k)] = c; }
+    const guests = dedupeBy((Array.isArray(src.guests) ? src.guests : [])
+      .map((g) => ({ number: String(g && g.number != null ? g.number : '').replace(/^#/, '').trim(), name: cleanText(g && g.name, 30), pos: cleanPos(g && g.pos) }))
+      .filter((g) => /^\d{1,2}$/.test(g.number)), (g) => g.number);
+    return { away, pos, guests };
+  }
+
+  /** Everyone for a game: roster players (with this game's position and whether they were away), then guests. */
+  function gameLineup(game, roster) {
+    const L = normalizeLineup(game && game.lineup);
+    const rows = (roster || []).map((p) => ({
+      number: p.number, name: p.name, primary: p.primary, secondary: p.secondary,
+      pos: L.pos[p.number] || p.primary || '', away: L.away.includes(p.number), guest: false
+    }));
+    for (const g of L.guests) if (!rows.some((r) => r.number === g.number)) rows.push({ number: g.number, name: g.name || 'Guest', primary: '', secondary: '', pos: g.pos, away: false, guest: true });
+    return rows;
+  }
+
+  /** Numbers of the players who played in this game (everyone on the roster when no lineup was set). */
+  function playersForGame(game, roster) {
+    return gameLineup(game, roster).filter((r) => !r.away).map((r) => r.number);
+  }
+
+  function setAway(lineup, number, away) {
+    const L = normalizeLineup(lineup);
+    const n = String(number);
+    L.away = away ? [...new Set(L.away.concat([n]))] : L.away.filter((x) => x !== n);
+    return L;
+  }
+  function setGamePos(lineup, number, code, primary) {
+    const L = normalizeLineup(lineup);
+    const n = String(number);
+    const c = cleanPos(code);
+    if (L.guests.some((g) => g.number === n)) L.guests = L.guests.map((g) => (g.number === n ? Object.assign({}, g, { pos: c }) : g));
+    else if (!c || c === primary) delete L.pos[n];
+    else L.pos[n] = c;
+    return L;
+  }
+  function addGuest(lineup, roster, number, name, pos) {
+    const L = normalizeLineup(lineup);
+    const n = String(number == null ? '' : number).replace(/^#/, '').trim();
+    if (!/^\d{1,2}$/.test(n)) throw new Error('Jersey number must be 0–99');
+    if ((roster || []).some((p) => p.number === n) || L.guests.some((g) => g.number === n)) throw new Error('#' + n + ' is already in this lineup');
+    L.guests.push({ number: n, name: cleanText(name, 30), pos: cleanPos(pos) });
+    return L;
+  }
+  function removeGuest(lineup, number) {
+    const L = normalizeLineup(lineup);
+    L.guests = L.guests.filter((g) => g.number !== String(number));
+    return L;
+  }
+  /** The lineup of the most recent game before this one (by date), to copy. */
+  function lastLineup(games, exceptId) {
+    const prev = (games || []).filter((g) => g.id !== exceptId && g.lineup).sort((a, b) => String(b.date).localeCompare(String(a.date)) || (b.createdAt || 0) - (a.createdAt || 0))[0];
+    return prev ? normalizeLineup(prev.lineup) : null;
+  }
+
+  /** Position groups (F/D/G) of the players on a clip, using this game's positions. */
+  function clipPositionGroups(game, clip, roster) {
+    const rows = gameLineup(game, roster);
+    const out = new Set();
+    for (const n of clip.players || []) { const r = rows.find((x) => x.number === n); const g = r ? positionGroup(r.pos) : ''; if (g) out.add(g); }
+    return POSITION_GROUPS.map((x) => x[0]).filter((g) => out.has(g));
   }
 
   // ---------- shared team data (milestone 3a) ----------
@@ -649,7 +757,7 @@
       .map((c) => ({ name: cleanText(c && c.name, 40), email: cleanText(c && c.email, 120).toLowerCase() }))
       .filter((c) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.email));
     const roster = (Array.isArray(src.roster) ? src.roster : [])
-      .map((p) => ({ number: String(p && p.number).replace(/^#/, ''), name: cleanText(p && p.name, 40) }))
+      .map(normalizePlayer)
       .filter((p) => /^\d{1,2}$/.test(p.number));
     const cats = Array.isArray(src.categories) && src.categories.length ? src.categories : defaultCategories();
     const categories = cats.filter((c) => c && c.id && c.name)
@@ -875,7 +983,7 @@
   }
 
   /** Flat, searchable record of a clip for the shared (or private) library. */
-  function libraryEntry(game, clip, categories, coach) {
+  function libraryEntry(game, clip, categories, coach, roster) {
     const cat = (categories || []).find((c) => c.id === clip.categoryId);
     const auto = clipAuto(game, clip);
     return {
@@ -887,6 +995,7 @@
       color: cat ? cat.color : '#64748B',
       events: clipEvents(game, clip),
       players: (clip.players || []).slice(),
+      positions: clipPositionGroups(game, clip, roster),
       flag: clip.flag || 'do',
       note: clip.note || '',
       zone: clip.zone || '',
@@ -912,7 +1021,7 @@
   const SHARED_TAG_FIELDS = ['categoryId', 'events', 'players', 'flag', 'note', 'zone', 'situation', 'starred', 'tags'];
 
   function emptyFilters() {
-    return { q: '', categories: [], events: [], players: [], periods: [], flags: [], gameIds: [], gameType: '', homeAway: '', zone: '', situation: '', state: '', tags: [], inDrive: false };
+    return { q: '', categories: [], events: [], players: [], positions: [], periods: [], flags: [], gameIds: [], gameType: '', homeAway: '', zone: '', situation: '', state: '', tags: [], inDrive: false };
   }
 
   function normalizeFilters(f) {
@@ -939,6 +1048,7 @@
     if (!any(f.categories, [entry.categoryId])) return false;
     if (!any(f.events, entry.events || [])) return false;
     if (!any(f.players, entry.players || [])) return false;
+    if (!any(f.positions, entry.positions || [])) return false;
     if (!any(f.periods, entry.period != null ? [String(entry.period)] : [])) return false;
     const flags = [entry.flag, entry.starred ? 'starred' : null].filter(Boolean);
     if (!any(f.flags, flags)) return false;
@@ -970,6 +1080,7 @@
     const bits = [];
     if (n.categories.length) bits.push(n.categories.map((id) => ((categories || []).find((c) => c.id === id) || {}).name || 'category').join(' or '));
     if (n.events.length) bits.push(n.events.map(eventLabel).join(' or '));
+    if (n.positions.length) bits.push(n.positions.map((g) => (POSITION_GROUPS.find((x) => x[0] === g) || [g, g])[1]).join(' or '));
     if (n.players.length) bits.push(n.players.map((p) => '#' + p).join(' '));
     if (n.periods.length) bits.push(n.periods.map((p) => periodName(Number(p))).join('/'));
     if (n.flags.length) bits.push(n.flags.map((x) => (x === 'do' ? 'Do this' : x === 'work' ? 'Work on this' : 'Starred')).join(' or '));
@@ -1033,14 +1144,14 @@
   }
 
   /** Build this device's view of a library: entries from my local clips (fresh), plus everyone else's from the last sync. */
-  function buildMyLibrary(cache, games, categories, coach, privateSide, deletedIds) {
+  function buildMyLibrary(cache, games, categories, coach, privateSide, deletedIds, roster) {
     const L = normalizeLibrary(cache);
     const mineIds = new Set();
     const entries = {};
     for (const g of games) for (const c of g.clips || []) {
       if (!!c.private !== !!privateSide) continue;
       mineIds.add(c.id);
-      entries[c.id] = libraryEntry(g, c, categories, coach);
+      entries[c.id] = libraryEntry(g, c, categories, coach, roster);
     }
     const localIds = new Set();
     for (const g of games) for (const c of g.clips || []) localIds.add(c.id);
@@ -1169,6 +1280,7 @@
     if (!Array.isArray(s.settings.categories) || !s.settings.categories.length) s.settings.categories = defaultCategories();
     s.settings.categories = s.settings.categories.map((c) => Object.assign({ before: DEFAULT_BEFORE, after: DEFAULT_AFTER, hidden: false }, c));
     if (!Array.isArray(s.settings.roster)) s.settings.roster = [];
+    s.settings.roster = s.settings.roster.map(normalizePlayer);
     if (!s.settings.team || typeof s.settings.team !== 'object') s.settings.team = Object.assign({}, DEFAULT_TEAM);
     for (const k of ['coaches', 'opponents', 'rinks']) if (!Array.isArray(s.settings[k])) s.settings[k] = [];
     if (!Array.isArray(s.games)) s.games = [];
@@ -1339,6 +1451,8 @@
     REC_FADE, hasRec, recExportRate, recOut, recIn, newRecording, addRecKey, recZoomAt, recShapesAt, addRecShape, addRecClear, recPlan, recSummary,
     addPlayer, removePlayer,
     newGame, gameTitle, formatDate, gameTimeline, matchFiles,
+    POSITIONS, POSITION_IDS, POSITION_GROUPS, positionGroup, positionLabel, displayName, normalizePlayer, updatePlayer,
+    normalizeLineup, gameLineup, playersForGame, setAway, setGamePos, addGuest, removeGuest, lastLineup, clipPositionGroups,
     defaultState, migrate, createStore, exportBackup, importBackup, SHORTCUTS, compareVersions, LIB_PARTS, stateRecords, recordSig, sameSig, stateFromRecords,
     TEAM_SECTIONS, DEFAULT_TEAM, teamSnapshot, normalizeTeamData, applyTeamData, teamFileText, parseTeamFile,
     addCoach, removeCoach, addListItem, removeListItem, mergeTeam, syncStep,

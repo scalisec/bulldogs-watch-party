@@ -180,6 +180,17 @@ def setup(ctx, user):
     page.on('pageerror', lambda e: errs.append(str(e)))
     return page, errs
 
+def team(page, sec):
+    page.goto(APP + '#team/' + sec); page.wait_for_selector('section[data-tsec="%s"]:not(.hidden)' % sec)
+
+def settings(page):
+    page.goto(APP + '#settings'); page.wait_for_selector('#view-settings:not(.hidden)')
+
+def remove_player(page, who):
+    page.click('button[aria-label="Edit %s"]' % who)
+    page.click('button[aria-label="Remove %s"]' % who)
+    page.wait_for_selector('#dlg-ask[open]'); page.click('#ask-ok'); page.wait_for_timeout(50)
+
 def roster(page):
     return [(p['number'], p['name']) for p in page.evaluate('window.__bwp.state.settings.roster')]
 
@@ -196,10 +207,10 @@ with sync_playwright() as p:
     # ---- coach A: set up the team and create it in Drive ----
     A.goto(APP + '#settings')
     check(A.is_visible('button:has-text("Sign in with Google")'), 'A: settings offers Google sign-in')
-    A.fill('#c-name', 'Coach B'); A.fill('#c-email', 'B@Team.com'); A.click('button:has-text("Add coach")')
-    A.fill('#r-num', '7'); A.fill('#r-name', 'Sam'); A.click('button:has-text("Add player")')
-    A.fill('#t-season', '2026-27'); A.press('#t-season', 'Tab')
-    A.click('button:has-text("Sign in with Google")')
+    team(A, 'coaches'); A.fill('#c-name', 'Coach B'); A.fill('#c-email', 'B@Team.com'); A.click('button:has-text("Add coach")')
+    team(A, 'roster'); A.fill('#r-num', '7'); A.fill('#r-name', 'Sam'); A.click('button:has-text("Add player")')
+    team(A, 'info'); A.fill('#t-season', '2026-27'); A.press('#t-season', 'Tab')
+    settings(A); A.click('button:has-text("Sign in with Google")')
     A.wait_for_selector('button:has-text("Create team data in my Drive")')
     check(True, 'A: after sign-in, offers create or open')
     A.click('button:has-text("Create team data in my Drive")')
@@ -210,7 +221,7 @@ with sync_playwright() as p:
     check(tf['parents'] == [root['id']] and names == sorted(['Watch Party team data.json', 'Watch Party clip library.json', 'Team clips', 'Coaches only', 'Family \u2013 #7 Sam']),
           'A (admin): one team folder holds team data, clip library, Team clips, Coaches only and a family folder per player: %s' % names)
     data = json.loads(tf['content'])
-    check(data['roster'] == [{'number': '7', 'name': 'Sam'}] and data['team']['season'] == '2026-27', 'A: roster and season are in the Drive file')
+    check([(p['number'], p['first'], p['name']) for p in data['roster']] == [('7', 'Sam', 'Sam')] and data['team']['season'] == '2026-27', 'A: roster and season are in the Drive file')
     check({c['email'] for c in data['coaches']} == {'a@team.com', 'b@team.com'}, 'A: A is added as a coach automatically')
     A.wait_for_function("window.__bwp.state.sync.sharedWith && window.__bwp.state.sync.sharedWith.includes('b@team.com')", timeout=5000)
     check('b@team.com' in root['perms'], 'A: folder shared with coach B')
@@ -232,14 +243,14 @@ with sync_playwright() as p:
     check(B.input_value('#s-coach') == 'B', 'B: name filled from Google account')
 
     # ---- B adds a player and a rink: pushed automatically ----
-    B.fill('#r-num', '12'); B.fill('#r-name', 'Leo'); B.click('button:has-text("Add player")')
-    B.fill('#k-new', 'Appleby Ice Centre'); B.click('#rink-add button')
+    team(B, 'roster'); B.fill('#r-num', '12'); B.fill('#r-name', 'Leo'); B.click('button:has-text("Add player")')
+    team(B, 'lists'); B.fill('#k-new', 'Appleby Ice Centre'); B.click('#rink-add button')
     B.wait_for_timeout(1600); wait_synced(B)
     d2 = json.loads(team_file()['content'])
     check([p['number'] for p in d2['roster']] == ['7', '12'] and 'Appleby Ice Centre' in d2['rinks'], 'B: changes written to Drive')
 
     # ---- A changes something else at the same time: merged, nothing lost ----
-    A.fill('#o-new', 'Milton'); A.click('#opp-add button')
+    team(A, 'lists'); A.fill('#o-new', 'Milton'); A.click('#opp-add button')
     A.wait_for_timeout(1600); wait_synced(A)
     d3 = json.loads(team_file()['content'])
     check([p['number'] for p in d3['roster']] == ['7', '12'] and 'Milton' in d3['opponents'] and 'Appleby Ice Centre' in d3['rinks'],
@@ -249,7 +260,7 @@ with sync_playwright() as p:
     A.wait_for_function("(window.__bwp.state.lib.team.folders || {})['player:12']", timeout=8000)
     fam12 = [f for f in drive.values() if f['name'] == 'Family \u2013 #12 Leo']
     check(len(fam12) == 1 and fam12[0]['owner'] == 'a@team.com', 'A (admin): creates the family folder for the new player #12')
-    B.click('button:has-text("Sync now")'); wait_synced(B)
+    settings(B); B.click('button:has-text("Sync now")'); wait_synced(B)
     B.wait_for_timeout(3500)
     B.goto(APP + '#settings')
     B.wait_for_function("document.querySelector('#team-folders') && /3 of 4 connected/.test(document.querySelector('#team-folders').textContent)", timeout=8000)
@@ -263,10 +274,10 @@ with sync_playwright() as p:
     B.click('button:has-text("Sync now")'); wait_synced(B)
     B.evaluate("""(() => { const s = window.__bwp.state; })()""")
     # B renames #7 by removing and re-adding
-    B.click('button[aria-label="Remove #7 Sam"]'); B.wait_for_timeout(50)
+    team(B, 'roster'); remove_player(B, '#7 Sam')
     B.fill('#r-num', '7'); B.fill('#r-name', 'Sammy'); B.click('button:has-text("Add player")')
     B.wait_for_timeout(1600); wait_synced(B)
-    A.click('button[aria-label="Remove #7 Sam"]'); A.wait_for_timeout(50)
+    team(A, 'roster'); remove_player(A, '#7 Sam')
     A.fill('#r-num', '7'); A.fill('#r-name', 'Samuel'); A.click('button:has-text("Add player")')
     A.wait_for_timeout(1700); wait_synced(A)
     toast = A.text_content('#toasts')
@@ -276,20 +287,20 @@ with sync_playwright() as p:
     check([p['name'] for p in d4['roster'] if p['number'] == '7'] == ['Sammy'], 'conflict: Drive still says Sammy')
 
     # ---- categories are shared too: B changes a window, A sees it after Sync now ----
-    B.fill('input[aria-label="Seconds before for Faceoffs"]', '2'); B.press('input[aria-label="Seconds before for Faceoffs"]', 'Tab')
+    team(B, 'categories'); B.fill('input[aria-label="Seconds before for Faceoffs"]', '2'); B.press('input[aria-label="Seconds before for Faceoffs"]', 'Tab')
     B.wait_for_timeout(1600); wait_synced(B)
-    A.click('button:has-text("Sync now")'); wait_synced(A)
+    settings(A); A.click('button:has-text("Sync now")'); wait_synced(A)
     fo = [c for c in A.evaluate('window.__bwp.state.settings.categories') if c['name'] == 'Faceoffs'][0]
     check(fo['before'] == 2, 'categories sync: A sees B’s Faceoffs window')
 
     # ---- offline change is kept and marked, then synced ----
     ctxA.route('https://www.googleapis.com/**', lambda r: r.abort())
-    A.fill('#o-new', 'Oakville'); A.click('#opp-add button')
+    team(A, 'lists'); A.fill('#o-new', 'Oakville'); A.click('#opp-add button')
     A.wait_for_timeout(1800)
     check('not synced' in A.text_content('#sync-badge') or 'problem' in A.text_content('#sync-badge'), 'offline: header shows team data not synced')
     ctxA.unroute('https://www.googleapis.com/**')
     ctxA.route('https://www.googleapis.com/**', handle)
-    A.click('button:has-text("Sync now")'); wait_synced(A)
+    settings(A); A.click('button:has-text("Sync now")'); wait_synced(A)
     check('Oakville' in json.loads(team_file()['content'])['opponents'], 'back online: the offline change reaches Drive')
 
     # ---- new game picks from shared lists ----

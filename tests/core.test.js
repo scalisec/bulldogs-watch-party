@@ -506,7 +506,7 @@ test('team data: normalize cleans, sorts and fills defaults', () => {
   assert.equal(d.categories.length, 9, 'default categories when none given');
   const n = WP.normalizeTeamData({ coaches: [{ email: 'not-an-email' }], roster: [{ number: '#5' }, { number: '5' }, { number: 'x' }], opponents: [' A ', 'A', ''] });
   assert.deepEqual(n.coaches, []);
-  assert.deepEqual(n.roster, [{ number: '5', name: '' }]);
+  assert.deepEqual(n.roster, [{ number: '5', first: '', last: '', name: '', primary: '', secondary: '' }]);
   assert.deepEqual(n.opponents, ['A']);
   assert.equal(n.team.name, 'Bulldogs U10 Blue');
 });
@@ -819,4 +819,48 @@ test('shortcuts list has G for goal for and H for goal against', () => {
   const all = WP.SHORTCUTS.flatMap((s) => s.keys);
   assert.ok(all.some(([k, w]) => k === 'G' && /Goal for/.test(w)));
   assert.ok(all.some(([k, w]) => k === 'H' && /Goal against/.test(w)));
+});
+
+// ---------- v1.0: roster details and game lineups ----------
+test('players: names show as first initial + last name; old entries keep their name as the first name', () => {
+  assert.equal(WP.displayName('Sam', 'Smith'), 'S. Smith');
+  assert.equal(WP.displayName('Sam', ''), 'Sam');
+  const old = WP.normalizePlayer({ number: '7', name: 'Sam' });
+  assert.equal(old.first, 'Sam'); assert.equal(old.name, 'Sam');
+  let r = WP.addPlayer([], { number: '#7', first: 'Sam', last: 'Smith', primary: 'c', secondary: 'RW' });
+  assert.deepEqual(r[0], { number: '7', first: 'Sam', last: 'Smith', name: 'S. Smith', primary: 'C', secondary: 'RW' });
+  r = WP.addPlayer(r, '12', 'Leo');
+  assert.deepEqual(r.map((p) => p.number), ['7', '12']);
+  r = WP.updatePlayer(r, '12', { last: 'Lane', primary: 'D', secondary: 'D', number: '99' });
+  const leo = r.find((p) => p.number === '12');
+  assert.equal(leo.name, 'L. Lane'); assert.equal(leo.primary, 'D'); assert.equal(leo.secondary, '', 'secondary can\'t equal primary');
+  assert.throws(() => WP.addPlayer(r, { number: '7' }), /already/);
+  assert.equal(WP.folderName('player:7', r), 'Family \u2013 #7 S. Smith');
+  assert.equal(WP.positionGroup('LW'), 'F'); assert.equal(WP.positionGroup('D'), 'D'); assert.equal(WP.positionGroup(''), '');
+});
+
+test('lineup: away players, a position for one game, guests, copying the last game', () => {
+  const roster = [WP.normalizePlayer({ number: '7', first: 'Sam', primary: 'C' }), WP.normalizePlayer({ number: '12', first: 'Leo', primary: 'D' }), WP.normalizePlayer({ number: '4', first: 'Maya', primary: 'D' })];
+  const game = { id: 'g1', date: '2026-10-18', lineup: null };
+  assert.deepEqual(WP.playersForGame(game, roster), ['7', '12', '4'], 'no lineup: everyone played');
+  let L = WP.setAway(game.lineup, '4', true);
+  L = WP.setGamePos(L, '12', 'LW', 'D');
+  L = WP.addGuest(L, roster, '22', 'Guest', 'D');
+  assert.throws(() => WP.addGuest(L, roster, '7'), /already/);
+  game.lineup = L;
+  const rows = WP.gameLineup(game, roster);
+  assert.deepEqual(rows.map((x) => [x.number, x.pos, x.away, x.guest]), [['7', 'C', false, false], ['12', 'LW', false, false], ['4', 'D', true, false], ['22', 'D', false, true]]);
+  assert.deepEqual(WP.playersForGame(game, roster), ['7', '12', '22']);
+  assert.deepEqual(WP.setGamePos(L, '12', 'D', 'D').pos, {}, 'back to the usual position clears the override');
+  assert.deepEqual(WP.clipPositionGroups(game, { players: ['12', '22'] }, roster), ['F', 'D']);
+  const prev = WP.lastLineup([game, { id: 'g0', date: '2026-10-01', lineup: { away: ['7'] } }], 'g2');
+  assert.deepEqual(prev.away, ['4']);
+  assert.deepEqual(WP.removeGuest(L, '22').guests, []);
+});
+
+test('review: filter by position group', () => {
+  const e = { categoryId: 'c', events: [], players: ['7'], positions: ['F'], flag: 'do', game: { type: '', homeAway: '' }, tags: [] };
+  assert.ok(WP.entryMatches(e, { positions: ['F'] }));
+  assert.ok(!WP.entryMatches(e, { positions: ['D'] }));
+  assert.equal(WP.describeFilters({ positions: ['D', 'G'] }), 'Defense or Goalies');
 });

@@ -69,13 +69,14 @@ App.ready.then(() => {
     // filter groups
     const F = R.filters;
     const groups = [];
-    const group = (title, kids) => groups.push(el('div', { class: 'stack', style: 'gap:6px;border-top:1px solid #E6EAF0;padding-top:12px' }, el('h3', { class: 'fh' }, title), el('div', { class: 'chips' }, ...kids)));
+    const group = (title, kids) => groups.push(el('div', { class: 'stack', style: 'gap:6px;border-top:1px solid var(--line);padding-top:12px' }, el('h3', { class: 'fh' }, title), el('div', { class: 'chips' }, ...kids)));
     const usedCats = new Set(all.map((e) => e.categoryId));
     group('Category', S.settings.categories.filter((c) => !c.hidden || usedCats.has(c.id)).map((c) => chipBtn(c.name, F.categories.includes(c.id), () => toggleIn('categories', c.id), el('span', { class: 'dot', style: 'width:9px;height:9px;margin-right:6px;display:inline-block;background:' + c.color }))));
     group('Events', WP.EVENTS.map((ev) => chipBtn(ev.label, F.events.includes(ev.id), () => toggleIn('events', ev.id))));
     const nums = new Set(S.settings.roster.map((p) => p.number));
     for (const e of all) for (const p of e.players) nums.add(p);
     group('Players', [...nums].sort((a, b) => a - b).map((n) => chipBtn('#' + n, F.players.includes(n), () => toggleIn('players', n))));
+    group('Position', WP.POSITION_GROUPS.map(([g, label]) => chipBtn(label, F.positions.includes(g), () => toggleIn('positions', g))));
     group('Period', ['1', '2', '3', '4'].map((n) => chipBtn(WP.periodName(Number(n)), F.periods.includes(n), () => toggleIn('periods', n))));
     group('Message', [['do', 'Do this'], ['work', 'Work on this'], ['starred', '★ Starred']].map(([v, l]) => chipBtn(l, F.flags.includes(v), () => toggleIn('flags', v))));
     group('Score when it happened', [['leading', 'Leading'], ['tied', 'Tied'], ['trailing', 'Trailing']].map(([v, l]) => chipBtn(l, F.state === v, () => setOne('state', v))));
@@ -95,7 +96,7 @@ App.ready.then(() => {
     selectOpts(hsel, WP.HOME_AWAY, F.homeAway, 'Home and away');
     const driveCb = el('input', { type: 'checkbox', style: 'width:18px;height:18px', onchange: (ev) => { R.filters.inDrive = ev.target.checked; R.viewId = null; renderReview(); } });
     driveCb.checked = F.inDrive;
-    groups.push(el('div', { class: 'stack', style: 'gap:6px;border-top:1px solid #E6EAF0;padding-top:12px' }, el('h3', { class: 'fh' }, 'Game'), gsel, el('div', { class: 'grid2', style: 'gap:6px' }, tsel, hsel),
+    groups.push(el('div', { class: 'stack', style: 'gap:6px;border-top:1px solid var(--line);padding-top:12px' }, el('h3', { class: 'fh' }, 'Game'), gsel, el('div', { class: 'grid2', style: 'gap:6px' }, tsel, hsel),
       el('label', { class: 'row small', style: 'gap:8px' }, driveCb, 'Only clips saved in Drive')));
     $('rv-groups').replaceChildren(...groups);
     // results
@@ -105,10 +106,11 @@ App.ready.then(() => {
     const secs = Math.round(lenSum(list));
     $('rv-count').textContent = list.length + (list.length === 1 ? ' clip' : ' clips') + ' · ' + Math.floor(secs / 60) + ' min ' + (secs % 60) + ' s · ' + ({ team: 'team library', private: 'my private clips', both: 'team and private' })[S.lib.scope];
     const pills = [];
-    const pill = (text, fn) => pills.push(el('span', { class: 'mark', style: 'background:var(--accent-soft);color:var(--accent-dark)' }, text, el('button', { type: 'button', 'aria-label': 'Remove filter ' + text, onclick: fn }, '✕')));
+    const pill = (text, fn) => pills.push(el('span', { class: 'mark', style: 'background:var(--accent-soft);color:var(--accent-text)' }, text, el('button', { type: 'button', 'aria-label': 'Remove filter ' + text, onclick: fn }, '✕')));
     for (const id of F.categories) pill('Category: ' + ((catById(id) || {}).name || id), () => toggleIn('categories', id));
     for (const id of F.events) pill('Event: ' + WP.eventLabel(id), () => toggleIn('events', id));
     for (const n of F.players) pill('#' + n, () => toggleIn('players', n));
+    for (const g of F.positions) pill((WP.POSITION_GROUPS.find((x) => x[0] === g) || [g, g])[1], () => toggleIn('positions', g));
     for (const n of F.periods) pill(WP.periodName(Number(n)), () => toggleIn('periods', n));
     for (const v of F.flags) pill(v === 'do' ? 'Do this' : v === 'work' ? 'Work on this' : 'Starred', () => toggleIn('flags', v));
     for (const t of F.tags) pill('Tag: ' + t, () => toggleIn('tags', t));
@@ -133,7 +135,7 @@ App.ready.then(() => {
       const w = whereInfo(e);
       const feats = Object.entries(e.features || {}).filter(([, v]) => v).map(([k]) => ({ drawing: 'Drawing', slow: 'Slow-mo', zoom: 'Zoom', voice: 'Voice' })[k]);
       return el('button', { type: 'button', class: 'rvcard' + (e.id === nowId ? ' now' : ''), 'data-entry': e.id, onclick: () => startQueue(list, i) },
-        el('div', { class: 'row', style: 'gap:6px' }, el('span', { class: 'dot', style: 'background:' + (e.color || '#64748B') }), el('strong', {}, e.category || 'Clip'), ...evBadges(null, null, e.events), e.starred ? el('span', { style: 'color:#CA8A04', 'aria-label': 'Starred' }, '★') : ''),
+        el('div', { class: 'row', style: 'gap:6px' }, el('span', { class: 'dot', style: 'background:' + (e.color || '#64748B') }), el('strong', {}, e.category || 'Clip'), ...evBadges(null, null, e.events), e.starred ? el('span', { style: 'color:#FACC15', 'aria-label': 'Starred' }, '★') : ''),
         el('span', { class: 'small' }, [e.game.title, WP.label(WP.GAME_TYPES, e.game.type), WP.label(WP.HOME_AWAY, e.game.homeAway)].filter(Boolean).join(' · ')),
         el('span', { class: 'small muted' }, [e.period ? WP.periodName(e.period) + ' ' + WP.formatTime(e.periodTime) : 'game ' + WP.formatTime(e.start), e.state ? e.state + ' ' + e.score.for + '–' + e.score.against : '', Math.round(e.end - e.start) + ' s'].filter(Boolean).join(' · ')),
         el('div', { class: 'row small', style: 'gap:6px' }, el('strong', {}, e.players.length ? e.players.map((p) => '#' + p).join(' ') : 'No players'), el('span', { class: 'pill ' + e.flag }, e.flag === 'work' ? 'Work on this' : 'Do this'), ...feats.map((f) => el('span', { class: 'pill zoompill' }, f))),
@@ -266,7 +268,7 @@ App.ready.then(() => {
       const next = WP.updateClip(loc.clip, patch, WP.gameTimeline(loc.game).total);
       loc.game.clips = loc.game.clips.map((x) => (x.id === e.id ? next : x));
       save();
-      const fresh = WP.libraryEntry(loc.game, next, S.settings.categories, S.settings.coachName);
+      const fresh = WP.libraryEntry(loc.game, next, S.settings.categories, S.settings.coachName, S.settings.roster);
       if (patch.private !== undefined) fresh.private = next.private;
       R.queue[R.idx] = fresh;
     } else {

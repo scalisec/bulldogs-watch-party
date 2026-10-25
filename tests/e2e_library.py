@@ -40,9 +40,12 @@ with sync_playwright() as p:
     # ---- A: roster, coach B, sign in, create team data -> clip library + private library appear
     A.goto(APP + '#settings')
     A.fill('#s-coach', 'Cristian'); A.press('#s-coach', 'Tab')
+    g['team'](A, 'roster')
     for n, nm in [('7', 'Sam'), ('12', 'Leo')]:
         A.fill('#r-num', n); A.fill('#r-name', nm); A.click('button:has-text("Add player")')
+    g['team'](A, 'coaches')
     A.fill('#c-name', 'Coach B'); A.fill('#c-email', 'b@team.com'); A.click('button:has-text("Add coach")')
+    g['settings'](A)
     A.click('button:has-text("Sign in with Google")')
     A.click('button:has-text("Create team data in my Drive")')
     A.wait_for_function("window.__bwp.state.lib.teamSync && window.__bwp.state.lib.privSync", timeout=15000)

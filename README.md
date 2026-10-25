@@ -1,6 +1,8 @@
-# Bulldogs Watch Party — milestones 1, 2 and 3
+# Watch Party by Bench Boss Labs
 
-Watch a LiveBarn game on your PC, tag clips for the U10 Blue team, and turn clips into finished MP4 videos with drawings, slow motion and zoom.
+*Better tools. Bigger games.*
+
+Watch a LiveBarn game on your PC, tag clips for the team (first used by the Bulldogs U10 Blue), and turn clips into finished MP4 videos with drawings, slow motion and zoom.
 
 There's no sign-in and no server. Video files stay on your computer, and games and clips are saved in this browser.
 
@@ -122,6 +124,29 @@ The roster, categories, coaches, opponents, rinks, and team name and season are 
 
 Each coach's own name (shown on their clips) stays on their device.
 
+## Team page (v1.0)
+
+**Team** in the top menu holds everything the coaches share, and any coach can change it:
+
+- **Roster:**
+  - Jersey number, first and last name (shown as first initial + last name, e.g. "S. Smith"), and a primary and optional secondary position (C, LW, RW, D, G).
+  - Filter by forwards, defense or goalies, and edit a player in place.
+- **Coaches, Clip categories, Opponents and rinks, Team name and season.**
+- **Admin › Drive and access** appears only for the account that owns the team's Drive folder. It shows:
+  - Which coaches have access, with a button to share with new ones.
+  - Every clip folder with its clip count and an Open in Drive link.
+
+**Settings** keeps your own things: your name, Google sign-in and team data, shortcuts, and about.
+
+## Game lineups (v1.0)
+
+- **New game:** below opponent and date, the lineup lists the roster.
+  - Mark players **Away**, or change a position for this game only ("Playing LW this game (usually D)").
+  - Add a **guest player** (affiliate or call-up), or **Copy last game's lineup**.
+- **Game screen:** the same lineup can be changed from **Lineup for this game**.
+- **Clip editor:** the player buttons show who played: away players are left out and guests are included.
+- **Review:** a **Position** filter (Forwards, Defense, Goalies) uses each player's position in that game.
+
 ## Clip library and Review (milestone 3b)
 
 - **Mark the game:** on the game screen press **P** at the start and end of each period, **G** for a goal for and **H** for a goal against. Clips then get their period and the score automatically, and clips containing a goal are tagged with it.
@@ -156,9 +181,10 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 
 ## Tests
 
-- `node --test tests/core.test.js` runs the core logic tests (65).
+- `node --test tests/core.test.js` runs the core logic tests (71).
+- `python3 tests/e2e_v10.py <screenshot-dir> <media-dir>` tests v1.0: branding, roster names and positions, the Team page and Admin section, game lineups, clip players from the lineup and the Review position filter (23 checks).
 - `python3 tests/e2e_v07.py <screenshot-dir>` tests the storage move, a 60-game season, Review paging, G/H keys, shortcuts and the update banner (22 checks).
-- `python3 tests/e2e_library.py <screenshot-dir> <media-dir>` tests marks, tags, Drive uploads, the shared and private libraries and Review with two coaches and a phone against a simulated Drive (48 checks).
+- `python3 tests/e2e_library.py <screenshot-dir> <media-dir>` tests marks, tags, Drive uploads, the shared and private libraries and Review with two coaches and a phone against a simulated Drive (49 checks).
 - `python3 tests/e2e_drive.py <screenshot-dir>` tests shared team data with two coaches against a simulated Google Drive (23 checks).
 - `python3 tests/e2e.py <screenshot-dir> <media-dir>` runs the browser test (75 checks). It covers tagging, zoom, the editor, drawing, slow motion, preview, MP4 export, and recording a breakdown with a simulated microphone.
 
@@ -179,12 +205,15 @@ GitHub runs the core tests, `e2e_drive.py` and `e2e_v07.py` on every push (`.git
 | `app/editor.js` | Clip editor: trim, freeze and draw, slow motion, details |
 | `app/record.js` | Record a breakdown |
 | `app/export.js` | Export and save to this computer or Drive |
-| `app/settings.js` | Settings screen |
+| `app/lineup.js` | The lineup editor (New game form and game screen) |
+| `app/settings.js` | Settings screen: your name, Google sign-in, shortcuts, about |
+| `app/team.js` | Team page: roster, coaches, categories, lists, and the Admin section |
 | `app/team-sync.js` | Shared team data in Drive |
 | `app/library.js` | Shared and private clip libraries |
 | `app/review.js` | Review screen |
 | `app/main.js` | Routing, keyboard, update banner, start-up |
-| `styles.css` | All page styles |
+| `styles.css` | All page styles (Bench Boss Labs dark navy) |
+| `icons/` | App icons redrawn from the Bench Boss Labs symbol (`icon.svg` full, `favicon.svg` simplified for tabs) |
 
 Each `app/` file starts with the names it uses from earlier files (`const { … } = App`), and reaches later files as `App.name`. State that changes as you move around lives on `App`: the open game `App.G`, its timeline `App.TL`, its player `App.player`, and the open clip editor `App.E`.
 
