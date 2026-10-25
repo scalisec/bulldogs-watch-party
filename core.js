@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '1.0.0';
+  const APP_VERSION = '1.1.0';
   const APP_RELEASED = '2026-10-25';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
@@ -736,7 +736,7 @@
 
   // ---------- shared team data (milestone 3a) ----------
   // Shared by all coaches through one file in Google Drive. Each coach's own name stays on their device.
-  const TEAM_SECTIONS = ['team', 'coaches', 'roster', 'categories', 'opponents', 'rinks'];
+  const TEAM_SECTIONS = ['team', 'league', 'coaches', 'roster', 'categories', 'opponents', 'rinks'];
   const DEFAULT_TEAM = { name: 'Bulldogs U10 Blue', season: '' };
 
   function clone(o) { return o == null ? o : JSON.parse(JSON.stringify(o)); }
@@ -765,6 +765,7 @@
     const list = (a) => [...new Set((Array.isArray(a) ? a : []).map((x) => cleanText(x, 60)).filter(Boolean))].sort((x, y) => x.localeCompare(y));
     return {
       team: { name: cleanText(team.name, 60) || DEFAULT_TEAM.name, season: cleanText(team.season, 30) },
+      league: normalizeLeague(src.league),
       coaches: dedupeBy(coaches, (c) => c.email),
       roster: dedupeBy(roster, (p) => p.number).sort((a, b) => Number(a.number) - Number(b.number)),
       categories: dedupeBy(categories, (c) => c.id),
@@ -850,8 +851,12 @@
       else if (same(T.team[f], B.team[f]) || same(M.team[f], T.team[f])) team[f] = M.team[f];
       else { team[f] = T.team[f]; conflicts.push(f === 'name' ? 'team name' : 'season'); }
     }
+    let league = T.league;
+    if (same(M.league, B.league)) league = T.league;
+    else if (same(T.league, B.league) || same(M.league, T.league)) league = M.league;
+    else conflicts.push('league team');
     const merged = {
-      team,
+      team, league,
       coaches: mergeKeyed(B.coaches, M.coaches, T.coaches, (c) => c.email, (c) => 'coach ' + (c.name || c.email), conflicts),
       roster: mergeKeyed(B.roster, M.roster, T.roster, (p) => p.number, (p) => 'player #' + p.number, conflicts),
       categories: mergeKeyed(B.categories, M.categories, T.categories, (c) => c.id, (c) => 'category “' + c.name + '”', conflicts),
@@ -1212,6 +1217,133 @@
   }
 
   // ---------- games ----------
+
+  // ---------- league schedule (the data Alliance Tracker publishes) ----------
+  // teams.json: [{ id, name, divisionId, division, association, logo }]
+  // games/<divisionId>.json: [{ id, start, home, away, homeScore, awayScore, status, venue, code, liveBarn, type, gamesheet }]
+  const DEFAULT_LEAGUE = { teamId: '2712:burlington-bulldogs-blue', name: 'Burlington Bulldogs Blue', divisionId: 2712, division: 'U10 BB', logo: 'logos/49dba036a6a8.png' };
+  const LEAGUE_TYPES = { regular: 'league', league: 'league', playoff: 'playoff', playoffs: 'playoff', tournament: 'tournament', exhibition: 'exhibition' };
+
+  /** A safe league logo path ("logos/abc.png") or ''. */
+  function leagueLogo(v) { return typeof v === 'string' && /^logos\/[\w.-]+\.(png|jpe?g|svg|webp|gif)$/i.test(v) ? v : ''; }
+  function httpsUrl(v) { return typeof v === 'string' && /^https:\/\/[^\s"'<>]+$/.test(v) ? v : ''; }
+
+  /** The team's league setting. teamId '' means "not using the league schedule". */
+  function normalizeLeague(l) {
+    if (l === undefined || l === null || typeof l !== 'object') return Object.assign({}, DEFAULT_LEAGUE);
+    if (!l.teamId) return { teamId: '', name: '', divisionId: null, division: '', logo: '' };
+    return {
+      teamId: cleanText(l.teamId, 120), name: cleanText(l.name, 80),
+      divisionId: Number.isFinite(Number(l.divisionId)) ? Number(l.divisionId) : null,
+      division: cleanText(l.division, 40), logo: leagueLogo(l.logo)
+    };
+  }
+
+  /** teams.json -> cleaned list, sorted by division then name. */
+  function leagueTeams(data) {
+    return (Array.isArray(data) ? data : [])
+      .filter((t) => t && t.id && t.name && Number.isFinite(Number(t.divisionId)))
+      .map((t) => ({ teamId: String(t.id), name: cleanText(t.name, 80), divisionId: Number(t.divisionId), division: cleanText(t.division, 40), association: cleanText(t.association, 120), logo: leagueLogo(t.logo) }))
+      .sort((a, b) => a.division.localeCompare(b.division, undefined, { numeric: true }) || a.name.localeCompare(b.name));
+  }
+
+  /** "Mountainside (Mountainside)" -> "Mountainside"; other venues stay as they are. */
+  function cleanVenue(v) {
+    const t = cleanText(v, 80);
+    const m = /^(.+?)\s*\((.+)\)$/.exec(t);
+    return m && m[1].toLowerCase() === m[2].toLowerCase() ? m[1] : t;
+  }
+
+  function scoreResult(us, them) {
+    if (!Number.isFinite(us) || !Number.isFinite(them)) return '';
+    return (us > them ? 'W' : us < them ? 'L' : 'T') + ' ' + us + '–' + them;
+  }
+
+  function gamesheetUrl(gs) {
+    return gs && Number.isFinite(Number(gs.season)) && Number.isFinite(Number(gs.game)) ? 'https://gamesheetstats.com/seasons/' + Number(gs.season) + '/games/' + Number(gs.game) : '';
+  }
+
+  /**
+   * One team's schedule from a division's games file, from that team's side:
+   * [{ id, date, time, opponent, homeAway, rink, result, gameType, final, code, liveBarn, gamesheet, opponentLogo }], oldest first.
+   * teams (optional) supplies the opponent logos.
+   */
+  function teamSchedule(games, teamName, teams) {
+    const logos = new Map((teams || []).map((t) => [t.name, t.logo]));
+    const out = [];
+    for (const g of Array.isArray(games) ? games : []) {
+      if (!g || (g.home !== teamName && g.away !== teamName) || g.home === g.away) continue;
+      const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(g.start || '');
+      if (!m) continue;
+      const home = g.home === teamName;
+      const opponent = cleanText(home ? g.away : g.home, 80);
+      const final = g.status === 'final';
+      const us = Number(home ? g.homeScore : g.awayScore);
+      const them = Number(home ? g.awayScore : g.homeScore);
+      out.push({
+        id: String(g.id), date: m[1], time: m[2] + ':' + m[3], opponent, homeAway: home ? 'home' : 'away',
+        rink: cleanVenue(g.venue), result: final && g.homeScore != null && g.awayScore != null ? scoreResult(us, them) : '',
+        gameType: LEAGUE_TYPES[String(g.type || '').toLowerCase()] || '', final, code: cleanText(g.code, 30),
+        liveBarn: httpsUrl(g.liveBarn), gamesheet: gamesheetUrl(g.gamesheet), opponentLogo: logos.get(opponent) || ''
+      });
+    }
+    return out.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  }
+
+  const RINK_FILLER = new Set(['arena', 'rink', 'centre', 'center', 'the', 'cc', 'sports', 'complex', 'community', 'recreation', 'rec', 'ice', 'pad', 'and', 'of', 'league', 'partner', 'games', 'only']);
+  function rinkWords(s) { return new Set(String(s || '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 1 && !RINK_FILLER.has(w) && !/^\d+$/.test(w))); }
+  function rinkOverlap(a, b) { const A = rinkWords(a); for (const w of rinkWords(b)) if (A.has(w)) return true; return false; }
+
+  /**
+   * The schedule game that a set of LiveBarn files belongs to, or null.
+   * Same date; the recording starts from an hour before to two hours after the scheduled time
+   * (or it is the team's only game that day). A rink name match breaks ties.
+   */
+  function matchScheduleGame(schedule, parts) {
+    const ordered = orderParts((parts || []).map((p) => (typeof p === 'string' ? { name: p } : p)));
+    const f = ordered.length ? parseLiveBarnName(ordered[0].name) : {};
+    if (!f.date) return null;
+    const sameDay = (schedule || []).filter((g) => g.date === f.date);
+    if (!sameDay.length) return null;
+    const mins = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+    const fileMin = f.time ? mins(f.time) : null;
+    const scored = sameDay.map((g) => {
+      const diff = fileMin == null ? 0 : fileMin - mins(g.time);
+      return { g, diff, near: diff >= -60 && diff <= 120, rink: rinkOverlap(g.rink, f.rink) };
+    });
+    const ok = scored.filter((x) => x.near);
+    const pool = ok.length ? ok : (sameDay.length === 1 ? scored : []);
+    if (!pool.length) return null;
+    pool.sort((a, b) => (b.rink - a.rink) || (Math.abs(a.diff) - Math.abs(b.diff)));
+    return pool[0].g;
+  }
+
+  /** What a schedule game fills in on a game (every field stays editable). */
+  function scheduleFields(s) {
+    return { date: s.date, time: s.time, opponent: s.opponent, rink: s.rink, result: s.result, gameType: s.gameType, homeAway: s.homeAway };
+  }
+
+  /** The league details kept on a game. */
+  function leagueLink(s) {
+    if (!s || !s.id) return null;
+    return { id: String(s.id), code: cleanText(s.code, 30), date: s.date, time: s.time, opponent: cleanText(s.opponent, 80), rink: cleanText(s.rink, 80),
+      liveBarn: httpsUrl(s.liveBarn), gamesheet: httpsUrl(s.gamesheet), opponentLogo: leagueLogo(s.opponentLogo) };
+  }
+
+  /** Link an existing game to a schedule game: details come from the schedule; a result already entered is kept. */
+  function linkGame(game, s) {
+    const f = scheduleFields(s);
+    return Object.assign({}, game, f, { result: game.result || f.result, league: leagueLink(s) });
+  }
+
+  /** "15:15" -> "3:15 PM" */
+  function formatClock(t) {
+    const m = /^(\d{1,2}):(\d{2})/.exec(t || '');
+    if (!m) return '';
+    const h = Number(m[1]);
+    return ((h % 12) || 12) + ':' + m[2] + ' ' + (h < 12 ? 'AM' : 'PM');
+  }
+
   function newGame(fields) {
     const parts = orderParts(fields.parts || []).map((p) => ({
       name: p.name, size: p.size, duration: p.duration, lastModified: p.lastModified || null
@@ -1222,12 +1354,14 @@
     return {
       id: uid('game'),
       date: fields.date || guess.date || '',
+      time: /^\d{2}:\d{2}$/.test(fields.time || '') ? fields.time : '',
       opponent: String(fields.opponent || '').trim(),
       rink: String(fields.rink || guess.rink || '').trim(),
       result: String(fields.result || '').trim(),
       gameType: GAME_TYPES.some((x) => x[0] === fields.gameType) ? fields.gameType : '',
       homeAway: HOME_AWAY.some((x) => x[0] === fields.homeAway) ? fields.homeAway : '',
       marks: { periods: [], goals: [] },
+      league: leagueLink(fields.league),
       parts,
       clips: [],
       createdAt: fields.now || Date.now()
@@ -1265,7 +1399,7 @@
   function defaultState() {
     return {
       version: SCHEMA_VERSION,
-      settings: { coachName: '', team: Object.assign({}, DEFAULT_TEAM), coaches: [], categories: defaultCategories(), roster: [], opponents: [], rinks: [] },
+      settings: { coachName: '', team: Object.assign({}, DEFAULT_TEAM), league: Object.assign({}, DEFAULT_LEAGUE), coaches: [], categories: defaultCategories(), roster: [], opponents: [], rinks: [] },
       games: [],
       sync: null,
       lib: { team: { entries: {}, views: [] }, priv: { entries: {}, views: [] }, teamSync: null, privSync: null, deleted: [], scope: 'team' }
@@ -1283,6 +1417,7 @@
     s.settings.roster = s.settings.roster.map(normalizePlayer);
     if (!s.settings.team || typeof s.settings.team !== 'object') s.settings.team = Object.assign({}, DEFAULT_TEAM);
     for (const k of ['coaches', 'opponents', 'rinks']) if (!Array.isArray(s.settings[k])) s.settings[k] = [];
+    s.settings.league = normalizeLeague(s.settings.league);
     if (!Array.isArray(s.games)) s.games = [];
     if (!s.sync || typeof s.sync !== 'object') s.sync = null;
     const L = Object.assign({}, base.lib, s.lib || {});
@@ -1459,7 +1594,8 @@
     EVENTS, EVENT_IDS, GAME_TYPES, HOME_AWAY, ZONES, SITUATIONS, label, eventLabel, gameMarks, togglePeriod, addGoal, removeGoal, removePeriod, periodName,
     clipAuto, clipEvents, toggleEvent, normalizeTags, clipFeatures, libraryEntry, SHARED_TAG_FIELDS, emptyFilters, normalizeFilters, filterCount, entryMatches,
     sortEntries, describeFilters, addView, removeView, normalizeLibrary, libraryFileText, parseLibraryFile, mergeLibrary, syncLibraryStep, buildMyLibrary,
-    applyEntryTags, folderName, teamFolderKeys, destLabel
+    applyEntryTags, folderName, teamFolderKeys, destLabel,
+    DEFAULT_LEAGUE, normalizeLeague, leagueTeams, leagueLogo, cleanVenue, scoreResult, gamesheetUrl, teamSchedule, matchScheduleGame, scheduleFields, leagueLink, linkGame, formatClock
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = WP;

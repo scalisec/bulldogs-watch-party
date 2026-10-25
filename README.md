@@ -147,6 +147,16 @@ Each coach's own name (shown on their clips) stays on their device.
 - **Clip editor:** the player buttons show who played: away players are left out and guests are included.
 - **Review:** a **Position** filter (Forwards, Defense, Goalies) uses each player's position in that game.
 
+## League schedule (v1.1)
+
+Games fill in from the Alliance schedule instead of being typed. Watch Party reads the files that [Alliance Tracker](https://scalisec.github.io/alliance-tracker/) publishes: `data/teams.json` (teams, divisions, logos) and `data/games/<division>.json` (dates, times, rinks, scores, LiveBarn and GameSheet links). The address is `leagueDataUrl` in `config.js`.
+
+- **Team › Team and league** sets the league team (shared with all coaches). Default: Burlington Bulldogs Blue, U10 BB.
+- **New game:** pick a game from the schedule, or drop the LiveBarn files and the matching game (same date, starting from an hour before to two hours after the scheduled time, rink as a tie-breaker) is picked for you. Everything stays editable.
+- **The result** comes from the final score once, and is never changed afterwards.
+- **Game screen:** the opponent logo, plus Open in LiveBarn and GameSheet links. Older games can be linked with **Link to league schedule**.
+- **Offline:** the last schedule read is kept in the browser.
+
 ## Clip library and Review (milestone 3b)
 
 - **Mark the game:** on the game screen press **P** at the start and end of each period, **G** for a goal for and **H** for a goal against. Clips then get their period and the score automatically, and clips containing a goal are tagged with it.
@@ -181,7 +191,8 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 
 ## Tests
 
-- `node --test tests/core.test.js` runs the core logic tests (71).
+- `node --test tests/core.test.js` runs the core logic tests (74).
+- `python3 tests/e2e_v11.py <screenshot-dir> <media-dir>` tests v1.1: the league team, the schedule picker, matching LiveBarn files to a game, logos and links, linking an older game, and the offline copy (27 checks). It serves the Alliance data from `tests/fixtures/alliance`.
 - `python3 tests/e2e_v10.py <screenshot-dir> <media-dir>` tests v1.0: branding, roster names and positions, the Team page and Admin section, game lineups, clip players from the lineup and the Review position filter (23 checks).
 - `python3 tests/e2e_v07.py <screenshot-dir>` tests the storage move, a 60-game season, Review paging, G/H keys, shortcuts and the update banner (22 checks).
 - `python3 tests/e2e_library.py <screenshot-dir> <media-dir>` tests marks, tags, Drive uploads, the shared and private libraries and Review with two coaches and a phone against a simulated Drive (49 checks).
@@ -206,6 +217,7 @@ GitHub runs the core tests, `e2e_drive.py` and `e2e_v07.py` on every push (`.git
 | `app/record.js` | Record a breakdown |
 | `app/export.js` | Export and save to this computer or Drive |
 | `app/lineup.js` | The lineup editor (New game form and game screen) |
+| `app/league.js` | The league schedule: reads Alliance Tracker data, the schedule picker and the League team setting |
 | `app/settings.js` | Settings screen: your name, Google sign-in, shortcuts, about |
 | `app/team.js` | Team page: roster, coaches, categories, lists, and the Admin section |
 | `app/team-sync.js` | Shared team data in Drive |

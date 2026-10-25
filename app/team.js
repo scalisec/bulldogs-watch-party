@@ -27,6 +27,7 @@ App.ready.then(() => {
     renderRoster();
     renderCats();
     if (T.sec === 'admin') renderAdmin();
+    if (T.sec === 'info') App.renderLeagueSetting();
   }
 
   // ---------------- roster ----------------

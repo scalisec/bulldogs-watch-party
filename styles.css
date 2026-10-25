@@ -69,7 +69,7 @@ main { max-width: 1440px; margin: 0 auto; padding: 24px; }
 
 /* forms */
 label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 13px; }
-input[type=text], input[type=number], input[type=date], select, textarea { min-height: 44px; padding: 0 12px; border: 1px solid #33557F; border-radius: 8px; background: var(--field); color: var(--ink); font-weight: 400; font-size: 14px; }
+input[type=text], input[type=number], input[type=date], input[type=time], select, textarea { min-height: 44px; padding: 0 12px; border: 1px solid #33557F; border-radius: 8px; background: var(--field); color: var(--ink); font-weight: 400; font-size: 14px; }
 input::placeholder { color: #7F93AF; }
 input.time { width: 96px; font-variant-numeric: tabular-nums; }
 .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
@@ -271,3 +271,20 @@ kbd { font: 600 12px/1 Inter, system-ui, sans-serif; background: var(--field); b
 .recpill { background: var(--bad-soft); color: var(--bad); }
 #stage .zoombar { top: 12px; bottom: auto; right: 12px; }
 #stage #e-ov-mode { right: auto; left: 50%; transform: translateX(-50%); top: 12px; }
+
+/* league schedule (v1.1) */
+.lglogo { flex: none; border-radius: 6px; background: #fff; object-fit: contain; padding: 2px; display: inline-block; }
+.lglogo.none { background: var(--surface-2); border: 1px solid var(--line); padding: 0; }
+.league { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--surface-2); }
+.league:empty { display: none; }
+.lglist { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: auto; max-height: 300px; background: var(--surface); }
+.lglist li + li { border-top: 1px solid var(--line); }
+.lgpick { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 8px 12px; border: 0; background: transparent; color: var(--ink); min-height: 48px; }
+button.lgpick:hover, button.lgpick.sel { background: var(--accent-soft); }
+.lgpick.chosen { border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); flex-wrap: wrap; }
+.lgpick .note { color: #93C5FD; }
+.lgpick .stack { min-width: 0; }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+dialog.wide { max-width: 680px; }
+[hidden] { display: none !important; }
+.lgpick .pill { white-space: nowrap; flex: none; }

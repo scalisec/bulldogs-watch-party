@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.1.0 — 2026-10-25 (league schedule)
+
+- **Games come from the Alliance schedule.** Watch Party reads the schedules, scores, rinks and logos that Alliance Tracker publishes, so there's nothing to type.
+- **Team › Team and league:** pick the league team once (default: Burlington Bulldogs Blue, U10 BB). It's shared with every coach. Any Alliance team can be picked, or none.
+- **New game form:**
+  - A **League schedule** list of the team's games with opponent logos, newest first. Upcoming games are one tap away.
+  - Picking a game fills in the date, the new **Start time** field, opponent, rink, home or away, game type and the final score (e.g. "W 2–1"). Every field stays editable.
+  - **Dropping LiveBarn files picks the matching game** from the files' date, time and rink. "Not a league game" turns it off for that game.
+  - Opponent and rink type-ahead lists include the division's teams and the schedule's rinks.
+- **Game screen:** the opponent logo, start time, and **Open in LiveBarn** and **GameSheet** links. Games added before v1.1 get **Link to league schedule**, which suggests the game the video belongs to and keeps a result you already entered.
+- The score is filled in once and then left alone.
+- The schedule is saved in the browser, so it still shows offline. It refreshes after 30 minutes or with **Refresh**.
+- The data address is one line in `config.js` (`leagueDataUrl`), in case Alliance Tracker moves.
+
 ## 1.0.0 — 2026-10-25 (Watch Party by Bench Boss Labs)
 
 - **New name and look:**

@@ -125,8 +125,10 @@ App.ready.then(() => {
 
   function renderTagView() {
     $('t-title').textContent = WP.gameTitle(App.G);
-    $('t-sub').textContent = [App.G.rink, App.G.result, App.G.parts.length + (App.G.parts.length === 1 ? ' part' : ' parts') + ' · ' + WP.formatTime(App.TL.total)].filter(Boolean).join(' · ');
+    $('t-logo').replaceChildren(App.G.league ? App.League.logo(App.G.league.opponentLogo, 40) : '');
+    $('t-sub').textContent = [WP.formatClock(App.G.time), App.G.rink, App.G.result, App.G.parts.length + (App.G.parts.length === 1 ? ' part' : ' parts') + ' · ' + WP.formatTime(App.TL.total)].filter(Boolean).join(' · ');
     renderTags();
+    renderLeagueBar();
     renderTagLineup();
     renderMarks();
     renderTimelineStatic();
@@ -134,6 +136,53 @@ App.ready.then(() => {
     updateMarks();
     onTick();
   }
+
+  // ---- league: links for a linked game, or link this game to the schedule ----
+  function renderLeagueBar() {
+    const g = App.G;
+    const box = $('t-league');
+    const lg = S.settings.league;
+    if (!g.league) {
+      box.replaceChildren(lg && lg.teamId ? el('button', { type: 'button', class: 'btn small outline', onclick: openLeagueDialog }, 'Link to league schedule') : '');
+      return;
+    }
+    const link = (href, text) => href ? el('a', { class: 'btn small', href, target: '_blank', rel: 'noopener noreferrer', style: 'text-decoration:none' }, text) : '';
+    box.replaceChildren(
+      el('span', { class: 'pill do' }, 'League game' + (g.league.code ? ' · ' + g.league.code : '')),
+      link(g.league.liveBarn, 'Open in LiveBarn ↗'),
+      link(g.league.gamesheet, 'GameSheet ↗'),
+      el('button', { type: 'button', class: 'btn small', onclick: openLeagueDialog }, 'Change'));
+  }
+
+  function renderLeagueDialog() {
+    const g = App.G;
+    App.renderSchedulePicker($('dl-picker'), {
+      key: 'dls', selectedId: g.league && g.league.id, selected: null, noneLabel: 'Unlink',
+      onPick: (s) => {
+        const next = WP.linkGame(g, s);
+        Object.assign(g, next);
+        save();
+        $('dlg-league').close();
+        renderTagView();
+        toast('Linked to ' + App.League.whenText(s) + ' ' + App.League.vsText(s));
+      },
+      onNone: () => { g.league = null; save(); $('dlg-league').close(); renderTagView(); toast('No longer linked to the league schedule'); }
+    });
+  }
+
+  function openLeagueDialog() {
+    renderLeagueDialog();
+    $('dlg-league').showModal();
+    App.League.load();
+    // suggest the game the video files belong to
+    const sched = App.League.schedule();
+    if (sched && !App.G.league) {
+      const m = WP.matchScheduleGame(sched, App.G.parts);
+      if (m) setTimeout(() => { const b = document.querySelector('#dls-list button[aria-label="' + CSS.escape(App.League.whenText(m) + ' ' + App.League.vsText(m)) + '"]'); if (b) { b.classList.add('sel'); b.scrollIntoView({ block: 'nearest' }); } }, 0);
+    }
+  }
+  $('dl-close').addEventListener('click', () => $('dlg-league').close());
+  App.League.onChange(() => { if ($('dlg-league').open) renderLeagueDialog(); });
 
   function renderTagLineup() {
     if (!App.G) return;

@@ -1,0 +1,282 @@
+[
+ {
+  "id": "2711:st-thomas-jr-stars",
+  "name": "St. Thomas Jr Stars",
+  "divisionId": 2711,
+  "division": "U10 AA-A",
+  "association": null,
+  "logo": "logos/612db499a971.png"
+ },
+ {
+  "id": "2711:london-jr-knights-white",
+  "name": "London Jr Knights White",
+  "divisionId": 2711,
+  "division": "U10 AA-A",
+  "association": "London Jr Knights",
+  "logo": "logos/08d490425be3.png"
+ },
+ {
+  "id": "2711:woodstock-jr-navy-vets",
+  "name": "Woodstock Jr Navy Vets",
+  "divisionId": 2711,
+  "division": "U10 AA-A",
+  "association": "Woodstock Minor Hockey",
+  "logo": "logos/6c3aa7a1db2c.png"
+ },
+ {
+  "id": "2711:london-jr-knights-green",
+  "name": "London Jr Knights Green",
+  "divisionId": 2711,
+  "division": "U10 AA-A",
+  "association": "London Jr Knights",
+  "logo": "logos/08d490425be3.png"
+ },
+ {
+  "id": "2711:waterloo-wolves",
+  "name": "Waterloo Wolves",
+  "divisionId": 2711,
+  "division": "U10 AA-A",
+  "association": "Waterloo Minor Hockey",
+  "logo": "logos/1953df906ca9.png"
+ },
+ {
+  "id": "2711:mt-brydges-cougars",
+  "name": "Mt. Brydges Cougars",
+  "divisionId": 2711,
+  "division": "U10 AA-A",
+  "association": null,
+  "logo": "logos/0f4ddfdee820.png"
+ },
+ {
+  "id": "2711:sarnia-jr-sting",
+  "name": "Sarnia Jr. Sting",
+  "divisionId": 2711,
+  "division": "U10 AA-A",
+  "association": "Sarnia Minor Hockey",
+  "logo": "logos/704c833c6aca.png"
+ },
+ {
+  "id": "2711:kitchener-jr-rangers-red",
+  "name": "Kitchener Jr Rangers Red",
+  "divisionId": 2711,
+  "division": "U10 AA-A",
+  "association": "Kitchener Minor Hockey",
+  "logo": "logos/27ddb8f454a5.png"
+ },
+ {
+  "id": "2711:brantford-99ers",
+  "name": "Brantford 99ers",
+  "divisionId": 2711,
+  "division": "U10 AA-A",
+  "association": "Brantford Minor Hockey",
+  "logo": "logos/d5124fd4f472.png"
+ },
+ {
+  "id": "2711:cambridge-hawks",
+  "name": "Cambridge Hawks",
+  "divisionId": 2711,
+  "division": "U10 AA-A",
+  "association": "Cambridge Minor Hockey",
+  "logo": "logos/e0787358df89.png"
+ },
+ {
+  "id": "2711:stratford-warriors",
+  "name": "Stratford Warriors",
+  "divisionId": 2711,
+  "division": "U10 AA-A",
+  "association": "Stratford Minor Hockey",
+  "logo": "logos/51ff29ef905f.png"
+ },
+ {
+  "id": "2711:burlington-raiders",
+  "name": "Burlington Raiders",
+  "divisionId": 2711,
+  "division": "U10 AA-A",
+  "association": "Burlington Raiders Hockey Club",
+  "logo": "logos/8845e5146a9b.png"
+ },
+ {
+  "id": "2711:kitchener-jr-rangers-blue",
+  "name": "Kitchener Jr Rangers Blue",
+  "divisionId": 2711,
+  "division": "U10 AA-A",
+  "association": "Kitchener Minor Hockey",
+  "logo": "logos/27ddb8f454a5.png"
+ },
+ {
+  "id": "2712:burlington-bulldogs-blue",
+  "name": "Burlington Bulldogs Blue",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": "Burlington Lions Optimist Minor Hockey",
+  "logo": "logos/49dba036a6a8.png"
+ },
+ {
+  "id": "2712:kitchener-jr-rangers",
+  "name": "Kitchener Jr Rangers",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": "Kitchener Minor Hockey",
+  "logo": "logos/27ddb8f454a5.png"
+ },
+ {
+  "id": "2712:burlington-raiders",
+  "name": "Burlington Raiders",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": "Burlington Raiders Hockey Club",
+  "logo": "logos/8845e5146a9b.png"
+ },
+ {
+  "id": "2712:waterloo-wolves",
+  "name": "Waterloo Wolves",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": "Waterloo Minor Hockey",
+  "logo": "logos/1953df906ca9.png"
+ },
+ {
+  "id": "2712:cambridge-hawks",
+  "name": "Cambridge Hawks",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": "Cambridge Minor Hockey",
+  "logo": "logos/e0787358df89.png"
+ },
+ {
+  "id": "2712:brantford-99ers",
+  "name": "Brantford 99ers",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": "Brantford Minor Hockey",
+  "logo": "logos/d5124fd4f472.png"
+ },
+ {
+  "id": "2712:burlington-bulldogs-white",
+  "name": "Burlington Bulldogs White",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": "Burlington Lions Optimist Minor Hockey",
+  "logo": "logos/49dba036a6a8.png"
+ },
+ {
+  "id": "2712:woodstock-jr-navy-vets",
+  "name": "Woodstock Jr Navy Vets",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": "Woodstock Minor Hockey",
+  "logo": "logos/6c3aa7a1db2c.png"
+ },
+ {
+  "id": "2712:north-london-nationals",
+  "name": "North London Nationals",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": "Greater London Hockey Association",
+  "logo": "logos/41275c8a7241.png"
+ },
+ {
+  "id": "2712:sarnia-jr-sting",
+  "name": "Sarnia Jr. Sting",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": "Sarnia Minor Hockey",
+  "logo": "logos/704c833c6aca.png"
+ },
+ {
+  "id": "2712:oakridge-aeros",
+  "name": "Oakridge Aeros",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": "Greater London Hockey Association",
+  "logo": "logos/ae847321ae88.png"
+ },
+ {
+  "id": "2712:west-london-hawks",
+  "name": "West London Hawks",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": "Greater London Hockey Association",
+  "logo": "logos/2237c5fc46ea.png"
+ },
+ {
+  "id": "2712:london-bandits",
+  "name": "London Bandits",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": "Greater London Hockey Association",
+  "logo": "logos/973902eb1015.png"
+ },
+ {
+  "id": "2712:dresden-jr-kings",
+  "name": "Dresden Jr. Kings",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": null,
+  "logo": null
+ },
+ {
+  "id": "2712:lambeth-lancers",
+  "name": "Lambeth Lancers",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": "Greater London Hockey Association",
+  "logo": "logos/41c470e6f15a.png"
+ },
+ {
+  "id": "2712:mooretown-jr-flags",
+  "name": "Mooretown Jr. Flags",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": null,
+  "logo": null
+ },
+ {
+  "id": "2712:lambton-shores-predators",
+  "name": "Lambton Shores Predators",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": "Lambton Jr Sting",
+  "logo": "logos/bcc449715362.png"
+ },
+ {
+  "id": "2712:elgin-thames-73s",
+  "name": "Elgin-Thames 73s",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": null,
+  "logo": null
+ },
+ {
+  "id": "2712:petrolia-oilers",
+  "name": "Petrolia Oilers",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": null,
+  "logo": null
+ },
+ {
+  "id": "2712:south-kent-lightning",
+  "name": "South Kent Lightning",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": null,
+  "logo": null
+ },
+ {
+  "id": "2712:mt-brydges-cougars",
+  "name": "Mt. Brydges Cougars",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": null,
+  "logo": null
+ },
+ {
+  "id": "2712:st-thomas-jr-stars",
+  "name": "St. Thomas Jr Stars",
+  "divisionId": 2712,
+  "division": "U10 BB",
+  "association": null,
+  "logo": null
+ }
+]

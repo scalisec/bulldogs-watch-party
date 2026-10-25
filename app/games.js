@@ -39,10 +39,48 @@ App.ready.then(() => {
       }
       renderParts();
     }
-    const guess = WP.guessGameDetails(session.draftParts.map((p) => ({ name: p.file.name })));
-    if (!$('g-date').value && guess.date) $('g-date').value = guess.date;
-    if (!$('g-rink').value && guess.rink) $('g-rink').value = guess.rink;
+    if (!autoMatch()) {
+      const guess = WP.guessGameDetails(session.draftParts.map((p) => ({ name: p.file.name })));
+      if (!$('g-date').value && guess.date) $('g-date').value = guess.date;
+      if (!$('g-rink').value && guess.rink) $('g-rink').value = guess.rink;
+    }
   }
+
+  // ---- league schedule on the New game form ----
+  const FIELDS = { date: 'g-date', time: 'g-time', opponent: 'g-opp', rink: 'g-rink', result: 'g-result', gameType: 'g-type', homeAway: 'g-ha' };
+
+  function pickLeague(s, auto) {
+    session.draftLeague = s;
+    session.draftLeagueAuto = !!auto;
+    const f = WP.scheduleFields(s);
+    for (const [k, id] of Object.entries(FIELDS)) $(id).value = f[k] || '';
+    renderDraftLeague();
+  }
+
+  /** When files are added and no game is picked yet, pick the schedule game they belong to. */
+  function autoMatch() {
+    if (session.draftLeague || session.leagueDismissed || !session.draftParts.length) return false;
+    const sched = App.League.schedule();
+    if (!sched) return false;
+    const m = WP.matchScheduleGame(sched, session.draftParts.map((p) => ({ name: p.file.name })));
+    if (!m) return false;
+    pickLeague(m, true);
+    return true;
+  }
+
+  function renderDraftLeague() {
+    App.renderSchedulePicker($('g-league'), {
+      key: 'gs', selectedId: session.draftLeague && session.draftLeague.id, selected: session.draftLeague, auto: session.draftLeagueAuto,
+      onPick: (s) => { session.leagueDismissed = false; pickLeague(s, false); },
+      onNone: () => { session.draftLeague = null; session.leagueDismissed = true; renderDraftLeague(); }
+    });
+  }
+
+  App.League.onChange(() => {
+    if ($('view-games').classList.contains('hidden')) return;
+    if (!autoMatch()) renderDraftLeague();
+    App.renderGameLists();
+  });
 
   function orderedDraft() {
     const order = WP.orderParts(session.draftParts.map((p) => ({ name: p.file.name, ref: p })));
@@ -70,9 +108,13 @@ App.ready.then(() => {
   function clearDraft() {
     session.draftParts = [];
     session.draftLineup = null;
-    for (const id of ['g-date', 'g-opp', 'g-rink', 'g-result', 'g-type', 'g-ha']) $(id).value = '';
+    session.draftLeague = null;
+    session.draftLeagueAuto = false;
+    session.leagueDismissed = false;
+    for (const id of Object.values(FIELDS)) $(id).value = '';
     renderParts();
     renderDraftLineup();
+    renderDraftLeague();
   }
 
   // the new game's lineup: starts with everyone on the roster playing their usual position
@@ -87,7 +129,7 @@ App.ready.then(() => {
     try {
       game = WP.newGame({
         parts: parts.map((p) => ({ name: p.file.name, size: p.file.size, duration: p.duration, lastModified: p.file.lastModified })),
-        date: $('g-date').value, opponent: $('g-opp').value, rink: $('g-rink').value, result: $('g-result').value, gameType: $('g-type').value, homeAway: $('g-ha').value
+        date: $('g-date').value, time: $('g-time').value, league: session.draftLeague, opponent: $('g-opp').value, rink: $('g-rink').value, result: $('g-result').value, gameType: $('g-type').value, homeAway: $('g-ha').value
       });
     } catch (e) { toast(e.message, { err: true }); return; }
     if (session.draftLineup) game.lineup = WP.normalizeLineup(session.draftLineup);
@@ -106,6 +148,8 @@ App.ready.then(() => {
 
   function renderGames() {
     renderDraftLineup();
+    renderDraftLeague();
+    App.League.load();
     renderWho();
     App.renderGameLists();
     const games = S.games.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.createdAt - a.createdAt);
@@ -116,9 +160,10 @@ App.ready.then(() => {
     $('games').replaceChildren(...games.map((g) => {
       const total = WP.gameTimeline(g).total;
       return el('div', { class: 'gamerow' },
+        g.league ? App.League.logo(g.league.opponentLogo, 36) : '',
         el('div', { class: 'grow stack', style: 'gap:2px' },
           el('strong', {}, WP.gameTitle(g)),
-          el('span', { class: 'small muted' }, [g.rink, g.parts.length + (g.parts.length === 1 ? ' part' : ' parts'), WP.formatTime(total), g.clips.length + (g.clips.length === 1 ? ' clip' : ' clips')].filter(Boolean).join(' · '))
+          el('span', { class: 'small muted' }, [WP.formatClock(g.time), g.rink, g.result, g.parts.length + (g.parts.length === 1 ? ' part' : ' parts'), WP.formatTime(total), g.clips.length + (g.clips.length === 1 ? ' clip' : ' clips')].filter(Boolean).join(' · '))
         ),
         el('div', { class: 'row' },
           el('a', { class: 'btn small primary', href: '#tag/' + g.id, style: 'text-decoration:none' }, 'Open'),

@@ -864,3 +864,90 @@ test('review: filter by position group', () => {
   assert.ok(!WP.entryMatches(e, { positions: ['D'] }));
   assert.equal(WP.describeFilters({ positions: ['D', 'G'] }), 'Defense or Goalies');
 });
+
+// ---------- league schedule (Alliance Tracker data) ----------
+const ALLIANCE_TEAMS = require('./fixtures/alliance/data/teams.json');
+const ALLIANCE_GAMES = require('./fixtures/alliance/data/games/2712.json');
+
+test('league teams and the default league team', () => {
+  const teams = WP.leagueTeams(ALLIANCE_TEAMS);
+  const blue = teams.find((t) => t.teamId === WP.DEFAULT_LEAGUE.teamId);
+  assert.equal(blue.name, 'Burlington Bulldogs Blue');
+  assert.equal(blue.division, 'U10 BB');
+  assert.equal(blue.logo, 'logos/49dba036a6a8.png');
+  assert.equal(WP.leagueLogo('https://evil.example/x.png'), '');
+  assert.equal(WP.leagueLogo('logos/../x.png'), '');
+  assert.deepEqual(WP.normalizeLeague(undefined), WP.DEFAULT_LEAGUE);
+  assert.equal(WP.normalizeLeague({ teamId: '' }).teamId, '');
+  assert.equal(WP.migrate({}).settings.league.teamId, WP.DEFAULT_LEAGUE.teamId);
+});
+
+test('teamSchedule reads one team’s games from its own side', () => {
+  const s = WP.teamSchedule(ALLIANCE_GAMES, 'Burlington Bulldogs Blue', WP.leagueTeams(ALLIANCE_TEAMS));
+  assert.equal(s.length, 28);
+  assert.ok(s.every((g, i) => !i || (s[i - 1].date + s[i - 1].time) <= g.date + g.time), 'oldest first');
+  const g = s.find((x) => x.date === '2026-10-18');
+  assert.equal(g.time, '15:15');
+  assert.equal(g.opponent, 'Burlington Raiders');
+  assert.equal(g.homeAway, 'home');
+  assert.equal(g.rink, 'Mountainside');
+  assert.equal(g.result, 'W 2–1');
+  assert.equal(g.gameType, 'league');
+  assert.equal(g.opponentLogo, 'logos/8845e5146a9b.png');
+  assert.equal(g.gamesheet, 'https://gamesheetstats.com/seasons/15449/games/3080422');
+  assert.ok(g.liveBarn.startsWith('https://'));
+  const away = s.find((x) => x.date === '2026-10-10');
+  assert.equal(away.homeAway, 'away');
+  assert.equal(away.result, 'W 3–2', 'the score is from our side');
+  assert.ok(s.some((x) => !x.final && x.result === ''), 'upcoming games have no result');
+});
+
+test('venue clean-up and results', () => {
+  assert.equal(WP.cleanVenue('Mountainside (Mountainside)'), 'Mountainside');
+  assert.equal(WP.cleanVenue('Appleby (3)'), 'Appleby (3)');
+  assert.equal(WP.scoreResult(1, 3), 'L 1–3');
+  assert.equal(WP.scoreResult(2, 2), 'T 2–2');
+  assert.equal(WP.formatClock('15:15'), '3:15 PM');
+  assert.equal(WP.formatClock('09:05'), '9:05 AM');
+  assert.equal(WP.formatClock('12:00'), '12:00 PM');
+});
+
+test('matchScheduleGame finds the game from LiveBarn file names', () => {
+  const s = WP.teamSchedule(ALLIANCE_GAMES, 'Burlington Bulldogs Blue');
+  const m = WP.matchScheduleGame(s, ['2__Mountainside_Arena_Rink__LEAGUE_PARTNER_GAMES_ONLY__2026-10-18T152013.mp4', REAL]);
+  assert.equal(m.date, '2026-10-18');
+  assert.equal(m.opponent, 'Burlington Raiders');
+  assert.equal(WP.matchScheduleGame(s, ['x__2026-09-01T100000.mp4']), null, 'no game that day');
+  assert.equal(WP.matchScheduleGame(s, ['my game.mp4']), null, 'no date in the name');
+  // two games on one day: the time and rink decide
+  const two = [{ id: 'a', date: '2026-11-07', time: '09:00', rink: 'Appleby (3)' }, { id: 'b', date: '2026-11-07', time: '14:00', rink: 'Mountainside' }];
+  assert.equal(WP.matchScheduleGame(two, ['1__Mountainside_Arena_Rink__X__2026-11-07T140500.mp4']).id, 'b');
+  assert.equal(WP.matchScheduleGame(two, ['1__Appleby_Ice_Centre__X__2026-11-07T085500.mp4']).id, 'a');
+  assert.equal(WP.matchScheduleGame(two, ['1__Somewhere__X__2026-11-07T200000.mp4']), null, 'too far from both');
+  assert.equal(WP.matchScheduleGame([two[0]], ['1__Somewhere__X__2026-11-07T200000.mp4']).id, 'a', 'the only game that day');
+});
+
+test('a new game keeps its league link; linking an existing game keeps an entered result', () => {
+  const s = WP.teamSchedule(ALLIANCE_GAMES, 'Burlington Bulldogs Blue', WP.leagueTeams(ALLIANCE_TEAMS)).find((x) => x.date === '2026-10-18');
+  const g = WP.newGame(Object.assign({ parts: [{ name: REAL, size: 1, duration: 60 }], league: s }, WP.scheduleFields(s)));
+  assert.equal(g.time, '15:15');
+  assert.equal(g.opponent, 'Burlington Raiders');
+  assert.equal(g.result, 'W 2–1');
+  assert.equal(g.league.id, s.id);
+  assert.equal(g.league.opponentLogo, 'logos/8845e5146a9b.png');
+  const plain = WP.newGame({ parts: [{ name: REAL, size: 1, duration: 60 }], result: 'W 3–1', opponent: 'Raiders' });
+  assert.equal(plain.league, null);
+  const linked = WP.linkGame(plain, s);
+  assert.equal(linked.opponent, 'Burlington Raiders');
+  assert.equal(linked.result, 'W 3–1', 'a result already entered is left alone');
+  assert.equal(linked.league.code, 'U10BE84');
+});
+
+test('league team is shared team data and merges', () => {
+  const base = WP.normalizeTeamData({});
+  const mine = Object.assign({}, base, { league: { teamId: '2712:burlington-raiders', name: 'Burlington Raiders', divisionId: 2712, division: 'U10 BB', logo: '' } });
+  const r = WP.mergeTeam(base, mine, base);
+  assert.equal(r.merged.league.teamId, '2712:burlington-raiders');
+  assert.equal(WP.normalizeTeamData({ league: { teamId: '' } }).league.teamId, '');
+  assert.ok(JSON.parse(WP.teamFileText(WP.defaultState().settings)).league);
+});

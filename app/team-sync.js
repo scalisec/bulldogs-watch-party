@@ -288,8 +288,10 @@ App.ready.then(() => {
   }
 
   function renderGameLists() {
-    $('dl-opp').replaceChildren(...S.settings.opponents.map((v) => el('option', { value: v })));
-    $('dl-rink').replaceChildren(...S.settings.rinks.map((v) => el('option', { value: v })));
+    const lg = App.League ? App.League.lists() : { opponents: [], rinks: [] };
+    const merge = (a, b) => [...new Map([...a, ...b].map((v) => [v.toLowerCase(), v])).values()].sort((x, y) => x.localeCompare(y));
+    $('dl-opp').replaceChildren(...merge(S.settings.opponents, lg.opponents).map((v) => el('option', { value: v })));
+    $('dl-rink').replaceChildren(...merge(S.settings.rinks, lg.rinks).map((v) => el('option', { value: v })));
   }
 
   $('t-name').addEventListener('change', (e) => { S.settings.team = Object.assign({}, S.settings.team, { name: e.target.value.trim().slice(0, 60) || WP.DEFAULT_TEAM.name }); teamChanged(); renderSettings(); });

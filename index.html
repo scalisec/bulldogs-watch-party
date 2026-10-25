@@ -10,7 +10,7 @@
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=1.0.0">
+<link rel="stylesheet" href="styles.css?v=1.1.0">
 </head>
 <body>
 <header class="topbar">
@@ -47,8 +47,10 @@
         <div class="stack" id="parts" style="gap:8px"></div>
         <span class="small muted" id="parts-total"></span>
       </div>
+      <div class="stack league" id="g-league" aria-label="League schedule"></div>
       <div class="grid2">
         <label class="field">Game date<input type="date" id="g-date"></label>
+        <label class="field">Start time<input type="time" id="g-time"></label>
         <label class="field">Opponent<input type="text" id="g-opp" placeholder="e.g. Oakville" autocomplete="off" list="dl-opp"><datalist id="dl-opp"></datalist></label>
         <label class="field">Rink<input type="text" id="g-rink" autocomplete="off" list="dl-rink"><datalist id="dl-rink"></datalist></label>
         <label class="field">Result (optional)<input type="text" id="g-result" placeholder="e.g. W 4–2" autocomplete="off"></label>
@@ -77,10 +79,11 @@
 <main id="view-tag" class="hidden">
   <div class="cols">
     <section class="col-main">
-      <div class="row spread" style="align-items:baseline">
-        <h1 id="t-title"></h1>
+      <div class="row spread" style="align-items:center">
+        <div class="row" style="align-items:center;gap:10px"><span id="t-logo"></span><h1 id="t-title"></h1></div>
         <span class="small muted" id="t-sub"></span>
       </div>
+      <div class="row small" id="t-league"></div>
       <div class="videobox" id="videobox">
         <div class="vframe" id="vframe"><video id="video" playsinline preload="auto"></video></div>
         <span class="overlay-tl" id="ov-time">Part 1 · 0:00</span>
@@ -331,7 +334,7 @@
       <a href="#team/coaches" data-tsec="coaches">Coaches <span class="count" id="tn-coaches"></span></a>
       <a href="#team/categories" data-tsec="categories">Clip categories <span class="count" id="tn-cats"></span></a>
       <a href="#team/lists" data-tsec="lists">Opponents and rinks</a>
-      <a href="#team/info" data-tsec="info">Team name and season</a>
+      <a href="#team/info" data-tsec="info">Team and league</a>
       <span class="navlabel admin hidden" id="tn-admin-label">Admin</span>
       <a href="#team/admin" data-tsec="admin" class="admin hidden" id="tn-admin">Drive and access</a>
       <span class="small muted navnote">Everything here is shared with all coaches, and any coach can change it.</span>
@@ -395,10 +398,14 @@
       </section>
 
       <section data-tsec="info" class="stack" aria-labelledby="info-h">
-        <h1 id="info-h">Team name and season</h1>
+        <h1 id="info-h">Team and league</h1>
         <div class="card grid2">
           <label class="field">Team name<input type="text" id="t-name" autocomplete="off"></label>
           <label class="field">Season<input type="text" id="t-season" placeholder="e.g. 2026–27" autocomplete="off"></label>
+        </div>
+        <div class="card stack">
+          <h2>League team</h2>
+          <div class="stack" id="league-setting"></div>
         </div>
       </section>
 
@@ -459,6 +466,15 @@
   </form>
 </dialog>
 
+<dialog id="dlg-league" class="wide" aria-labelledby="dl-h">
+  <div class="dlg">
+    <h2 id="dl-h">Link to the league schedule</h2>
+    <p class="small muted" style="margin:0">Picking a game sets this game’s date, time, opponent, rink, home or away and game type from the schedule. A result you already entered is kept.</p>
+    <div class="stack league" id="dl-picker"></div>
+    <div class="row" style="justify-content:flex-end"><button type="button" class="btn" id="dl-close">Close</button></div>
+  </div>
+</dialog>
+
 <dialog id="dlg-manual" aria-labelledby="dm-h">
   <form class="dlg" method="dialog" id="dm-form">
     <h2 id="dm-h">New clip from times</h2>
@@ -482,25 +498,26 @@
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
-<script src="config.js?v=1.0.0"></script>
-<script src="core.js?v=1.0.0"></script>
-<script src="storage.js?v=1.0.0"></script>
-<script src="vendor/mp4-muxer.js?v=1.0.0"></script>
-<script src="render.js?v=1.0.0"></script>
-<script src="drive.js?v=1.0.0"></script>
-<script src="app/base.js?v=1.0.0"></script>
-<script src="app/player.js?v=1.0.0"></script>
-<script src="app/lineup.js?v=1.0.0"></script>
-<script src="app/games.js?v=1.0.0"></script>
-<script src="app/tag.js?v=1.0.0"></script>
-<script src="app/editor.js?v=1.0.0"></script>
-<script src="app/record.js?v=1.0.0"></script>
-<script src="app/export.js?v=1.0.0"></script>
-<script src="app/settings.js?v=1.0.0"></script>
-<script src="app/team.js?v=1.0.0"></script>
-<script src="app/team-sync.js?v=1.0.0"></script>
-<script src="app/library.js?v=1.0.0"></script>
-<script src="app/review.js?v=1.0.0"></script>
-<script src="app/main.js?v=1.0.0"></script>
+<script src="config.js?v=1.1.0"></script>
+<script src="core.js?v=1.1.0"></script>
+<script src="storage.js?v=1.1.0"></script>
+<script src="vendor/mp4-muxer.js?v=1.1.0"></script>
+<script src="render.js?v=1.1.0"></script>
+<script src="drive.js?v=1.1.0"></script>
+<script src="app/base.js?v=1.1.0"></script>
+<script src="app/player.js?v=1.1.0"></script>
+<script src="app/lineup.js?v=1.1.0"></script>
+<script src="app/league.js?v=1.1.0"></script>
+<script src="app/games.js?v=1.1.0"></script>
+<script src="app/tag.js?v=1.1.0"></script>
+<script src="app/editor.js?v=1.1.0"></script>
+<script src="app/record.js?v=1.1.0"></script>
+<script src="app/export.js?v=1.1.0"></script>
+<script src="app/settings.js?v=1.1.0"></script>
+<script src="app/team.js?v=1.1.0"></script>
+<script src="app/team-sync.js?v=1.1.0"></script>
+<script src="app/library.js?v=1.1.0"></script>
+<script src="app/review.js?v=1.1.0"></script>
+<script src="app/main.js?v=1.1.0"></script>
 </body>
 </html>
