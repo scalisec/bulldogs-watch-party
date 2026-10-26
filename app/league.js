@@ -45,11 +45,18 @@ App.ready.then(() => {
     if (!needTeams && !needGames) return Promise.resolve();
     L.loading = (async () => {
       try {
-        const [teams, games] = await Promise.all([needTeams ? getJson('data/teams.json') : null, needGames ? getJson('data/games/' + Number(lg.divisionId) + '.json') : null]);
-        if (teams) { L.teams = WP.leagueTeams(teams); L.teamsAt = Date.now(); lsSet(K_TEAMS, { at: L.teamsAt, data: teams }); }
+        const div = WP.divisionKey(lg.divisionId);
+        const [alliance, clubs, games] = await Promise.all([
+          needTeams ? getJson('data/teams.json') : null,
+          needTeams ? getJson('data/clubs.json').catch(() => []) : null, // club teams outside the Alliance (e.g. OWHA)
+          needGames && div != null ? getJson('data/games/' + encodeURIComponent(div) + '.json') : null]);
+        if (alliance) {
+          const teams = alliance.concat(Array.isArray(clubs) ? clubs : []);
+          L.teams = WP.leagueTeams(teams); L.teamsAt = Date.now(); lsSet(K_TEAMS, { at: L.teamsAt, data: teams });
+        }
         if (games) {
           if (!Array.isArray(games)) throw new Error('unexpected schedule file');
-          L.games = games; L.gamesAt = Date.now(); L.gamesDiv = Number(lg.divisionId);
+          L.games = games; L.gamesAt = Date.now(); L.gamesDiv = div;
           lsSet(K_GAMES, { at: L.gamesAt, div: L.gamesDiv, data: games });
         }
         L.error = '';
@@ -198,8 +205,8 @@ App.ready.then(() => {
         lg.teamId ? logo(lg.logo, 48) : '',
         el('label', { class: 'field grow' }, 'League team', sel)),
       el('span', { class: 'small muted' }, lg.teamId
-        ? (sched ? sched.length + ' games on the schedule · ' : '') + 'New games fill in from this team’s Alliance schedule: opponent, rink, time, home or away, and the final score. Shared with every coach.'
-        : 'Pick your team to fill in games from the Alliance schedule instead of typing them.'),
+        ? (sched ? sched.length + ' games on the schedule · ' : '') + 'New games fill in from this team’s schedule (' + (lg.division && /OWHA/.test(lg.division) ? 'its club site' : 'the Alliance') + '): opponent, rink, time, home or away, and the final score. Shared with every coach.'
+        : 'Pick your team to fill in games from its schedule instead of typing them. Alliance teams are listed by division; OWHA club teams are marked (OWHA).'),
       !teams ? el('span', { class: 'small ' + (L.error ? 'warn' : 'muted') }, L.loading ? 'Loading the league’s teams…' : L.error || '') : '');
     if (!teams && !L.loading && !L.error) load();
   }

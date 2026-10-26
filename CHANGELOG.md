@@ -12,6 +12,7 @@
 - **Settings › Teams** opens the same switcher.
 - "Bulldogs" no longer appears in shared text: the share email, exported clip descriptions and the G key label use the team's name or "we".
 - Fixed: two things saving at once could create the private clips folder twice.
+- **OWHA club teams in the League team list:** Alliance Tracker now also publishes the Burlington Barracudas U13 B schedule, read from the club site (bghc.ca), so Barracudas games fill in like Bulldogs games: auto-match from LiveBarn files, scores, exhibitions and tournaments. They're listed as "U13 B (OWHA)".
 
 ## 1.1.1 — 2026-10-25 (install the app)
 

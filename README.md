@@ -165,6 +165,7 @@ Games fill in from the Alliance schedule instead of being typed. Watch Party rea
 - **The result** comes from the final score once, and is never changed afterwards.
 - **Game screen:** the opponent logo, plus Open in LiveBarn and GameSheet links. Older games can be linked with **Link to league schedule**.
 - **Offline:** the last schedule read is kept in the browser.
+- **Club teams (v1.2):** `data/clubs.json` lists teams outside the Alliance whose schedules Alliance Tracker reads from their club site (e.g. Burlington Barracudas U13 B from bghc.ca, division id `bghc-2066`). They appear in the League team list with their league in brackets, e.g. "U13 B (OWHA)".
 
 ## Clip library and Review (milestone 3b)
 

@@ -951,3 +951,15 @@ test('league team is shared team data and merges', () => {
   assert.equal(WP.normalizeTeamData({ league: { teamId: '' } }).league.teamId, '');
   assert.ok(JSON.parse(WP.teamFileText(WP.defaultState().settings)).league);
 });
+
+test('club teams (OWHA) use text division ids', () => {
+  assert.equal(WP.divisionKey('bghc-2066'), 'bghc-2066');
+  assert.equal(WP.divisionKey('2712'), 2712);
+  assert.equal(WP.divisionKey('../x'), null);
+  const teams = WP.leagueTeams([{ id: 'bghc-2066:burlington-barracudas', name: 'Burlington Barracudas', divisionId: 'bghc-2066', division: 'U13 B (OWHA)', league: 'OWHA', logo: 'logos/abc123.png' }]);
+  assert.equal(teams[0].divisionId, 'bghc-2066');
+  const lg = WP.normalizeLeague(teams[0]);
+  assert.equal(lg.divisionId, 'bghc-2066');
+  const s = WP.teamSchedule([{ id: 59810, start: '2026-09-24T19:00:00-04:00', home: 'Burlington Barracudas', away: 'North Halton Twisters', homeScore: 4, awayScore: 2, status: 'final', venue: 'Mountainside Arena', type: 'exhibition' }], 'Burlington Barracudas');
+  assert.deepEqual([s[0].opponent, s[0].result, s[0].gameType, s[0].homeAway], ['North Halton Twisters', 'W 4–2', 'exhibition', 'home']);
+});

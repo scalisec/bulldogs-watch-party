@@ -1220,11 +1220,19 @@
 
   // ---------- league schedule (the data Alliance Tracker publishes) ----------
   // teams.json: [{ id, name, divisionId, division, association, logo }]
+  // clubs.json: club teams outside the Alliance (e.g. OWHA), same shape, divisionId like 'bghc-2066'
   // games/<divisionId>.json: [{ id, start, home, away, homeScore, awayScore, status, venue, code, liveBarn, type, gamesheet }]
   const DEFAULT_LEAGUE = { teamId: '2712:burlington-bulldogs-blue', name: 'Burlington Bulldogs Blue', divisionId: 2712, division: 'U10 BB', logo: 'logos/49dba036a6a8.png' };
   const LEAGUE_TYPES = { regular: 'league', league: 'league', playoff: 'playoff', playoffs: 'playoff', tournament: 'tournament', exhibition: 'exhibition' };
 
   /** A safe league logo path ("logos/abc.png") or ''. */
+  /** A division id: an Alliance number (2712) or a club team id ('bghc-2066'). */
+  function divisionKey(v) {
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+    const t = String(v == null ? '' : v).trim();
+    if (/^\d{1,7}$/.test(t)) return Number(t);
+    return /^[a-z0-9][a-z0-9-]{0,40}$/i.test(t) ? t : null;
+  }
   function leagueLogo(v) { return typeof v === 'string' && /^logos\/[\w.-]+\.(png|jpe?g|svg|webp|gif)$/i.test(v) ? v : ''; }
   function httpsUrl(v) { return typeof v === 'string' && /^https:\/\/[^\s"'<>]+$/.test(v) ? v : ''; }
 
@@ -1234,7 +1242,7 @@
     if (!l.teamId) return { teamId: '', name: '', divisionId: null, division: '', logo: '' };
     return {
       teamId: cleanText(l.teamId, 120), name: cleanText(l.name, 80),
-      divisionId: Number.isFinite(Number(l.divisionId)) ? Number(l.divisionId) : null,
+      divisionId: divisionKey(l.divisionId),
       division: cleanText(l.division, 40), logo: leagueLogo(l.logo)
     };
   }
@@ -1242,8 +1250,8 @@
   /** teams.json -> cleaned list, sorted by division then name. */
   function leagueTeams(data) {
     return (Array.isArray(data) ? data : [])
-      .filter((t) => t && t.id && t.name && Number.isFinite(Number(t.divisionId)))
-      .map((t) => ({ teamId: String(t.id), name: cleanText(t.name, 80), divisionId: Number(t.divisionId), division: cleanText(t.division, 40), association: cleanText(t.association, 120), logo: leagueLogo(t.logo) }))
+      .filter((t) => t && t.id && t.name && divisionKey(t.divisionId) != null)
+      .map((t) => ({ teamId: String(t.id), name: cleanText(t.name, 80), divisionId: divisionKey(t.divisionId), league: cleanText(t.league || 'Alliance', 30), division: cleanText(t.division, 40), association: cleanText(t.association, 120), logo: leagueLogo(t.logo) }))
       .sort((a, b) => a.division.localeCompare(b.division, undefined, { numeric: true }) || a.name.localeCompare(b.name));
   }
 
@@ -1595,7 +1603,7 @@
     clipAuto, clipEvents, toggleEvent, normalizeTags, clipFeatures, libraryEntry, SHARED_TAG_FIELDS, emptyFilters, normalizeFilters, filterCount, entryMatches,
     sortEntries, describeFilters, addView, removeView, normalizeLibrary, libraryFileText, parseLibraryFile, mergeLibrary, syncLibraryStep, buildMyLibrary,
     applyEntryTags, folderName, teamFolderKeys, destLabel,
-    DEFAULT_LEAGUE, normalizeLeague, leagueTeams, leagueLogo, cleanVenue, scoreResult, gamesheetUrl, teamSchedule, matchScheduleGame, scheduleFields, leagueLink, linkGame, formatClock
+    DEFAULT_LEAGUE, divisionKey, normalizeLeague, leagueTeams, leagueLogo, cleanVenue, scoreResult, gamesheetUrl, teamSchedule, matchScheduleGame, scheduleFields, leagueLink, linkGame, formatClock
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = WP;
