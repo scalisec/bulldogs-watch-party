@@ -137,6 +137,24 @@ with sync_playwright() as p:
     page.goto(APP + '#team/info'); page.wait_for_selector('#lg-team')
     page.select_option('#lg-team', '2712:burlington-bulldogs-blue')
 
+    # ---- Settings › Install the app
+    page.goto(APP + '#settings'); page.wait_for_selector('#view-settings:not(.hidden)')
+    check(page.is_visible('#s-install'), 'Settings has an Install app button')
+    page.click('#s-install')
+    check(page.is_visible('#s-install-how') and 'Chrome' in page.text_content('#s-install-how'), 'without Chrome’s install offer, the button shows how to install')
+    page.evaluate("""() => { const e = new Event('beforeinstallprompt', { cancelable: true });
+      e.prompt = () => { window.__prompted = true; }; e.userChoice = Promise.resolve({ outcome: 'accepted' });
+      window.dispatchEvent(e); }""")
+    page.click('#s-install'); page.wait_for_timeout(200)
+    check(page.evaluate('window.__prompted === true') and page.evaluate('window.__installPrompt === null'), 'with Chrome’s install offer, the button opens the install prompt')
+    inst = b.new_context(viewport={'width': 412, 'height': 900})
+    inst.route('https://fonts.googleapis.com/**', lambda r: r.abort()); inst.route(BASE + '**', serve)
+    ip = inst.new_page(); ip.add_init_script("window.navigator.__defineGetter__('standalone', () => true)")
+    ip.goto(APP + '#settings'); ip.wait_for_selector('#view-settings:not(.hidden)')
+    check('installed on this device' in ip.text_content('#install-body') and not ip.is_visible('#s-install'), 'when opened as the installed app, Settings says it’s installed')
+    inst.close()
+    page.screenshot(path=SHOTS + '/v111-settings-install.png')
+
     # ---- phone width
     page.set_viewport_size({'width': 412, 'height': 900})
     page.goto(APP + '#games'); page.wait_for_selector('#gs-list')

@@ -8,9 +8,15 @@
 <meta name="theme-color" content="#0B1B31">
 <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
+<script>
+  // Catch Chrome's install offer as early as possible; Settings › Install the app uses it.
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); window.__installPrompt = e; document.dispatchEvent(new Event('wp-installable')); });
+  window.addEventListener('appinstalled', function () { window.__installPrompt = null; document.dispatchEvent(new Event('wp-installable')); });
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(function () {});
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=1.1.0">
+<link rel="stylesheet" href="styles.css?v=1.1.1">
 </head>
 <body>
 <header class="topbar">
@@ -430,6 +436,10 @@
       <div class="row spread"><h2 id="team-h">Google sign-in and team data</h2><span class="small muted">Roster, categories and clips shared through Google Drive</span></div>
       <div class="stack" id="team-sync" style="gap:8px"></div>
     </section>
+    <section class="card stack" aria-labelledby="install-h">
+      <h2 id="install-h">Install the app</h2>
+      <div class="stack" id="install-body" style="gap:8px"></div>
+    </section>
     <section class="card stack" aria-labelledby="keys2-h">
       <h2 id="keys2-h">Keyboard shortcuts</h2>
       <div class="row"><button type="button" class="btn outline" id="s-keys">Show shortcuts</button><a class="btn outline" href="shortcuts.html" target="_blank" rel="noopener">Printable page</a></div>
@@ -498,26 +508,26 @@
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
-<script src="config.js?v=1.1.0"></script>
-<script src="core.js?v=1.1.0"></script>
-<script src="storage.js?v=1.1.0"></script>
-<script src="vendor/mp4-muxer.js?v=1.1.0"></script>
-<script src="render.js?v=1.1.0"></script>
-<script src="drive.js?v=1.1.0"></script>
-<script src="app/base.js?v=1.1.0"></script>
-<script src="app/player.js?v=1.1.0"></script>
-<script src="app/lineup.js?v=1.1.0"></script>
-<script src="app/league.js?v=1.1.0"></script>
-<script src="app/games.js?v=1.1.0"></script>
-<script src="app/tag.js?v=1.1.0"></script>
-<script src="app/editor.js?v=1.1.0"></script>
-<script src="app/record.js?v=1.1.0"></script>
-<script src="app/export.js?v=1.1.0"></script>
-<script src="app/settings.js?v=1.1.0"></script>
-<script src="app/team.js?v=1.1.0"></script>
-<script src="app/team-sync.js?v=1.1.0"></script>
-<script src="app/library.js?v=1.1.0"></script>
-<script src="app/review.js?v=1.1.0"></script>
-<script src="app/main.js?v=1.1.0"></script>
+<script src="config.js?v=1.1.1"></script>
+<script src="core.js?v=1.1.1"></script>
+<script src="storage.js?v=1.1.1"></script>
+<script src="vendor/mp4-muxer.js?v=1.1.1"></script>
+<script src="render.js?v=1.1.1"></script>
+<script src="drive.js?v=1.1.1"></script>
+<script src="app/base.js?v=1.1.1"></script>
+<script src="app/player.js?v=1.1.1"></script>
+<script src="app/lineup.js?v=1.1.1"></script>
+<script src="app/league.js?v=1.1.1"></script>
+<script src="app/games.js?v=1.1.1"></script>
+<script src="app/tag.js?v=1.1.1"></script>
+<script src="app/editor.js?v=1.1.1"></script>
+<script src="app/record.js?v=1.1.1"></script>
+<script src="app/export.js?v=1.1.1"></script>
+<script src="app/settings.js?v=1.1.1"></script>
+<script src="app/team.js?v=1.1.1"></script>
+<script src="app/team-sync.js?v=1.1.1"></script>
+<script src="app/library.js?v=1.1.1"></script>
+<script src="app/review.js?v=1.1.1"></script>
+<script src="app/main.js?v=1.1.1"></script>
 </body>
 </html>

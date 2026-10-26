@@ -183,6 +183,8 @@ Games fill in from the Alliance schedule instead of being typed. Watch Party rea
 
 ## Updates
 
+**Install the app (v1.1.1):** Settings › Install the app adds Watch Party to the home screen or desktop. `sw.js` is a minimal service worker that only exists so Chrome offers its install prompt; it caches nothing.
+
 When a new version is on the site, a yellow banner offers **Reload now**, so phones that can't press Ctrl+F5 still update. On a phone, Chrome's menu › **Add to Home screen** installs the app with its own icon.
 
 ## Reopening a game later
@@ -192,7 +194,7 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 ## Tests
 
 - `node --test tests/core.test.js` runs the core logic tests (74).
-- `python3 tests/e2e_v11.py <screenshot-dir> <media-dir>` tests v1.1: the league team, the schedule picker, matching LiveBarn files to a game, logos and links, linking an older game, and the offline copy (27 checks). It serves the Alliance data from `tests/fixtures/alliance`.
+- `python3 tests/e2e_v11.py <screenshot-dir> <media-dir>` tests v1.1: the league team, the schedule picker, matching LiveBarn files to a game, logos and links, linking an older game, and the offline copy (31 checks, including Settings › Install the app). It serves the Alliance data from `tests/fixtures/alliance`.
 - `python3 tests/e2e_v10.py <screenshot-dir> <media-dir>` tests v1.0: branding, roster names and positions, the Team page and Admin section, game lineups, clip players from the lineup and the Review position filter (23 checks).
 - `python3 tests/e2e_v07.py <screenshot-dir>` tests the storage move, a 60-game season, Review paging, G/H keys, shortcuts and the update banner (22 checks).
 - `python3 tests/e2e_library.py <screenshot-dir> <media-dir>` tests marks, tags, Drive uploads, the shared and private libraries and Review with two coaches and a phone against a simulated Drive (49 checks).

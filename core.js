@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '1.1.0';
+  const APP_VERSION = '1.1.1';
   const APP_RELEASED = '2026-10-25';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1 — 2026-10-25 (install the app)
+
+- **Settings › Install the app:** an **Install app** button adds Watch Party to the home screen or desktop, where it opens in its own window. In Chrome and Edge it opens the browser's install prompt. Elsewhere it shows the steps for that browser (iPhone Safari, Samsung Internet, Firefox). Once installed, the card says so.
+- A minimal service worker (`sw.js`) lets Chrome offer the install prompt. It caches nothing, so updates still arrive through the "Reload now" banner.
+
 ## 1.1.0 — 2026-10-25 (league schedule)
 
 - **Games come from the Alliance schedule.** Watch Party reads the schedules, scores, rinks and logos that Alliance Tracker publishes, so there's nothing to type.
