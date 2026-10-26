@@ -16,7 +16,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=1.1.1">
+<link rel="stylesheet" href="styles.css?v=1.2.0">
 </head>
 <body>
 <header class="topbar">
@@ -24,7 +24,7 @@
     <img src="icons/icon.svg" alt="" width="40" height="40">
     <div><div class="brand-name">Watch Party</div><div class="brand-sub">by Bench Boss Labs · <span id="brand-version"></span></div></div>
   </a>
-  <span class="teampill" id="team-pill"></span>
+  <button type="button" class="teampill teamswitch" id="team-switch" aria-haspopup="dialog"><span id="team-pill"></span><span class="caret" aria-hidden="true">▾</span></button>
   <nav class="nav" aria-label="Main">
     <a href="#games" data-nav="games">Games</a>
     <a href="#review" data-nav="review">Review</a>
@@ -436,6 +436,10 @@
       <div class="row spread"><h2 id="team-h">Google sign-in and team data</h2><span class="small muted">Roster, categories and clips shared through Google Drive</span></div>
       <div class="stack" id="team-sync" style="gap:8px"></div>
     </section>
+    <section class="card stack" aria-labelledby="teams2-h">
+      <div class="row spread"><h2 id="teams2-h">Teams</h2><button type="button" class="btn outline" id="s-teams">Switch or add a team</button></div>
+      <span class="small muted" id="s-teams-sub"></span>
+    </section>
     <section class="card stack" aria-labelledby="install-h">
       <h2 id="install-h">Install the app</h2>
       <div class="stack" id="install-body" style="gap:8px"></div>
@@ -476,6 +480,30 @@
   </form>
 </dialog>
 
+<dialog id="dlg-teams" aria-labelledby="teams-h">
+  <div class="dlg">
+    <div class="stack" style="gap:2px"><h2 id="teams-h">Teams on this device</h2>
+      <span class="small muted">Each team has its own games, clips, roster, categories, league team and Google Drive folder. Switching keeps everything; it just opens the other team.</span></div>
+    <ul class="teamlist" id="teams-list"></ul>
+    <form class="stack card" id="teams-add" style="gap:10px;background:var(--surface-2)">
+      <h3>Add a team</h3>
+      <label class="field">Team name<input type="text" id="teams-name" placeholder="e.g. Burlington Barracudas U13 B" autocomplete="off" maxlength="60"></label>
+      <label class="row small" style="gap:8px;align-items:center;flex-wrap:nowrap"><input type="checkbox" id="teams-copy" checked style="flex:none"> <span id="teams-copy-label">Copy the clip categories</span></label>
+      <div class="row"><button type="submit" class="btn primary">Add team</button><span class="small muted grow">You’ll go to the new team’s Team page to set its league team and roster.</span></div>
+    </form>
+    <div class="row" style="justify-content:flex-end"><button type="button" class="btn" id="teams-close">Close</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlg-choose" aria-labelledby="choose-h">
+  <div class="dlg">
+    <h2 id="choose-h"></h2>
+    <p class="small" id="choose-msg" style="margin:0"></p>
+    <div class="stack" id="choose-list" style="gap:8px"></div>
+    <div class="row" style="justify-content:flex-end"><button type="button" class="btn" id="choose-cancel">Cancel</button></div>
+  </div>
+</dialog>
+
 <dialog id="dlg-league" class="wide" aria-labelledby="dl-h">
   <div class="dlg">
     <h2 id="dl-h">Link to the league schedule</h2>
@@ -508,26 +536,27 @@
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
-<script src="config.js?v=1.1.1"></script>
-<script src="core.js?v=1.1.1"></script>
-<script src="storage.js?v=1.1.1"></script>
-<script src="vendor/mp4-muxer.js?v=1.1.1"></script>
-<script src="render.js?v=1.1.1"></script>
-<script src="drive.js?v=1.1.1"></script>
-<script src="app/base.js?v=1.1.1"></script>
-<script src="app/player.js?v=1.1.1"></script>
-<script src="app/lineup.js?v=1.1.1"></script>
-<script src="app/league.js?v=1.1.1"></script>
-<script src="app/games.js?v=1.1.1"></script>
-<script src="app/tag.js?v=1.1.1"></script>
-<script src="app/editor.js?v=1.1.1"></script>
-<script src="app/record.js?v=1.1.1"></script>
-<script src="app/export.js?v=1.1.1"></script>
-<script src="app/settings.js?v=1.1.1"></script>
-<script src="app/team.js?v=1.1.1"></script>
-<script src="app/team-sync.js?v=1.1.1"></script>
-<script src="app/library.js?v=1.1.1"></script>
-<script src="app/review.js?v=1.1.1"></script>
-<script src="app/main.js?v=1.1.1"></script>
+<script src="config.js?v=1.2.0"></script>
+<script src="core.js?v=1.2.0"></script>
+<script src="storage.js?v=1.2.0"></script>
+<script src="vendor/mp4-muxer.js?v=1.2.0"></script>
+<script src="render.js?v=1.2.0"></script>
+<script src="drive.js?v=1.2.0"></script>
+<script src="app/base.js?v=1.2.0"></script>
+<script src="app/player.js?v=1.2.0"></script>
+<script src="app/lineup.js?v=1.2.0"></script>
+<script src="app/league.js?v=1.2.0"></script>
+<script src="app/games.js?v=1.2.0"></script>
+<script src="app/tag.js?v=1.2.0"></script>
+<script src="app/editor.js?v=1.2.0"></script>
+<script src="app/record.js?v=1.2.0"></script>
+<script src="app/export.js?v=1.2.0"></script>
+<script src="app/settings.js?v=1.2.0"></script>
+<script src="app/team.js?v=1.2.0"></script>
+<script src="app/team-sync.js?v=1.2.0"></script>
+<script src="app/library.js?v=1.2.0"></script>
+<script src="app/review.js?v=1.2.0"></script>
+<script src="app/teams.js?v=1.2.0"></script>
+<script src="app/main.js?v=1.2.0"></script>
 </body>
 </html>

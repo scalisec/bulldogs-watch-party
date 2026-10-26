@@ -113,7 +113,7 @@ App.ready.then(() => {
 
   // ---- editor: where the export goes ----
   // where exports go: remembered on this device
-  const DEST_KEY = 'bwp-dest-pick';
+  const DEST_KEY = App.teamKey('bwp-dest-pick');
   const destPick = Object.assign({ local: true, team: false, coaches: false, players: false, private: false }, (() => { try { return JSON.parse(localStorage.getItem(DEST_KEY) || '{}'); } catch (e) { return {}; } })());
   function saveDestPick() { try { localStorage.setItem(DEST_KEY, JSON.stringify(destPick)); } catch (e) { /* ignore */ } }
 
@@ -181,7 +181,7 @@ App.ready.then(() => {
   async function uploadToDrive(d, blob, name, dests, onStep) {
     const cat = catById(d.categoryId);
     const auto = WP.clipAuto(App.G, d);
-    const desc = [cat ? cat.name : 'Clip', WP.gameTitle(App.G), auto.period ? WP.periodName(auto.period) : ''].filter(Boolean).join(' · ') + ' — Bulldogs Watch Party';
+    const desc = [cat ? cat.name : 'Clip', WP.gameTitle(App.G), auto.period ? WP.periodName(auto.period) : ''].filter(Boolean).join(' · ') + ' — ' + S.settings.team.name + ' · Watch Party';
     let list = (d.drive || []).slice();
     const done = [];
     let firstId = null;

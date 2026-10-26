@@ -37,6 +37,8 @@ App.ready.then(() => {
         window.__installPrompt = null;
         if (r && r.outcome === 'accepted') toast('Watch Party installed');
         renderInstall();
+    const n = WPStore.teams.list().length;
+    $('s-teams-sub').textContent = 'Open now: ' + S.settings.team.name + (n > 1 ? ' · ' + n + ' teams on this device' : '') + '. Coach another team too? Add it here; each team keeps its own games, clips, roster and Drive folder.';
       } }, 'Install app')),
       showHow ? el('span', { class: 'small', id: 's-install-how' }, howTo()) : '');
   }
@@ -60,6 +62,7 @@ App.ready.then(() => {
 
   $('s-coach').addEventListener('change', (e) => { S.settings.coachName = e.target.value.trim().slice(0, 40); save(); renderWho(); });
   $('s-keys').addEventListener('click', () => App.openKeys());
+  $('s-teams').addEventListener('click', () => App.openTeams());
 
   Object.assign(App, {
     renderSettings

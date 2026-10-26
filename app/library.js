@@ -10,8 +10,6 @@ App.ready.then(() => {
   // =====================================================================
   const LIB = { busy: false, again: false, err: null };
   const TEAM_LIB_NAME = 'Watch Party clip library.json';
-  const PRIV_FOLDER_NAME = 'My Watch Party clips (private)';
-  const PRIV_LIB_NAME = 'My private clip library.json';
   let libTimer = 0;
 
   function libChanged() {
@@ -62,7 +60,7 @@ App.ready.then(() => {
 
   async function ensureTeamLibrary() {
     if (S.lib.teamSync || !S.sync) return;
-    const found = await WPDrive.findByName(TEAM_LIB_NAME);
+    const found = await WPDrive.findByName(TEAM_LIB_NAME, null, S.sync.appFolderId);
     if (found.length) {
       S.lib.teamSync = { fileId: found[0].id, version: null, base: null };
     } else if (S.sync.owner) {
@@ -75,8 +73,16 @@ App.ready.then(() => {
     save();
   }
 
-  async function ensurePrivateLibrary() {
+  // one at a time: two callers at once (a sync and an export) must not each create a private folder
+  let privP = null;
+  function ensurePrivateLibrary() {
+    if (!privP) privP = makePrivateLibrary().finally(() => { privP = null; });
+    return privP;
+  }
+
+  async function makePrivateLibrary() {
     if (S.lib.privSync) return;
+    const { privFolder: PRIV_FOLDER_NAME, privLib: PRIV_LIB_NAME } = App.driveNames();
     const found = await WPDrive.findByName(PRIV_LIB_NAME);
     if (found.length) {
       S.lib.privSync = { fileId: found[0].id, folderId: (found[0].parents || [])[0] || null, version: null, base: null };

@@ -106,8 +106,10 @@ def handle(route):
         import re
         nm = re.search(r"name = '((?:[^'\\]|\\.)*)'", qq)
         mt = re.search(r"mimeType = '([^']*)'", qq)
+        pr = re.search(r"'([^']+)' in parents", qq)
         out = [meta(f) for f in drive.values() if app_ok(user, f) and not f['trashed']
-               and (not nm or f['name'] == nm.group(1).replace("\\'", "'")) and (not mt or f['mime'] == mt.group(1))]
+               and (not nm or f['name'] == nm.group(1).replace("\\'", "'")) and (not mt or f['mime'] == mt.group(1))
+               and (not pr or pr.group(1) in f['parents'])]
         return reply({'files': out})
     if p == '/drive/v3/files' and req.method == 'POST':
         b = json.loads(req.post_data)

@@ -288,3 +288,13 @@ button.lgpick:hover, button.lgpick.sel { background: var(--accent-soft); }
 dialog.wide { max-width: 680px; }
 [hidden] { display: none !important; }
 .lgpick .pill { white-space: nowrap; flex: none; }
+
+/* teams on this device (v1.2) */
+.teamswitch { display: inline-flex; align-items: center; gap: 6px; background: transparent; cursor: pointer; min-height: 32px; }
+.teamswitch:hover { border-color: var(--accent); color: #fff; }
+.teamswitch .caret { font-size: 10px; opacity: .8; }
+.teamlist { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.teamrow { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line); }
+.teamrow:first-child { border-top: none; }
+.teamrow.cur { background: var(--accent-soft); }
+.btn.choice { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; width: 100%; height: auto; padding: 10px 12px; }

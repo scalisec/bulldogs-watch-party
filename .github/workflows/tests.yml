@@ -25,4 +25,6 @@ jobs:
         run: mkdir -p shots && python tests/e2e_drive.py shots
       - name: Storage, Review paging, shortcuts and update banner
         run: python tests/e2e_v07.py shots
+      - name: Several teams on one device (simulated Google Drive)
+        run: python tests/e2e_v12.py shots
       # e2e.py and e2e_library.py need game video, which stays off GitHub (it shows the players). Run them locally.

@@ -147,6 +147,15 @@ Each coach's own name (shown on their clips) stays on their device.
 - **Clip editor:** the player buttons show who played: away players are left out and guests are included.
 - **Review:** a **Position** filter (Forwards, Defense, Goalies) uses each player's position in that game.
 
+## Several teams (v1.2)
+
+The team button in the header lists the teams on this device, switches between them and adds new ones (Settings › Teams does the same).
+
+- **Separate data:** each team has its own browser database. The first team keeps `bwp-data`; others are `bwp-data:<id>`. The list of teams is in `localStorage` (`bwp-teams`), and small per-team settings get a `:<id>` suffix.
+- **Separate Drive folders:** each team has its own folder ("<team> – Watch Party"; the first Bulldogs team keeps "Bulldogs Watch Party") with its own team data and clip library. Private clips go in "My Watch Party clips (private)", with " – <team>" added for any team after the first.
+- **One account, several teams:** "Open shared team data" uses the file whose team name matches, or asks.
+- **Removing a team** deletes only its browser database.
+
 ## League schedule (v1.1)
 
 Games fill in from the Alliance schedule instead of being typed. Watch Party reads the files that [Alliance Tracker](https://scalisec.github.io/alliance-tracker/) publishes: `data/teams.json` (teams, divisions, logos) and `data/games/<division>.json` (dates, times, rinks, scores, LiveBarn and GameSheet links). The address is `leagueDataUrl` in `config.js`.
@@ -194,6 +203,7 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 ## Tests
 
 - `node --test tests/core.test.js` runs the core logic tests (74).
+- `python3 tests/e2e_v12.py <screenshot-dir>` tests v1.2: adding and switching teams, copied categories, each team's own games, roster, league and Drive folders, a second device finding the right team's data, the "which team?" choice, and removing a team (25 checks, simulated Drive).
 - `python3 tests/e2e_v11.py <screenshot-dir> <media-dir>` tests v1.1: the league team, the schedule picker, matching LiveBarn files to a game, logos and links, linking an older game, and the offline copy (31 checks, including Settings › Install the app). It serves the Alliance data from `tests/fixtures/alliance`.
 - `python3 tests/e2e_v10.py <screenshot-dir> <media-dir>` tests v1.0: branding, roster names and positions, the Team page and Admin section, game lineups, clip players from the lineup and the Review position filter (23 checks).
 - `python3 tests/e2e_v07.py <screenshot-dir>` tests the storage move, a 60-game season, Review paging, G/H keys, shortcuts and the update banner (22 checks).
@@ -201,7 +211,7 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 - `python3 tests/e2e_drive.py <screenshot-dir>` tests shared team data with two coaches against a simulated Google Drive (23 checks).
 - `python3 tests/e2e.py <screenshot-dir> <media-dir>` runs the browser test (75 checks). It covers tagging, zoom, the editor, drawing, slow motion, preview, MP4 export, and recording a breakdown with a simulated microphone.
 
-GitHub runs the core tests, `e2e_drive.py` and `e2e_v07.py` on every push (`.github/workflows/tests.yml`). The two tests that need game video run locally only, so team footage never goes on GitHub.
+GitHub runs the core tests, `e2e_drive.py`, `e2e_v07.py` and `e2e_v12.py` on every push (`.github/workflows/tests.yml`). The two tests that need game video run locally only, so team footage never goes on GitHub.
 
 ## How the code is organised
 
@@ -219,6 +229,7 @@ GitHub runs the core tests, `e2e_drive.py` and `e2e_v07.py` on every push (`.git
 | `app/record.js` | Record a breakdown |
 | `app/export.js` | Export and save to this computer or Drive |
 | `app/lineup.js` | The lineup editor (New game form and game screen) |
+| `app/teams.js` | Several teams on one device: the header team switcher, Add a team, and the “which team?” choice |
 | `app/league.js` | The league schedule: reads Alliance Tracker data, the schedule picker and the League team setting |
 | `app/settings.js` | Settings screen: your name, Google sign-in, shortcuts, about |
 | `app/team.js` | Team page: roster, coaches, categories, lists, and the Admin section |

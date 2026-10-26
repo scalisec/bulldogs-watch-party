@@ -98,7 +98,7 @@
   }
 
   const json = (o) => ({ body: JSON.stringify(o), headers: { 'Content-Type': 'application/json' } });
-  const META = 'id,name,version,modifiedTime,trashed,parents,owners(emailAddress),lastModifyingUser(displayName,emailAddress)';
+  const META = 'id,name,version,createdTime,modifiedTime,trashed,parents,owners(emailAddress),lastModifyingUser(displayName,emailAddress)';
 
   async function whoAmI() {
     const r = await call('GET', API + '/about?fields=' + encodeURIComponent('user(displayName,emailAddress)'));
@@ -125,9 +125,9 @@
   }
 
   /** Files this app can see (ones it created on any of this coach's devices) with this exact name. */
-  async function findByName(name, mimeType) {
+  async function findByName(name, mimeType, parentId) {
     const esc = (v) => v.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    const q = "name = '" + esc(name) + "' and trashed = false" + (mimeType ? " and mimeType = '" + mimeType + "'" : '');
+    const q = "name = '" + esc(name) + "' and trashed = false" + (mimeType ? " and mimeType = '" + mimeType + "'" : '') + (parentId ? " and '" + esc(parentId) + "' in parents" : '');
     const r = await call('GET', API + '/files?q=' + encodeURIComponent(q) + '&spaces=drive&orderBy=createdTime&fields=' + encodeURIComponent('files(' + META + ')'));
     return r.files || [];
   }
@@ -225,7 +225,7 @@
       const builder = new P.PickerBuilder();
       if (o.multi && P.Feature && P.Feature.MULTISELECT_ENABLED) builder.enableFeature(P.Feature.MULTISELECT_ENABLED);
       const picker = builder
-        .setTitle(o.title || 'Pick “Watch Party team data” and “Watch Party clip library” (Bulldogs Watch Party › _App, shared with you)')
+        .setTitle(o.title || 'Pick “Watch Party team data” and “Watch Party clip library” (in the team’s Watch Party folder, shared with you)')
         .addView(view)
         .setOAuthToken(token)
         .setDeveloperKey(c.googleApiKey)

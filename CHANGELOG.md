@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.0 — 2026-10-26 (several teams)
+
+- **Coach more than one team.** The team name in the header is now a button: it lists the teams on this device, switches between them, and adds a new one.
+- **Each team is fully separate:** games, clips, roster, categories, coaches, league team, and its own Google Drive folder and clip library. Bulldogs coaches never see another team's roster or clips.
+- **Add a team** asks for a name and can copy the current team's clip categories. The new team opens on its Team page, ready for a league team and roster.
+- **Your existing team becomes the first team** automatically. Nothing moves, and its Drive folder keeps the name "Bulldogs Watch Party".
+- **New teams' Drive folders** are named after the team (e.g. "Burlington Barracudas U13 B – Watch Party"), with their own private clips folder.
+- **Several teams under one Google account:** "Open shared team data" picks the file with this team's name, or asks which team when it can't tell.
+- **Removing a team** deletes it from this browser only; its Drive files stay.
+- **Settings › Teams** opens the same switcher.
+- "Bulldogs" no longer appears in shared text: the share email, exported clip descriptions and the G key label use the team's name or "we".
+- Fixed: two things saving at once could create the private clips folder twice.
+
 ## 1.1.1 — 2026-10-25 (install the app)
 
 - **Settings › Install the app:** an **Install app** button adds Watch Party to the home screen or desktop, where it opens in its own window. In Chrome and Edge it opens the browser's install prompt. Elsewhere it shows the steps for that browser (iPhone Safari, Samsung Internet, Firefox). Once installed, the card says so.

@@ -11,7 +11,7 @@ App.ready.then(() => {
   const GAMES_STALE = 30 * 60 * 1000;      // re-read the schedule after 30 minutes
   const TEAMS_STALE = 24 * 60 * 60 * 1000; // the team list changes rarely
   const K_TEAMS = 'bwp-league-teams';
-  const K_GAMES = 'bwp-league-games';
+  const K_GAMES = App.teamKey('bwp-league-games');
 
   const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage full or blocked: keep it in memory */ } };

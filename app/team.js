@@ -24,6 +24,7 @@ App.ready.then(() => {
     $('tn-coaches').textContent = String(S.settings.coaches.length);
     $('tn-cats').textContent = String(S.settings.categories.length);
     $('team-pill').textContent = [S.settings.team.name, S.settings.team.season].filter(Boolean).join(' · ');
+    if (App.teamsRefresh) App.teamsRefresh();
     renderRoster();
     renderCats();
     if (T.sec === 'admin') renderAdmin();
@@ -162,7 +163,7 @@ App.ready.then(() => {
     const btn = (label, fn, cls, dis) => el('button', { type: 'button', class: 'btn small ' + (cls || ''), disabled: !!dis, onclick: fn }, label);
     box.replaceChildren(
       el('div', { class: 'grid3' },
-        stat('Team folder', 'Bulldogs Watch Party', 'Owned by ' + S.sync.account, 'ok'),
+        stat('Team folder', App.driveNames().root, 'Owned by ' + S.sync.account, 'ok'),
         stat('Coaches with access', (others.length - notShared.length) + ' of ' + others.length, notShared.length ? notShared.length + ' not shared yet' : 'Everyone on the list', notShared.length ? 'warn' : 'ok'),
         stat('Clip folders', String(keys.filter((k) => folders[k]).length), 'Team, Coaches only and ' + S.settings.roster.length + ' family folders')),
       el('div', { class: 'row' },

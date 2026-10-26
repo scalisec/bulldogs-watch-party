@@ -2,8 +2,8 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '1.1.1';
-  const APP_RELEASED = '2026-10-25';
+  const APP_VERSION = '1.2.0';
+  const APP_RELEASED = '2026-10-26';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
   const DEFAULT_AFTER = 4;
@@ -1451,7 +1451,7 @@
       ['O', 'Mark the end, then press 1\u20139 for the category'],
       ['Esc', 'Cancel the start/end marks'],
       ['P', 'Period start / period end'],
-      ['G', 'Goal for (Bulldogs score)'],
+      ['G', 'Goal for (we score)'],
       ['H', 'Goal against'],
       ['+ / \u2212', 'Zoom in / out'],
       ['0', 'Back to the whole rink'],

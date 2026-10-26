@@ -10,8 +10,13 @@ App.ready = (async function () {
 
   const $ = (id) => document.getElementById(id);
   App.lastSaveCount = 0;
-  const tabs = 'BroadcastChannel' in window ? new BroadcastChannel('bwp-tabs') : null;
+  // which team this tab is working on (v1.2: several teams on one device, each with its own database)
+  const teamProfile = WPStore.teams.current();
+  const isMainTeam = teamProfile.id === 'main';
+  const teamKey = (k) => (isMainTeam ? k : k + ':' + teamProfile.id); // per-team names for small browser settings
+  const tabs = 'BroadcastChannel' in window ? new BroadcastChannel(teamKey('bwp-tabs')) : null;
   const DB = WPStore.createDb({
+    name: teamProfile.db,
     onError: (e) => toast('Could not save: ' + (e && e.message ? e.message : e), { err: true, ms: 10000 }),
     onSaved: (n) => { App.lastSaveCount = n; if (tabs) tabs.postMessage('saved'); }
   });
@@ -22,6 +27,7 @@ App.ready = (async function () {
     Object.assign(S, next);
   }
   WPStore.persist();
+  if (S.settings.team && S.settings.team.name) WPStore.teams.rename(teamProfile.id, S.settings.team.name);
 
   // ---------- session (not saved) ----------
   const session = { files: new Map(), draftParts: [] }; // draftParts: [{file, handle, duration}]
@@ -144,12 +150,20 @@ App.ready = (async function () {
     del(k) { return this.run('readwrite', (s) => s.delete(k)).catch(() => {}); }
   };
 
+  // Drive names for this team. The team's folder is named after the team; the private folder and library keep
+  // their original names for the first team and get the team's name added for any other team on this device.
+  function driveNames() {
+    const t = (S.settings.team && S.settings.team.name) || 'Team';
+    const sfx = isMainTeam ? '' : ' – ' + t;
+    return { root: isMainTeam && /bulldogs/i.test(t) ? 'Bulldogs Watch Party' : t + ' – Watch Party', privFolder: 'My Watch Party clips (private)' + sfx, privLib: 'My private clip library' + sfx + '.json' };
+  }
+
   function renderWho() {
     const name = S.settings.coachName;
     $('who').replaceChildren(name ? 'Coach: ' + name : el('a', { href: '#settings', style: 'color:#C7D2E3' }, 'Add your name in Settings'));
   }
   Object.assign(App, {
     $, DB, S, ask, askYes, catById, download, el, idb, lenText, loaded, rangeText, renderWho,
-    replaceState, save, saveQuiet, session, slug, tabs, toast
+    replaceState, save, saveQuiet, session, slug, tabs, toast, teamProfile, isMainTeam, teamKey, driveNames
   });
 })();
