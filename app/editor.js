@@ -105,7 +105,7 @@ App.ready.then(() => {
     const v = $('e-video');
     const t = App.E.player.time();
     const paused = !App.E.player.isPlaying();
-    const cat = catById(d.categoryId);
+    const cat = WP.clipCategoryLabel(d, S.settings.categories);
     const title = d.titleBar !== false ? WP.titleLines(d, cat, App.G) : null;
     if (App.E.mode === 'record' && App.E.rec) {
       const rt = recT();
@@ -144,7 +144,7 @@ App.ready.then(() => {
   function renderEditor() {
     if (!App.E) return;
     const d = App.E.d;
-    const cat = catById(d.categoryId);
+    const cat = WP.clipCategoryLabel(d, S.settings.categories);
     $('e-title').textContent = (cat ? cat.name : 'Clip') + ' · ' + rangeText(d);
     $('e-back').setAttribute('href', '#tag/' + App.G.id);
     const order = WP.sortClips(App.G.clips);
@@ -158,7 +158,7 @@ App.ready.then(() => {
     tr.replaceChildren(
       el('div', { class: 'range', style: 'left:' + trimPct(d.start) + '%;width:' + (trimPct(d.end) - trimPct(d.start)) + '%' }),
       ...(d.speeds || []).map((x) => el('div', { class: 'spd', style: 'left:' + trimPct(x.start) + '%;width:' + (trimPct(x.end) - trimPct(x.start)) + '%' }, x.rate + '×')),
-      d.freeze ? el('div', { class: 'frz', style: 'left:' + trimPct(d.freeze.at) + '%', title: 'Freeze' }) : null,
+      d.freeze ? el('div', { class: 'frz', style: 'left:' + trimPct(d.freeze.at) + '%', title: 'Freeze' }) : '',
       el('button', { type: 'button', class: 'handle', 'data-h': 'start', 'aria-label': 'Clip start ' + WP.formatTime(d.start), style: 'left:' + trimPct(d.start) + '%' }),
       el('button', { type: 'button', class: 'handle', 'data-h': 'end', 'aria-label': 'Clip end ' + WP.formatTime(d.end), style: 'left:' + trimPct(d.end) + '%' }),
       el('div', { class: 'head', id: 'e-trim-head' })
@@ -175,8 +175,18 @@ App.ready.then(() => {
     $('e-edits').classList.toggle('dim', WP.hasRec(d) || App.E.mode === 'record' || App.E.mode === 'countdown');
     $('stage').classList.toggle('recording', App.E.mode === 'record');
     // details
-    $('e-cat').replaceChildren(...S.settings.categories.map((x) => el('option', { value: x.id }, x.name + (x.hidden ? ' (hidden)' : ''))));
-    $('e-cat').value = d.categoryId;
+    // categories: tap all that fit (a breakout with a nice pass); the first one is the main one (its colour)
+    const mine = WP.clipCategoryIds(d);
+    $('e-cat').replaceChildren(...S.settings.categories.filter((x) => !x.hidden || mine.includes(x.id)).map((x) => {
+      const on = mine.includes(x.id);
+      const main = on && mine[0] === x.id && mine.length > 1;
+      return el('button', {
+        type: 'button', class: 'chip catchip', 'aria-pressed': String(on), 'data-cat': x.id,
+        title: main ? 'Main category (its colour is used)' : null,
+        'aria-label': x.name + (on ? ' (selected' + (main ? ', main' : '') + ')' : ''),
+        onclick: () => { try { commit(WP.toggleClipCategory(d, x.id)); } catch (e) { toast(e.message, { err: true }); } }
+      }, el('span', { class: 'dot', style: 'background:' + x.color }), x.name, main ? el('span', { class: 'mainmark', 'aria-hidden': 'true' }, 'main') : '');
+    }));
     // players who played in this game (from its lineup), plus anyone already tagged
     const lineupRows = WP.gameLineup(App.G, S.settings.roster).filter((r) => !r.away || d.players.includes(r.number));
     $('e-chips').replaceChildren(...lineupRows.map((p) => el('button', {
@@ -483,7 +493,6 @@ App.ready.then(() => {
   $('ez-fit').addEventListener('click', () => setEdZoom(null));
 
   // ---- details ----
-  $('e-cat').addEventListener('change', (e) => commit({ categoryId: e.target.value }));
   $('e-players').addEventListener('change', (e) => commit({ players: e.target.value.split(/[ ,]+/) }));
   $('e-note').addEventListener('change', (e) => commit({ note: e.target.value }));
   for (const b of $('e-flag').children) b.addEventListener('click', () => commit({ flag: b.dataset.flag }));

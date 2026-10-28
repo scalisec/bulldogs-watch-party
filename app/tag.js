@@ -214,7 +214,7 @@ App.ready.then(() => {
     tl.setAttribute('aria-valuemax', String(Math.round(App.TL.total)));
     App.TL.offsets.forEach((o, i) => { if (i > 0) tl.append(el('div', { class: 'sep', style: 'left:' + pct(o) + '%' })); });
     for (const c of App.G.clips) {
-      const cat = catById(c.categoryId);
+      const cat = WP.clipCategoryLabel(c, S.settings.categories);
       tl.append(el('div', {
         class: 'mk' + (c.id === App.selectedClipId ? ' sel' : ''), 'data-clip': c.id,
         title: (cat ? cat.name : 'Clip') + ' ' + rangeText(c),
@@ -416,7 +416,7 @@ App.ready.then(() => {
 
   function renderClipFilter() {
     const counts = {};
-    for (const c of App.G.clips) counts[c.categoryId] = (counts[c.categoryId] || 0) + 1;
+    for (const c of App.G.clips) for (const id of WP.clipCategoryIds(c)) counts[id] = (counts[id] || 0) + 1;
     const opts = [el('option', { value: 'all' }, 'All categories (' + App.G.clips.length + ')')];
     for (const c of S.settings.categories) if (counts[c.id]) opts.push(el('option', { value: c.id }, c.name + ' (' + counts[c.id] + ')'));
     $('clip-filter').replaceChildren(...opts);
@@ -428,7 +428,7 @@ App.ready.then(() => {
   function renderClips() {
     renderClipFilter();
     $('clip-count').textContent = App.G.clips.length + (App.G.clips.length === 1 ? ' clip' : ' clips');
-    const clips = WP.sortClips(App.G.clips).filter((c) => App.filterCat === 'all' || c.categoryId === App.filterCat);
+    const clips = WP.sortClips(App.G.clips).filter((c) => App.filterCat === 'all' || WP.clipCategoryIds(c).includes(App.filterCat));
     if (!clips.length) {
       $('clips').replaceChildren(el('div', { class: 'empty' }, App.G.clips.length ? 'No clips in this category.' : 'No clips yet. Play the game and tap a category when something happens.'));
       return;
@@ -437,7 +437,7 @@ App.ready.then(() => {
   }
 
   function clipCard(c) {
-    const cat = catById(c.categoryId);
+    const cat = WP.clipCategoryLabel(c, S.settings.categories);
     const card = el('div', { class: 'clip' + (c.id === App.selectedClipId ? ' sel' : ''), 'data-clip': c.id },
       el('div', { class: 'row', style: 'gap:8px; flex-wrap:nowrap' },
         el('span', { class: 'dot', style: 'background:' + (cat ? cat.color : '#64748B') }),

@@ -2,8 +2,8 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '1.2.0';
-  const APP_RELEASED = '2026-10-26';
+  const APP_VERSION = '1.3.0';
+  const APP_RELEASED = '2026-10-27';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
   const DEFAULT_AFTER = 4;
@@ -197,7 +197,40 @@
   }
 
   function categoryInUse(games, id) {
-    return games.some((g) => (g.clips || []).some((c) => c.categoryId === id));
+    return games.some((g) => (g.clips || []).some((c) => clipCategoryIds(c).includes(id)));
+  }
+
+  // ---------- several categories on one clip (v1.3) ----------
+  // A clip has a main category (categoryId: its colour, quick-tag key and Drive name) and can also
+  // be in more (alsoCats), e.g. a breakout with a nice pass. Filters and the library see all of them.
+  function clipCategoryIds(clip) {
+    if (!clip) return [];
+    const ids = [clip.categoryId].concat(Array.isArray(clip.alsoCats) ? clip.alsoCats : []).filter((x) => typeof x === 'string' && x);
+    return [...new Set(ids)];
+  }
+
+  /** The patch that gives a clip exactly these categories (the first is the main one). */
+  function categoriesPatch(ids) {
+    const list = [...new Set((ids || []).filter((x) => typeof x === 'string' && x))];
+    if (!list.length) throw new Error('A clip needs at least one category');
+    return { categoryId: list[0], alsoCats: list.slice(1) };
+  }
+
+  /** Add or remove one category. Removing the main one makes the next one main; the last one can't be removed. */
+  function toggleClipCategory(clip, id) {
+    const ids = clipCategoryIds(clip);
+    if (ids.includes(id)) {
+      if (ids.length === 1) throw new Error('A clip needs at least one category');
+      return categoriesPatch(ids.filter((x) => x !== id));
+    }
+    return categoriesPatch(ids.concat([id]));
+  }
+
+  /** { id, name: "Breakout + Nice pass", color } — the main category's colour, every name. */
+  function clipCategoryLabel(clip, categories) {
+    const cats = clipCategoryIds(clip).map((id) => (categories || []).find((c) => c.id === id)).filter(Boolean);
+    if (!cats.length) return null;
+    return { id: cats[0].id, name: cats.map((c) => c.name).join(' + '), color: cats[0].color, main: cats[0] };
   }
 
   function removeCategory(categories, id, games) {
@@ -233,6 +266,7 @@
     return {
       id: uid('clip'),
       categoryId: fields.categoryId,
+      alsoCats: [],
       start: round1(fields.start),
       end: round1(fields.end),
       players: normalizePlayers(fields.players || []),
@@ -574,6 +608,7 @@
       next.end = round1(next.end);
     }
     if ('players' in patch) next.players = normalizePlayers(patch.players);
+    if ('alsoCats' in patch || 'categoryId' in patch) next.alsoCats = clipCategoryIds(next).slice(1);
     if ('flag' in patch) next.flag = patch.flag === 'work' ? 'work' : 'do';
     if ('note' in patch) next.note = String(patch.note || '').slice(0, 140);
     if ('zoom' in patch) next.zoom = isZoomed(patch.zoom) ? normalizeZoom(patch.zoom) : null;
@@ -989,13 +1024,14 @@
 
   /** Flat, searchable record of a clip for the shared (or private) library. */
   function libraryEntry(game, clip, categories, coach, roster) {
-    const cat = (categories || []).find((c) => c.id === clip.categoryId);
+    const cat = clipCategoryLabel(clip, categories);
     const auto = clipAuto(game, clip);
     return {
       id: clip.id,
       gameId: game.id,
       game: { date: game.date || '', opponent: game.opponent || '', rink: game.rink || '', type: game.gameType || '', homeAway: game.homeAway || '', result: game.result || '', title: gameTitle(game) },
       categoryId: clip.categoryId,
+      alsoCats: clipCategoryIds(clip).slice(1),
       category: cat ? cat.name : '',
       color: cat ? cat.color : '#64748B',
       events: clipEvents(game, clip),
@@ -1023,7 +1059,7 @@
   }
 
   /** Tag fields another coach may edit from the Review screen; copied back into the owner's clip on sync. */
-  const SHARED_TAG_FIELDS = ['categoryId', 'events', 'players', 'flag', 'note', 'zone', 'situation', 'starred', 'tags'];
+  const SHARED_TAG_FIELDS = ['categoryId', 'alsoCats', 'events', 'players', 'flag', 'note', 'zone', 'situation', 'starred', 'tags'];
 
   function emptyFilters() {
     return { q: '', categories: [], events: [], players: [], positions: [], periods: [], flags: [], gameIds: [], gameType: '', homeAway: '', zone: '', situation: '', state: '', tags: [], inDrive: false };
@@ -1050,7 +1086,7 @@
   function entryMatches(entry, filters) {
     const f = normalizeFilters(filters);
     const any = (want, have) => !want.length || want.some((w) => have.includes(w));
-    if (!any(f.categories, [entry.categoryId])) return false;
+    if (!any(f.categories, clipCategoryIds(entry))) return false;
     if (!any(f.events, entry.events || [])) return false;
     if (!any(f.players, entry.players || [])) return false;
     if (!any(f.positions, entry.positions || [])) return false;
@@ -1602,6 +1638,7 @@
     EVENTS, EVENT_IDS, GAME_TYPES, HOME_AWAY, ZONES, SITUATIONS, label, eventLabel, gameMarks, togglePeriod, addGoal, removeGoal, removePeriod, periodName,
     clipAuto, clipEvents, toggleEvent, normalizeTags, clipFeatures, libraryEntry, SHARED_TAG_FIELDS, emptyFilters, normalizeFilters, filterCount, entryMatches,
     sortEntries, describeFilters, addView, removeView, normalizeLibrary, libraryFileText, parseLibraryFile, mergeLibrary, syncLibraryStep, buildMyLibrary,
+    clipCategoryIds, categoriesPatch, toggleClipCategory, clipCategoryLabel,
     applyEntryTags, folderName, teamFolderKeys, destLabel,
     DEFAULT_LEAGUE, divisionKey, normalizeLeague, leagueTeams, leagueLogo, cleanVenue, scoreResult, gamesheetUrl, teamSchedule, matchScheduleGame, scheduleFields, leagueLink, linkGame, formatClock
   };

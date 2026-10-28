@@ -298,3 +298,8 @@ dialog.wide { max-width: 680px; }
 .teamrow:first-child { border-top: none; }
 .teamrow.cur { background: var(--accent-soft); }
 .btn.choice { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; width: 100%; height: auto; padding: 10px 12px; }
+
+/* several categories on a clip (v1.3) */
+.catchip { display: inline-flex; align-items: center; gap: 6px; }
+.catchip .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.catchip .mainmark { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; opacity: .8; border: 1px solid currentColor; border-radius: 4px; padding: 0 3px; }

@@ -21,7 +21,7 @@ App.ready.then(() => {
     stopPreview();
     exitDraw(true);
     const d = App.E.d;
-    const cat = catById(d.categoryId);
+    const cat = WP.clipCategoryLabel(d, S.settings.categories);
     const name = WP.exportFileName(d, cat, App.G);
     if (wantsDrive(d) && (S.sync || d.private)) {
       try { await ensureDriveSession(true); } catch (e) { toast('Sign in to Google to save to Drive: ' + e.message, { err: true, ms: 8000 }); return; }
@@ -179,7 +179,7 @@ App.ready.then(() => {
   /** Upload once, then let Google copy it into the other folders (no second upload).
       On failure the error carries .partial = { list, done } so finished folders aren't forgotten. */
   async function uploadToDrive(d, blob, name, dests, onStep) {
-    const cat = catById(d.categoryId);
+    const cat = WP.clipCategoryLabel(d, S.settings.categories);
     const auto = WP.clipAuto(App.G, d);
     const desc = [cat ? cat.name : 'Clip', WP.gameTitle(App.G), auto.period ? WP.periodName(auto.period) : ''].filter(Boolean).join(' · ') + ' — ' + S.settings.team.name + ' · Watch Party';
     let list = (d.drive || []).slice();

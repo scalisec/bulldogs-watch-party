@@ -70,7 +70,7 @@ App.ready.then(() => {
     const F = R.filters;
     const groups = [];
     const group = (title, kids) => groups.push(el('div', { class: 'stack', style: 'gap:6px;border-top:1px solid var(--line);padding-top:12px' }, el('h3', { class: 'fh' }, title), el('div', { class: 'chips' }, ...kids)));
-    const usedCats = new Set(all.map((e) => e.categoryId));
+    const usedCats = new Set(all.flatMap((e) => WP.clipCategoryIds(e)));
     group('Category', S.settings.categories.filter((c) => !c.hidden || usedCats.has(c.id)).map((c) => chipBtn(c.name, F.categories.includes(c.id), () => toggleIn('categories', c.id), el('span', { class: 'dot', style: 'width:9px;height:9px;margin-right:6px;display:inline-block;background:' + c.color }))));
     group('Events', WP.EVENTS.map((ev) => chipBtn(ev.label, F.events.includes(ev.id), () => toggleIn('events', ev.id))));
     const nums = new Set(S.settings.roster.map((p) => p.number));
@@ -290,9 +290,24 @@ App.ready.then(() => {
       if (loc) editEntry(e, WP.toggleEvent(loc.game, loc.clip, id));
       else editEntry(e, { events: e.events.includes(id) ? e.events.filter((x) => x !== id) : WP.EVENT_IDS.filter((x) => x === id || e.events.includes(x)) });
     };
-    const catSel = el('select', { 'aria-label': 'Category', onchange: (ev) => { const c = catById(ev.target.value); editEntry(e, loc ? { categoryId: ev.target.value } : { categoryId: ev.target.value, category: c ? c.name : '', color: c ? c.color : e.color }); } },
-      ...S.settings.categories.map((c) => el('option', { value: c.id }, c.name)));
-    catSel.value = e.categoryId;
+    // categories: tap all that fit; for another coach's clip the library entry's names and colour are updated too
+    const mine = WP.clipCategoryIds(e);
+    const toggleCat = (id) => {
+      let patch;
+      try { patch = WP.toggleClipCategory(e, id); } catch (err) { toast(err.message, { err: true }); return; }
+      if (!loc) {
+        const lab = WP.clipCategoryLabel(patch, S.settings.categories);
+        Object.assign(patch, { category: lab ? lab.name : '', color: lab ? lab.color : e.color });
+      }
+      editEntry(e, patch);
+    };
+    const catChips = el('div', { class: 'chips catchips', id: 'rv-cats', role: 'group', 'aria-label': 'Categories' },
+      ...S.settings.categories.filter((c) => !c.hidden || mine.includes(c.id)).map((c) => {
+        const on = mine.includes(c.id);
+        const main = on && mine[0] === c.id && mine.length > 1;
+        return el('button', { type: 'button', class: 'chip catchip', 'aria-pressed': String(on), 'data-cat': c.id, onclick: () => toggleCat(c.id) },
+          el('span', { class: 'dot', style: 'background:' + c.color }), c.name, main ? el('span', { class: 'mainmark', 'aria-hidden': 'true' }, 'main') : '');
+      }));
     const nums = new Set(S.settings.roster.map((p) => p.number).concat(e.players));
     const zsel = el('select', { 'aria-label': 'Zone', onchange: (ev) => editEntry(e, { zone: ev.target.value }) });
     selectOpts(zsel, WP.ZONES, e.zone, 'Not set');
@@ -306,7 +321,7 @@ App.ready.then(() => {
       el('div', { class: 'row spread' }, el('h3', {}, 'Clip tags'),
         el('button', { type: 'button', class: 'btn small', 'aria-pressed': String(!!e.starred), onclick: () => editEntry(e, { starred: !e.starred }) }, e.starred ? '★ Starred' : '☆ Star')),
       el('span', { class: 'small muted' }, auto + ' · by ' + (e.by || '?')),
-      el('label', { class: 'field' }, 'Category', catSel),
+      el('div', { class: 'stack', style: 'gap:6px' }, el('span', { style: 'font-weight:600;font-size:13px' }, 'Categories'), catChips),
       el('div', { class: 'stack', style: 'gap:6px' }, el('span', { style: 'font-weight:600;font-size:13px' }, 'Events'), el('div', { class: 'chips' }, ...WP.EVENTS.map((ev) => chipBtn(ev.label, e.events.includes(ev.id), () => toggleEv(ev.id))))),
       el('div', { class: 'stack', style: 'gap:6px' }, el('span', { style: 'font-weight:600;font-size:13px' }, 'Players'), el('div', { class: 'chips' }, ...[...nums].sort((a, b) => a - b).map((n) => chipBtn('#' + n, e.players.includes(n), () => editEntry(e, { players: e.players.includes(n) ? e.players.filter((x) => x !== n) : e.players.concat([n]).sort((a, b) => a - b) }))))),
       el('div', { class: 'grid2', style: 'gap:8px' }, el('label', { class: 'field' }, 'Zone', zsel), el('label', { class: 'field' }, 'Situation', ssel)),

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.0 — 2026-10-27 (several categories on a clip)
+
+- **A clip can be in more than one category**, e.g. a breakout with a nice pass. In the clip editor, the Category dropdown is now a set of chips: tap every category that fits.
+- **The first category picked is the main one.** Its colour is used on the timeline and clip list, and it's marked "main" when there's more than one. Removing the main category makes the next one main. A clip always keeps at least one.
+- **Names show together**, e.g. "Breakouts + Passing & support", in the clip list, editor title, exported video title bar and file name, and in Review.
+- **Filters find the clip under any of its categories:** the game screen's clip filter, Review's Category filter and Review search.
+- **Review:** the clip tags panel has the same chips, so any coach can add a category to a clip; it syncs back to the clip's owner.
+- Clips from earlier versions keep their one category.
+- Fixed: the trim bar showed the word "null" when a clip had no freeze frame.
+
 ## 1.2.0 — 2026-10-26 (several teams)
 
 - **Coach more than one team.** The team name in the header is now a button: it lists the teams on this device, switches between them, and adds a new one.

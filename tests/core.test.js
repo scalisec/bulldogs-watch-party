@@ -963,3 +963,31 @@ test('club teams (OWHA) use text division ids', () => {
   const s = WP.teamSchedule([{ id: 59810, start: '2026-09-24T19:00:00-04:00', home: 'Burlington Barracudas', away: 'North Halton Twisters', homeScore: 4, awayScore: 2, status: 'final', venue: 'Mountainside Arena', type: 'exhibition' }], 'Burlington Barracudas');
   assert.deepEqual([s[0].opponent, s[0].result, s[0].gameType, s[0].homeAway], ['North Halton Twisters', 'W 4–2', 'exhibition', 'home']);
 });
+
+test('a clip can be in several categories (main one first)', () => {
+  const cats = [{ id: 'br', name: 'Breakout', color: '#111111' }, { id: 'pass', name: 'Nice pass', color: '#222222' }, { id: 'gl', name: 'Goal', color: '#333333' }];
+  const c = WP.makeClip({ start: 10, end: 20, total: 100, categoryId: 'br' });
+  assert.deepEqual(WP.clipCategoryIds(c), ['br']);
+  const two = WP.updateClip(c, WP.toggleClipCategory(c, 'pass'), 100);
+  assert.deepEqual([two.categoryId, two.alsoCats], ['br', ['pass']]);
+  assert.deepEqual(WP.clipCategoryLabel(two, cats), { id: 'br', name: 'Breakout + Nice pass', color: '#111111', main: cats[0] });
+  const swapped = WP.updateClip(two, WP.toggleClipCategory(two, 'br'), 100);
+  assert.deepEqual([swapped.categoryId, swapped.alsoCats], ['pass', []], 'removing the main one promotes the next');
+  assert.throws(() => WP.toggleClipCategory(swapped, 'pass'), /at least one/);
+  const back = WP.updateClip(two, { categoryId: 'pass' }, 100);
+  assert.deepEqual([back.categoryId, back.alsoCats], ['pass', []], 'setting just the main category replaces it, with no duplicate');
+  const game = { id: 'g', clips: [two], parts: [{ name: 'x', duration: 100 }], marks: { periods: [], goals: [] } };
+  assert.ok(WP.categoryInUse([game], 'pass'), 'an extra category counts as in use');
+  const entry = WP.libraryEntry(game, two, cats, 'Coach', []);
+  assert.equal(entry.category, 'Breakout + Nice pass');
+  assert.deepEqual(entry.alsoCats, ['pass']);
+  assert.ok(WP.entryMatches(entry, { categories: ['pass'] }), 'filtering by the extra category finds it');
+  assert.ok(WP.entryMatches(entry, { q: 'nice pass' }), 'search finds the extra category name');
+  assert.ok(!WP.entryMatches(entry, { categories: ['gl'] }));
+  // another coach adds a category in Review: it comes back into the owner's clip
+  const edited = Object.assign({}, entry, { alsoCats: ['pass', 'gl'] });
+  const merged = WP.applyEntryTags(two, edited, entry);
+  assert.deepEqual(WP.clipCategoryIds(merged), ['br', 'pass', 'gl']);
+  // old clips without alsoCats still work
+  assert.deepEqual(WP.clipCategoryIds({ categoryId: 'br' }), ['br']);
+});
