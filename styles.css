@@ -310,3 +310,16 @@ dialog.wide { max-width: 680px; }
 .tl .sband.pp { background: #22C55Ecc; } .tl .sband.pk { background: #F97316cc; }
 
 .pill.tagpill { background: var(--surface-2); color: var(--accent-text); font-weight: 500; }
+
+/* game status under the video (v1.6) */
+.gstatus { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+.gs-top { gap: 12px; align-items: center; flex-wrap: wrap; }
+.gs-score { font-family: var(--display); font-weight: 700; font-size: 15px; }
+.gs-str { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.gs-str.pp { background: var(--good-soft); color: var(--good); } .gs-str.pk { background: rgba(249,115,22,.18); color: #FDBA74; }
+.gs-btns { gap: 6px; flex-wrap: wrap; }
+.gs-box { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.gs-box[hidden] { display: none; }
+.gs-pen { display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 12px; border-radius: 10px; background: var(--surface-2); border-left: 4px solid #F97316; flex-wrap: wrap; }
+.gs-pen.them { border-left-color: #22C55E; }
+.gs-pen.over { outline: 1px dashed #F59E0B; }

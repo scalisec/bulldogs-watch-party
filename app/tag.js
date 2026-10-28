@@ -128,6 +128,7 @@ App.ready.then(() => {
     $('t-logo').replaceChildren(App.G.league ? App.League.logo(App.G.league.opponentLogo, 40) : '');
     $('t-sub').textContent = [WP.formatClock(App.G.time), App.G.rink, App.G.result, App.G.parts.length + (App.G.parts.length === 1 ? ' part' : ' parts') + ' · ' + WP.formatTime(App.TL.total)].filter(Boolean).join(' · ');
     renderTags();
+    renderGameStatus(true);
     renderLeagueBar();
     renderTagLineup();
     renderMarks();
@@ -230,8 +231,44 @@ App.ready.then(() => {
     $('tl-labels').replaceChildren(...App.TL.durations.map((d, i) => el('span', { style: 'flex:' + d + ' 1 0' }, App.TL.durations.length > 1 ? 'Part ' + (i + 1) : 'Full game')));
   }
 
+  // ---- game status under the video: period and score, strength, who's in the box (with Back now) ----
+  let gsKey = '';
+  let gsAt = 0;
+  function renderGameStatus(force) {
+    if (!App.G) return;
+    const now = performance.now();
+    if (!force && now - gsAt < 400) return; // called from the play loop: a few times a second is plenty
+    gsAt = now;
+    const t = App.player ? App.player.time() : 0;
+    const a = WP.clipAuto(App.G, { start: t + 0.02, end: t + 0.02 });
+    const st = WP.strengthAt(App.G, t);
+    const box = WP.unendedPenalties(App.G, t);
+    const m = WP.gameMarks(App.G);
+    const key = [a.period, a.score.for, a.score.against, st.us, st.them, ...box.map((x) => x.p.id + (x.over ? '!' : '') + Math.round(x.left / 5))].join('|');
+    if (!force && key === gsKey) return;
+    gsKey = key;
+    $('gs-score').textContent = (a.period ? WP.periodName(a.period) + ' · ' : m.periods.length ? 'Between periods · ' : '') + (m.goals.length ? 'Score ' + a.score.for + '–' + a.score.against : 'No goals marked');
+    const strText = st.situation === 'pp' ? 'Power play ' + st.us + '-on-' + st.them : st.situation === 'pk' ? 'Penalty kill ' + st.us + '-on-' + st.them : st.us < 5 ? 'Even ' + st.us + '-on-' + st.them : 'Even strength';
+    $('gs-str').textContent = strText;
+    $('gs-str').className = 'gs-str ' + st.situation;
+    $('gs-box').replaceChildren(...box.map((x) => el('li', { class: 'gs-pen ' + x.p.team + (x.over ? ' over' : '') },
+      el('span', { class: 'grow' }, el('strong', {}, x.p.team === 'us' ? 'Us ' : 'Them '), WP.penaltyLabel(x.p).replace(/^(Us|Them) ?(· )?/, '')),
+      el('span', { class: 'small muted' }, 'since ' + WP.formatTime(x.p.t) + ' · ' + (x.p.minutes === 10 ? 'misconduct' : x.over ? 'past its estimated end' : '~' + WP.formatTime(x.left) + ' left (est.)')),
+      el('button', { type: 'button', class: 'btn small primary', 'aria-label': 'End penalty: ' + WP.penaltyLabel(x.p), onclick: () => endPenaltyAt(x.p, App.player ? App.player.time() : t) }, 'End penalty'))));
+    $('gs-box').hidden = !box.length;
+  }
+
+  function endPenaltyAt(p, t) {
+    try {
+      App.G.marks = WP.endPenalty(App.G, p.id, t);
+      marksChanged();
+      toast(WP.penaltyLabel(p) + ': back at ' + WP.formatTime(t), { action: { label: 'Undo', fn: () => { const m = WP.gameMarks(App.G); m.penalties = m.penalties.map((x) => (x.id === p.id ? Object.assign({}, x, { end: null }) : x)); App.G.marks = m; marksChanged(); } } });
+    } catch (e) { toast(e.message, { err: true }); }
+  }
+
   function onTick() {
     if (!App.G) return;
+    renderGameStatus();
     const t = App.player ? App.player.time() : 0;
     $('clock').textContent = WP.formatTime(t) + ' / ' + WP.formatTime(App.TL.total);
     const loc = WP.locate(App.TL, t);
@@ -507,6 +544,7 @@ App.ready.then(() => {
 
   function marksChanged() {
     save();
+    renderGameStatus(true);
     renderMarks();
     renderTimelineStatic();
     renderClips();
@@ -574,6 +612,10 @@ App.ready.then(() => {
   $('qt-cancel').addEventListener('click', closeQuickTag);
   $('dlg-qtag').addEventListener('cancel', (e) => { e.preventDefault(); closeQuickTag(); });
   $('b-qtag').addEventListener('click', openQuickTag);
+  $('gs-tag').addEventListener('click', openQuickTag);
+  $('gs-pen').addEventListener('click', () => openPenalty());
+  $('gs-gf').addEventListener('click', () => markGoal('for'));
+  $('gs-ga').addEventListener('click', () => markGoal('against'));
 
   // ---- penalties (X): call a penalty, or mark a player back ----
   const PEN = { team: 'us', player: '', type: 'tripping', minutes: 2, t: 0, wasPlaying: false };
@@ -592,7 +634,7 @@ App.ready.then(() => {
   }
 
   function renderPenaltyForm() {
-    const open = WP.openPenalties(App.G, PEN.t);
+    const open = WP.unendedPenalties(App.G, PEN.t).map((x) => x.p); // includes ones past their estimated end
     $('pen-open').replaceChildren(...(open.length ? [el('span', { style: 'font-weight:600;font-size:13px' }, 'In the box now')] : []),
       ...open.map((p) => el('div', { class: 'row', style: 'gap:8px' },
         el('span', { class: 'grow small' }, WP.penaltyLabel(p) + ' · since ' + WP.formatTime(p.t)),

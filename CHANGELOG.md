@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.6.0 — 2026-10-27 (game status panel)
+
+- **A game status panel under the video**, always in view while you watch and tag:
+  - **Period and score** right now, e.g. "P2 · Score 2–1", from your P/G/H marks.
+  - **Strength:** "Power play 5-on-4", "Penalty kill 4-on-5", "Even 4-on-4" or "Even strength".
+  - **Who's in the box:** every penalty whose end you haven't marked, with when it was called and the estimated time left. An **End penalty** button marks the end at the current moment, with Undo.
+  - **Quick buttons:** Goal for, Goal against, Penalty and Tag.
+- **Forgotten penalty ends stay in view.** A penalty past its estimated end now stays listed, marked "past its estimated end", until you end it. That applies to the panel and to the X popup; before, it quietly dropped off.
+- The panel updates a few times a second at most, so it adds no noticeable load while the video plays.
+
 ## 1.5.0 — 2026-10-27 (custom tag while watching)
 
 - **Press T to tag a moment with your own words.** The video pauses and a small popup asks for the tag (e.g. "Great backcheck") and a category.

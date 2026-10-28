@@ -205,7 +205,8 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 
 ## Tests
 
-- `node --test tests/core.test.js` runs the core logic tests (77).
+- `node --test tests/core.test.js` runs the core logic tests (78).
+- `python3 tests/e2e_v16.py <screenshot-dir> <media-dir>` tests v1.6: the game status panel (period and score, strength, End penalty, quick buttons, forgotten penalties) (12 checks).
 - `python3 tests/e2e_v15.py <screenshot-dir> <media-dir>` tests v1.5: T for a custom tag (popup, suggestions, category, I/O marks, Esc) (14 checks).
 - `python3 tests/e2e_v14.py <screenshot-dir> <media-dir>` tests v1.4: penalties (popup, Back now, power play / penalty kill on clips and the timeline, the player on clips, Review's Penalty filter) (18 checks).
 - `python3 tests/e2e_v13.py <screenshot-dir> <media-dir>` tests v1.3: several categories on one clip (editor chips, main category, clip list and filter, Review filter and chips) (14 checks).

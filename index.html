@@ -16,7 +16,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=1.5.0">
+<link rel="stylesheet" href="styles.css?v=1.6.0">
 </head>
 <body>
 <header class="topbar">
@@ -126,6 +126,20 @@
         <span class="clock" id="clock">0:00 / 0:00</span>
       </div>
       <div class="marks hidden" id="marks-banner" role="status"></div>
+      <div class="card gstatus" id="gstatus" aria-label="Game status">
+        <div class="row gs-top">
+          <span class="gs-score" id="gs-score"></span>
+          <span class="gs-str" id="gs-str"></span>
+          <span class="grow"></span>
+          <div class="row gs-btns">
+            <button type="button" class="btn small" id="gs-gf" style="color:#86EFAC" title="Goal for (G)">Goal for <kbd>G</kbd></button>
+            <button type="button" class="btn small" id="gs-ga" style="color:#FCA5A5" title="Goal against (H)">Goal against <kbd>H</kbd></button>
+            <button type="button" class="btn small" id="gs-pen" style="color:#FCD34D" title="Penalty (X)">Penalty <kbd>X</kbd></button>
+            <button type="button" class="btn small" id="gs-tag" title="Custom tag (T)">Tag <kbd>T</kbd></button>
+          </div>
+        </div>
+        <ul class="gs-box" id="gs-box" aria-label="Penalty box"></ul>
+      </div>
       <div class="card stack" style="gap:8px">
         <div class="tl" id="tl" role="slider" tabindex="0" aria-label="Game timeline" aria-valuemin="0" aria-valuenow="0"></div>
         <div class="tl-labels" id="tl-labels"></div>
@@ -579,27 +593,27 @@
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
-<script src="config.js?v=1.5.0"></script>
-<script src="core.js?v=1.5.0"></script>
-<script src="storage.js?v=1.5.0"></script>
-<script src="vendor/mp4-muxer.js?v=1.5.0"></script>
-<script src="render.js?v=1.5.0"></script>
-<script src="drive.js?v=1.5.0"></script>
-<script src="app/base.js?v=1.5.0"></script>
-<script src="app/player.js?v=1.5.0"></script>
-<script src="app/lineup.js?v=1.5.0"></script>
-<script src="app/league.js?v=1.5.0"></script>
-<script src="app/games.js?v=1.5.0"></script>
-<script src="app/tag.js?v=1.5.0"></script>
-<script src="app/editor.js?v=1.5.0"></script>
-<script src="app/record.js?v=1.5.0"></script>
-<script src="app/export.js?v=1.5.0"></script>
-<script src="app/settings.js?v=1.5.0"></script>
-<script src="app/team.js?v=1.5.0"></script>
-<script src="app/team-sync.js?v=1.5.0"></script>
-<script src="app/library.js?v=1.5.0"></script>
-<script src="app/review.js?v=1.5.0"></script>
-<script src="app/teams.js?v=1.5.0"></script>
-<script src="app/main.js?v=1.5.0"></script>
+<script src="config.js?v=1.6.0"></script>
+<script src="core.js?v=1.6.0"></script>
+<script src="storage.js?v=1.6.0"></script>
+<script src="vendor/mp4-muxer.js?v=1.6.0"></script>
+<script src="render.js?v=1.6.0"></script>
+<script src="drive.js?v=1.6.0"></script>
+<script src="app/base.js?v=1.6.0"></script>
+<script src="app/player.js?v=1.6.0"></script>
+<script src="app/lineup.js?v=1.6.0"></script>
+<script src="app/league.js?v=1.6.0"></script>
+<script src="app/games.js?v=1.6.0"></script>
+<script src="app/tag.js?v=1.6.0"></script>
+<script src="app/editor.js?v=1.6.0"></script>
+<script src="app/record.js?v=1.6.0"></script>
+<script src="app/export.js?v=1.6.0"></script>
+<script src="app/settings.js?v=1.6.0"></script>
+<script src="app/team.js?v=1.6.0"></script>
+<script src="app/team-sync.js?v=1.6.0"></script>
+<script src="app/library.js?v=1.6.0"></script>
+<script src="app/review.js?v=1.6.0"></script>
+<script src="app/teams.js?v=1.6.0"></script>
+<script src="app/main.js?v=1.6.0"></script>
 </body>
 </html>

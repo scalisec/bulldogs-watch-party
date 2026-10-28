@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '1.5.0';
+  const APP_VERSION = '1.6.0';
   const APP_RELEASED = '2026-10-27';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
@@ -1017,15 +1017,29 @@
     return gameMarks(game).penalties.filter((p) => p.end == null && p.t <= t + 0.01 && penaltyEnd(game, p).t > t);
   }
 
-  /** Strength at t: 'pp' (we have more skaters), 'pk' (fewer) or 'even' (equal, incl. 4-on-4). */
-  function situationAt(game, t) {
+  /** Skaters at t: { us: 5, them: 4, situation: 'pp' | 'pk' | 'even' } (never fewer than 3; misconducts don't count). */
+  function strengthAt(game, t) {
     let us = 0, them = 0;
     for (const p of gameMarks(game).penalties) {
       if (p.minutes === 10) continue;
       if (t >= p.t && t < penaltyEnd(game, p).t) { if (p.team === 'us') us += 1; else them += 1; }
     }
-    us = Math.min(us, 2); them = Math.min(them, 2); // never fewer than 3 skaters
-    return us > them ? 'pk' : them > us ? 'pp' : 'even';
+    us = Math.min(us, 2); them = Math.min(them, 2);
+    return { us: 5 - us, them: 5 - them, situation: us > them ? 'pk' : them > us ? 'pp' : 'even' };
+  }
+
+  /** Strength at t: 'pp' (we have more skaters), 'pk' (fewer) or 'even' (equal, incl. 4-on-4). */
+  function situationAt(game, t) { return strengthAt(game, t).situation; }
+
+  /**
+   * Penalties called by t whose end hasn't been marked (and no power-play goal ended them), including ones
+   * past their estimated end, so a forgotten end stays in view. Each with the estimate: { p, est, over, left }.
+   */
+  function unendedPenalties(game, t) {
+    return gameMarks(game).penalties.filter((p) => p.end == null && p.t <= t + 0.01)
+      .map((p) => ({ p, end: penaltyEnd(game, p) }))
+      .filter((x) => x.end.why !== 'goal')
+      .map((x) => ({ p: x.p, est: x.end.t, over: t >= x.end.t, left: Math.max(0, (x.end.t - t) / PENALTY_VIDEO_FACTOR) }));
   }
 
   /** Power play / penalty kill stretches for the timeline: [{ start, end, situation }]. */
@@ -1769,7 +1783,7 @@
     EVENTS, EVENT_IDS, GAME_TYPES, HOME_AWAY, ZONES, SITUATIONS, label, eventLabel, gameMarks, togglePeriod, addGoal, removeGoal, removePeriod, periodName,
     clipAuto, clipEvents, toggleEvent, normalizeTags, clipFeatures, libraryEntry, SHARED_TAG_FIELDS, emptyFilters, normalizeFilters, filterCount, entryMatches,
     sortEntries, describeFilters, addView, removeView, normalizeLibrary, libraryFileText, parseLibraryFile, mergeLibrary, syncLibraryStep, buildMyLibrary,
-    PENALTY_TYPES, PENALTY_LENGTHS, PENALTY_VIDEO_FACTOR, penaltyLabel, addPenalty, endPenalty, removePenalty, penaltyEnd, openPenalties, situationAt, strengthBands, clipSituation, penaltyPlayers,
+    PENALTY_TYPES, PENALTY_LENGTHS, PENALTY_VIDEO_FACTOR, penaltyLabel, addPenalty, endPenalty, removePenalty, penaltyEnd, openPenalties, unendedPenalties, strengthAt, situationAt, strengthBands, clipSituation, penaltyPlayers,
     clipCategoryIds, categoriesPatch, toggleClipCategory, clipCategoryLabel,
     applyEntryTags, folderName, teamFolderKeys, destLabel,
     DEFAULT_LEAGUE, divisionKey, normalizeLeague, leagueTeams, leagueLogo, cleanVenue, scoreResult, gamesheetUrl, teamSchedule, matchScheduleGame, scheduleFields, leagueLink, linkGame, formatClock

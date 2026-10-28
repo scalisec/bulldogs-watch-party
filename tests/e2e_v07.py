@@ -123,7 +123,7 @@ with sync_playwright() as p:
     page.screenshot(path=SHOTS + '/v07-shortcuts.png')
     page.click('#keys-close')
     sc = ctx.new_page(); sc.goto('http://127.0.0.1:%d/shortcuts.html' % PORT)
-    check(sc.locator('tr').count() >= 20 and 'v1.5.0' in sc.text_content('#ver'), 'printable shortcuts page lists %d shortcuts' % sc.locator('tr').count())
+    check(sc.locator('tr').count() >= 20 and 'v1.6.0' in sc.text_content('#ver'), 'printable shortcuts page lists %d shortcuts' % sc.locator('tr').count())
     sc.close()
 
     # ---- 5. a newer version on the site shows the banner

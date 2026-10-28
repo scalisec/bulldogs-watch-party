@@ -1035,3 +1035,22 @@ test('penalties: power play / penalty kill, events, end by goal or mark', () => 
   g.marks = WP.removePenalty(g, WP.gameMarks(g).penalties[0].id);
   assert.equal(WP.gameMarks(g).penalties.length, 3);
 });
+
+test('game status: strength and unended penalties (forgotten ones stay listed)', () => {
+  const g = { id: 'g', marks: { periods: [], goals: [] }, clips: [], parts: [] };
+  g.marks = WP.addPenalty(g, 100, { team: 'them', type: 'tripping', minutes: 2 }).marks;
+  assert.deepEqual(WP.strengthAt(g, 110), { us: 5, them: 4, situation: 'pp' });
+  g.marks = WP.addPenalty(g, 105, { team: 'them', type: 'hooking', minutes: 2 }).marks;
+  assert.deepEqual(WP.strengthAt(g, 110), { us: 5, them: 3, situation: 'pp' });
+  const est = 100 + 120 * WP.PENALTY_VIDEO_FACTOR;
+  let u = WP.unendedPenalties(g, 110);
+  assert.equal(u.length, 2);
+  assert.equal(Math.round(u[0].left), Math.round((est - 110) / WP.PENALTY_VIDEO_FACTOR), 'game-clock time left (estimated)');
+  u = WP.unendedPenalties(g, est + 60);
+  assert.equal(u.length, 2, 'still listed after the estimated end');
+  assert.ok(u[0].over);
+  assert.equal(WP.openPenalties(g, est + 60).length, 0, 'openPenalties (strength) counts them as over by the estimate');
+  g.marks = WP.endPenalty(g, u[0].p.id, est + 60);
+  assert.equal(WP.unendedPenalties(g, est + 61).length, 1);
+  assert.equal(WP.unendedPenalties(g, 50).length, 0, 'not yet called');
+});
