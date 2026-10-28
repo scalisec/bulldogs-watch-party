@@ -303,3 +303,8 @@ dialog.wide { max-width: 680px; }
 .catchip { display: inline-flex; align-items: center; gap: 6px; }
 .catchip .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .catchip .mainmark { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; opacity: .8; border: 1px solid currentColor; border-radius: 4px; padding: 0 3px; }
+
+/* penalties (v1.4) */
+.mark.pk { background: var(--bad-soft); color: #FDBA74; } .mark.pp { background: var(--good-soft); color: var(--good); }
+.tl .sband { position: absolute; top: 0; height: 6px; pointer-events: none; border-radius: 2px; }
+.tl .sband.pp { background: #22C55Ecc; } .tl .sband.pk { background: #F97316cc; }

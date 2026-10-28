@@ -991,3 +991,47 @@ test('a clip can be in several categories (main one first)', () => {
   // old clips without alsoCats still work
   assert.deepEqual(WP.clipCategoryIds({ categoryId: 'br' }), ['br']);
 });
+
+test('penalties: power play / penalty kill, events, end by goal or mark', () => {
+  const g = { id: 'g', marks: { periods: [{ n: 1, start: 0, end: null }], goals: [] }, clips: [], parts: [{ name: 'x', duration: 3600 }] };
+  let r = WP.addPenalty(g, 100, { team: 'us', player: '#7', type: 'tripping', minutes: 2 });
+  g.marks = r.marks;
+  assert.deepEqual([r.penalty.player, r.penalty.end], ['7', null]);
+  assert.equal(WP.penaltyLabel(r.penalty), '#7 · Tripping · 2 min');
+  assert.equal(WP.situationAt(g, 150), 'pk', 'we are short-handed');
+  assert.equal(WP.situationAt(g, 100 + 2 * 60 * WP.PENALTY_VIDEO_FACTOR + 1), 'even', 'estimated end');
+  // a clip around the call: Penalty against, the penalty type, penalty kill
+  const clip = WP.makeClip({ start: 95, end: 110, total: 3600, categoryId: 'x' });
+  assert.ok(WP.clipEvents(g, clip).includes('penalty_against'));
+  assert.deepEqual(WP.clipAuto(g, clip).penalties, ['tripping']);
+  assert.equal(WP.clipSituation(g, clip), 'pk');
+  assert.deepEqual(WP.penaltyPlayers(g, 95, 110), ['7']);
+  // the coach's own pick wins
+  assert.equal(WP.clipSituation(g, WP.updateClip(clip, { situation: 'even' }, 3600)), 'even');
+  // a power-play goal against ends the minor early
+  g.marks = WP.addGoal(g, 160, 'against');
+  assert.deepEqual(WP.penaltyEnd(g, WP.gameMarks(g).penalties[0]), { t: 160, why: 'goal' });
+  assert.equal(WP.situationAt(g, 170), 'even');
+  // their penalty at the same time as ours: 4-on-4 is even; then they take another = our power play
+  r = WP.addPenalty(g, 120, { team: 'them', type: 'hooking', minutes: 2 }); g.marks = r.marks;
+  assert.equal(WP.situationAt(g, 130), 'even');
+  r = WP.addPenalty(g, 300, { team: 'them', type: 'slashing', minutes: 2 }); g.marks = r.marks;
+  assert.equal(WP.situationAt(g, 310), 'pp');
+  g.marks = WP.endPenalty(g, r.penalty.id, 350);
+  assert.equal(WP.situationAt(g, 351), 'even', 'marked end');
+  assert.throws(() => WP.endPenalty(g, r.penalty.id, 200), /after/);
+  const bands = WP.strengthBands(g, 3600);
+  // 100–120 we're short; 120–160 4-on-4; our minor ends at their goal (160) while theirs runs on: power play to 350
+  assert.deepEqual(bands, [{ start: 100, end: 120, situation: 'pk' }, { start: 160, end: 350, situation: 'pp' }]);
+  // a misconduct doesn't change the strength
+  r = WP.addPenalty(g, 1000, { team: 'us', type: 'unsportsmanlike', minutes: 10 }); g.marks = r.marks;
+  assert.equal(WP.situationAt(g, 1010), 'even');
+  // library entry + Review filter
+  const e = WP.libraryEntry(g, clip, [{ id: 'x', name: 'X', color: '#000' }], 'C', []);
+  assert.deepEqual([e.situation, e.penalties], ['pk', ['tripping']]);
+  assert.ok(WP.entryMatches(e, { penalties: ['tripping'] }) && !WP.entryMatches(e, { penalties: ['hooking'] }));
+  assert.ok(WP.entryMatches(e, { q: 'tripping' }));
+  assert.ok(WP.entryMatches(e, { situation: 'pk' }));
+  g.marks = WP.removePenalty(g, WP.gameMarks(g).penalties[0].id);
+  assert.equal(WP.gameMarks(g).penalties.length, 3);
+});

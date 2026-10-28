@@ -72,6 +72,8 @@ App.ready.then(() => {
     const group = (title, kids) => groups.push(el('div', { class: 'stack', style: 'gap:6px;border-top:1px solid var(--line);padding-top:12px' }, el('h3', { class: 'fh' }, title), el('div', { class: 'chips' }, ...kids)));
     const usedCats = new Set(all.flatMap((e) => WP.clipCategoryIds(e)));
     group('Category', S.settings.categories.filter((c) => !c.hidden || usedCats.has(c.id)).map((c) => chipBtn(c.name, F.categories.includes(c.id), () => toggleIn('categories', c.id), el('span', { class: 'dot', style: 'width:9px;height:9px;margin-right:6px;display:inline-block;background:' + c.color }))));
+    const usedPens = new Set(all.flatMap((e) => e.penalties || []));
+    if (usedPens.size) group('Penalty', WP.PENALTY_TYPES.filter(([id]) => usedPens.has(id)).map(([id, label]) => chipBtn(label, F.penalties.includes(id), () => toggleIn('penalties', id))));
     group('Events', WP.EVENTS.map((ev) => chipBtn(ev.label, F.events.includes(ev.id), () => toggleIn('events', ev.id))));
     const nums = new Set(S.settings.roster.map((p) => p.number));
     for (const e of all) for (const p of e.players) nums.add(p);
@@ -311,7 +313,7 @@ App.ready.then(() => {
     const nums = new Set(S.settings.roster.map((p) => p.number).concat(e.players));
     const zsel = el('select', { 'aria-label': 'Zone', onchange: (ev) => editEntry(e, { zone: ev.target.value }) });
     selectOpts(zsel, WP.ZONES, e.zone, 'Not set');
-    const ssel = el('select', { 'aria-label': 'Situation', onchange: (ev) => editEntry(e, { situation: ev.target.value }) });
+    const ssel = el('select', { 'aria-label': 'Situation', onchange: (ev) => editEntry(e, { situation: ev.target.value, situationSet: true }) });
     selectOpts(ssel, WP.SITUATIONS, e.situation || 'even');
     const note = el('input', { type: 'text', value: e.note || '', maxlength: '140', 'aria-label': 'Note', onchange: (ev) => editEntry(e, { note: ev.target.value }) });
     const auto = [e.game.title, WP.label(WP.GAME_TYPES, e.game.type), e.period ? WP.periodName(e.period) + ' ' + WP.formatTime(e.periodTime) : '', e.state ? e.state + ' ' + e.score.for + '–' + e.score.against : ''].filter(Boolean).join(' · ');

@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '1.3.0';
+  const APP_VERSION = '1.4.0';
   const APP_RELEASED = '2026-10-27';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
@@ -616,7 +616,7 @@
     if ('events' in patch) next.events = (patch.events || []).filter((e) => EVENT_IDS.includes(e));
     if ('hiddenAuto' in patch) next.hiddenAuto = (patch.hiddenAuto || []).filter((e) => EVENT_IDS.includes(e));
     if ('zone' in patch) next.zone = ZONES.some((z) => z[0] === patch.zone) ? patch.zone : '';
-    if ('situation' in patch) next.situation = SITUATIONS.some((z) => z[0] === patch.situation) ? patch.situation : 'even';
+    if ('situation' in patch) { next.situation = SITUATIONS.some((z) => z[0] === patch.situation) ? patch.situation : 'even'; next.situationSet = true; }
     if ('starred' in patch) next.starred = !!patch.starred;
     if ('tags' in patch) next.tags = normalizeTags(patch.tags);
     if ('private' in patch) next.private = !!patch.private;
@@ -939,7 +939,123 @@
   // --- game marks: periods and goals ---
   function gameMarks(game) {
     const m = game.marks || {};
-    return { periods: (m.periods || []).slice().sort((a, b) => a.start - b.start), goals: (m.goals || []).slice().sort((a, b) => a.t - b.t) };
+    return {
+      periods: (m.periods || []).slice().sort((a, b) => a.start - b.start),
+      goals: (m.goals || []).slice().sort((a, b) => a.t - b.t),
+      penalties: (m.penalties || []).slice().sort((a, b) => a.t - b.t)
+    };
+  }
+
+  // ---------- penalties (v1.4) ----------
+  // A penalty: { id, t (when called, video seconds), end (when the player is back; null until marked),
+  //   team: 'us' | 'them', player: jersey number or '', type, minutes: 2 | 4 | 5 | 10 }.
+  // 'us' = one of our players went to the box (the clip event "Penalty against", we're on the penalty kill).
+  const PENALTY_TYPES = [
+    ['tripping', 'Tripping'], ['hooking', 'Hooking'], ['slashing', 'Slashing'], ['holding', 'Holding'],
+    ['holding_stick', 'Holding the stick'], ['interference', 'Interference'], ['roughing', 'Roughing'],
+    ['cross_checking', 'Cross-checking'], ['high_sticking', 'High-sticking'], ['body_checking', 'Body checking'],
+    ['checking_behind', 'Checking from behind'], ['head_contact', 'Head contact'], ['elbowing', 'Elbowing'],
+    ['kneeing', 'Kneeing'], ['boarding', 'Boarding'], ['charging', 'Charging'], ['spearing', 'Spearing'],
+    ['delay_of_game', 'Delay of game'], ['too_many', 'Too many players'], ['unsportsmanlike', 'Unsportsmanlike conduct'],
+    ['fighting', 'Fighting'], ['other', 'Other']
+  ];
+  const PENALTY_LENGTHS = [[2, 'Minor (2)'], [4, 'Double minor (4)'], [5, 'Major (5)'], [10, 'Misconduct (10)']];
+  // Video runs longer than the game clock (whistles, faceoffs): until the end is marked, a penalty is
+  // estimated to last its minutes times this many video minutes.
+  const PENALTY_VIDEO_FACTOR = 1.6;
+
+  function penaltyLabel(p) {
+    const type = (PENALTY_TYPES.find((x) => x[0] === p.type) || [null, 'Penalty'])[1];
+    const who = p.team === 'us' ? (p.player ? '#' + p.player : 'Us') : 'Them' + (p.player ? ' #' + p.player : '');
+    return who + ' · ' + type + ' · ' + (p.minutes === 10 ? '10 misconduct' : p.minutes + ' min');
+  }
+
+  /** Mark a penalty called at t. */
+  function addPenalty(game, t, fields) {
+    const f = fields || {};
+    const m = gameMarks(game);
+    const minutes = PENALTY_LENGTHS.some((x) => x[0] === Number(f.minutes)) ? Number(f.minutes) : 2;
+    const pen = {
+      id: uid('pen'), t: round1(t), end: null, team: f.team === 'them' ? 'them' : 'us',
+      player: String(f.player == null ? '' : f.player).replace(/[^0-9]/g, '').slice(0, 2),
+      type: PENALTY_TYPES.some((x) => x[0] === f.type) ? f.type : 'other', minutes
+    };
+    m.penalties.push(pen);
+    m.penalties.sort((a, b) => a.t - b.t);
+    return { marks: m, penalty: pen };
+  }
+
+  /** The player is back: mark the end of a penalty at t. */
+  function endPenalty(game, id, t) {
+    const m = gameMarks(game);
+    const p = m.penalties.find((x) => x.id === id);
+    if (!p) throw new Error('That penalty is gone');
+    if (t <= p.t) throw new Error('A penalty must end after it’s called');
+    m.penalties = m.penalties.map((x) => (x.id === id ? Object.assign({}, x, { end: round1(t) }) : x));
+    return m;
+  }
+
+  function removePenalty(game, id) { const m = gameMarks(game); m.penalties = m.penalties.filter((p) => p.id !== id); return m; }
+
+  /**
+   * When a penalty stops counting, and why: 'marked' (end key), 'goal' (a power-play goal ends a minor),
+   * or 'estimate' (not marked yet). Misconducts never change the strength, so they're left out of strength.
+   */
+  function penaltyEnd(game, p) {
+    if (p.end != null) return { t: p.end, why: 'marked' };
+    const est = p.t + p.minutes * 60 * PENALTY_VIDEO_FACTOR;
+    if (p.minutes === 2) {
+      const ppSide = p.team === 'us' ? 'against' : 'for'; // the team on the power play scores
+      const g = gameMarks(game).goals.find((x) => x.side === ppSide && x.t > p.t && x.t < est);
+      if (g) return { t: g.t, why: 'goal' };
+    }
+    return { t: est, why: 'estimate' };
+  }
+
+  /** Penalties still running at t (not ended by a mark, a goal or the estimate). */
+  function openPenalties(game, t) {
+    return gameMarks(game).penalties.filter((p) => p.end == null && p.t <= t + 0.01 && penaltyEnd(game, p).t > t);
+  }
+
+  /** Strength at t: 'pp' (we have more skaters), 'pk' (fewer) or 'even' (equal, incl. 4-on-4). */
+  function situationAt(game, t) {
+    let us = 0, them = 0;
+    for (const p of gameMarks(game).penalties) {
+      if (p.minutes === 10) continue;
+      if (t >= p.t && t < penaltyEnd(game, p).t) { if (p.team === 'us') us += 1; else them += 1; }
+    }
+    us = Math.min(us, 2); them = Math.min(them, 2); // never fewer than 3 skaters
+    return us > them ? 'pk' : them > us ? 'pp' : 'even';
+  }
+
+  /** Power play / penalty kill stretches for the timeline: [{ start, end, situation }]. */
+  function strengthBands(game, total) {
+    const pts = new Set([0, total]);
+    for (const p of gameMarks(game).penalties) { if (p.minutes === 10) continue; pts.add(p.t); pts.add(Math.min(total, penaltyEnd(game, p).t)); }
+    const xs = [...pts].filter((x) => x >= 0 && x <= total).sort((a, b) => a - b);
+    const out = [];
+    for (let i = 0; i < xs.length - 1; i++) {
+      const sit = situationAt(game, (xs[i] + xs[i + 1]) / 2);
+      if (sit === 'even') continue;
+      const last = out[out.length - 1];
+      if (last && last.situation === sit && Math.abs(last.end - xs[i]) < 0.01) last.end = xs[i + 1];
+      else out.push({ start: xs[i], end: xs[i + 1], situation: sit });
+    }
+    return out;
+  }
+
+  /**
+   * A clip's situation: what the coach picked, or (when the game has penalties marked and the coach hasn't
+   * picked one) the strength in the middle of the clip.
+   */
+  function clipSituation(game, clip) {
+    if (clip.situationSet || !gameMarks(game || {}).penalties.length) return clip.situation || 'even';
+    return situationAt(game, (clip.start + clip.end) / 2);
+  }
+
+  /** Our players who took a penalty called inside [start, end] (added to new clips around the call). */
+  function penaltyPlayers(game, start, end) {
+    return [...new Set(gameMarks(game || {}).penalties.filter((p) => p.team === 'us' && p.player && p.t >= start - 0.01 && p.t <= end + 0.01).map((p) => p.player))];
   }
 
   /** P key: starts the next period, or ends the open one. Returns { marks, did: 'start'|'end', n }. */
@@ -981,9 +1097,12 @@
     let f = 0, a = 0;
     for (const g of m.goals) if (g.t < clip.start - 0.01) { if (g.side === 'for') f += 1; else a += 1; }
     const inside = m.goals.filter((g) => g.t >= clip.start - 0.01 && g.t <= clip.end + 0.01);
-    const events = [...new Set(inside.map((g) => (g.side === 'for' ? 'goal_for' : 'goal_against')))];
+    const calls = m.penalties.filter((p) => p.t >= clip.start - 0.01 && p.t <= clip.end + 0.01);
+    const events = [...new Set(inside.map((g) => (g.side === 'for' ? 'goal_for' : 'goal_against'))
+      .concat(calls.map((p) => (p.team === 'us' ? 'penalty_against' : 'penalty_for'))))];
     const state = !m.goals.length && !per ? null : f > a ? 'leading' : f < a ? 'trailing' : 'tied';
-    return { period: per ? per.n : null, periodTime: per ? round1(clip.start - per.start) : null, score: { for: f, against: a }, state, events };
+    return { period: per ? per.n : null, periodTime: per ? round1(clip.start - per.start) : null, score: { for: f, against: a }, state, events,
+      penalties: [...new Set(calls.map((p) => p.type))] };
   }
 
   /** Events shown on the clip: the coach's own picks plus automatic goal events (unless the coach removed them). */
@@ -1024,6 +1143,12 @@
 
   /** Flat, searchable record of a clip for the shared (or private) library. */
   function libraryEntry(game, clip, categories, coach, roster) {
+    const entry = libraryEntryFields(game, clip, categories, coach, roster);
+    if (clip.situationSet) entry.situationSet = true; // only when the coach picked one, so older entries don't churn
+    return entry;
+  }
+
+  function libraryEntryFields(game, clip, categories, coach, roster) {
     const cat = clipCategoryLabel(clip, categories);
     const auto = clipAuto(game, clip);
     return {
@@ -1040,7 +1165,8 @@
       flag: clip.flag || 'do',
       note: clip.note || '',
       zone: clip.zone || '',
-      situation: clip.situation || 'even',
+      situation: clipSituation(game, clip),
+      penalties: auto.penalties,
       starred: !!clip.starred,
       tags: normalizeTags(clip.tags),
       private: !!clip.private,
@@ -1059,10 +1185,10 @@
   }
 
   /** Tag fields another coach may edit from the Review screen; copied back into the owner's clip on sync. */
-  const SHARED_TAG_FIELDS = ['categoryId', 'alsoCats', 'events', 'players', 'flag', 'note', 'zone', 'situation', 'starred', 'tags'];
+  const SHARED_TAG_FIELDS = ['categoryId', 'alsoCats', 'events', 'players', 'flag', 'note', 'zone', 'situation', 'situationSet', 'starred', 'tags'];
 
   function emptyFilters() {
-    return { q: '', categories: [], events: [], players: [], positions: [], periods: [], flags: [], gameIds: [], gameType: '', homeAway: '', zone: '', situation: '', state: '', tags: [], inDrive: false };
+    return { q: '', categories: [], penalties: [], events: [], players: [], positions: [], periods: [], flags: [], gameIds: [], gameType: '', homeAway: '', zone: '', situation: '', state: '', tags: [], inDrive: false };
   }
 
   function normalizeFilters(f) {
@@ -1088,6 +1214,7 @@
     const any = (want, have) => !want.length || want.some((w) => have.includes(w));
     if (!any(f.categories, clipCategoryIds(entry))) return false;
     if (!any(f.events, entry.events || [])) return false;
+    if (!any(f.penalties, entry.penalties || [])) return false;
     if (!any(f.players, entry.players || [])) return false;
     if (!any(f.positions, entry.positions || [])) return false;
     if (!any(f.periods, entry.period != null ? [String(entry.period)] : [])) return false;
@@ -1103,7 +1230,8 @@
     if (f.inDrive && !(entry.drive || []).length) return false;
     if (f.q) {
       const hay = [entry.note, entry.category, entry.game.title, entry.game.opponent, entry.game.rink, entry.by,
-        ...(entry.tags || []), ...(entry.events || []).map(eventLabel), ...(entry.players || []).map((p) => '#' + p)].join(' ').toLowerCase();
+        ...(entry.tags || []), ...(entry.events || []).map(eventLabel), ...(entry.players || []).map((p) => '#' + p),
+        ...(entry.penalties || []).map((id) => (PENALTY_TYPES.find((x) => x[0] === id) || [id, id])[1])].join(' ').toLowerCase();
       if (!f.q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => hay.includes(w))) return false;
     }
     return true;
@@ -1121,6 +1249,7 @@
     const bits = [];
     if (n.categories.length) bits.push(n.categories.map((id) => ((categories || []).find((c) => c.id === id) || {}).name || 'category').join(' or '));
     if (n.events.length) bits.push(n.events.map(eventLabel).join(' or '));
+    if (n.penalties.length) bits.push(n.penalties.map((id) => (PENALTY_TYPES.find((x) => x[0] === id) || [id, id])[1]).join(' or ') + ' penalties');
     if (n.positions.length) bits.push(n.positions.map((g) => (POSITION_GROUPS.find((x) => x[0] === g) || [g, g])[1]).join(' or '));
     if (n.players.length) bits.push(n.players.map((p) => '#' + p).join(' '));
     if (n.periods.length) bits.push(n.periods.map((p) => periodName(Number(p))).join('/'));
@@ -1497,6 +1626,7 @@
       ['P', 'Period start / period end'],
       ['G', 'Goal for (we score)'],
       ['H', 'Goal against'],
+      ['X', 'Penalty: call one, or mark a player back'],
       ['+ / \u2212', 'Zoom in / out'],
       ['0', 'Back to the whole rink'],
       ['Scroll \u00b7 drag \u00b7 double-click', 'Zoom \u00b7 move \u00b7 zoom in or back out']
@@ -1638,6 +1768,7 @@
     EVENTS, EVENT_IDS, GAME_TYPES, HOME_AWAY, ZONES, SITUATIONS, label, eventLabel, gameMarks, togglePeriod, addGoal, removeGoal, removePeriod, periodName,
     clipAuto, clipEvents, toggleEvent, normalizeTags, clipFeatures, libraryEntry, SHARED_TAG_FIELDS, emptyFilters, normalizeFilters, filterCount, entryMatches,
     sortEntries, describeFilters, addView, removeView, normalizeLibrary, libraryFileText, parseLibraryFile, mergeLibrary, syncLibraryStep, buildMyLibrary,
+    PENALTY_TYPES, PENALTY_LENGTHS, PENALTY_VIDEO_FACTOR, penaltyLabel, addPenalty, endPenalty, removePenalty, penaltyEnd, openPenalties, situationAt, strengthBands, clipSituation, penaltyPlayers,
     clipCategoryIds, categoriesPatch, toggleClipCategory, clipCategoryLabel,
     applyEntryTags, folderName, teamFolderKeys, destLabel,
     DEFAULT_LEAGUE, divisionKey, normalizeLeague, leagueTeams, leagueLogo, cleanVenue, scoreResult, gamesheetUrl, teamSchedule, matchScheduleGame, scheduleFields, leagueLink, linkGame, formatClock

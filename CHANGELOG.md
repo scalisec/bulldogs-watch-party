@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.4.0 — 2026-10-27 (penalties)
+
+- **Mark penalties with X.** The video pauses and a popup asks who took it (our player from the game's lineup, or the other team with an optional number), the penalty (tripping, hooking, slashing, …) and the length: minor 2, double minor 4, major 5, misconduct 10.
+- **Press X again when the player is back:** the popup lists who's in the box, with a **Back now** button for each. A power-play goal ends a minor on its own. Until the end is marked, the app estimates it from the length plus typical stoppage time.
+- **Power play and penalty kill fill in automatically:**
+  - Clips during a penalty get the situation (4-on-4 counts as even strength; misconducts don't change it).
+  - If you pick a situation yourself, yours is kept.
+  - The timeline shows power plays in green and penalty kills in orange.
+- **Clips that include the call** get the **Penalty for / Penalty against** event and the penalty type. Our player who took the penalty is added to those clips, both existing and new ones.
+- **Review:** a new **Penalty** filter by type (e.g. every tripping call this season). Search finds penalty types too.
+- The game screen's marks card is now "Periods, goals and penalties", with a **Penalty X** button. The penalty list can jump to each call or delete it.
+- Number keys no longer tag clips while any popup is open.
+
 ## 1.3.0 — 2026-10-27 (several categories on a clip)
 
 - **A clip can be in more than one category**, e.g. a breakout with a nice pass. In the clip editor, the Category dropdown is now a set of chips: tap every category that fits.

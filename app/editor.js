@@ -514,11 +514,12 @@ App.ready.then(() => {
     const shown = WP.clipEvents(App.G, d);
     $('e-events').replaceChildren(...WP.EVENTS.map((ev) => el('button', {
       type: 'button', class: 'chip', 'aria-pressed': String(shown.includes(ev.id)),
-      title: auto.events.includes(ev.id) ? 'From your goal marks' : null,
+      title: auto.events.includes(ev.id) ? 'From your goal and penalty marks' : null,
       onclick: () => commit(WP.toggleEvent(App.G, App.E.d, ev.id))
     }, auto.events.includes(ev.id) ? el('span', { class: 'autodot' }) : '', ev.label)));
     $('e-zone').value = d.zone || '';
-    $('e-sit').value = d.situation || 'even';
+    $('e-sit').value = WP.clipSituation(App.G, d);
+    $('e-sit').title = !d.situationSet && WP.gameMarks(App.G).penalties.length ? 'From your penalty marks (change it to override)' : '';
     $('e-tags').replaceChildren(...(d.tags || []).map((t) => el('button', { type: 'button', class: 'chip', 'aria-label': 'Remove tag ' + t, onclick: () => commit({ tags: d.tags.filter((x) => x !== t) }) }, t + ' ✕')));
     $('dl-tags').replaceChildren(...allTags().map((t) => el('option', { value: t })));
     $('e-star').setAttribute('aria-pressed', String(!!d.starred));

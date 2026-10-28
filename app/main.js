@@ -3,7 +3,7 @@ App.ready.then(() => {
   'use strict';
   const {
     $, DB, LIB, R, S, Team, applyZoom, cancelMarks, closeEditor, edBusy, edRecording, editorKey, el,
-    libSyncAll, libSyncIfStale, loaded, markGoal, markIn, markOut, markPeriod, onCategory,
+    libSyncAll, libSyncIfStale, loaded, markGoal, markIn, markOut, markPeriod, onCategory, openPenalty,
     openEditor, openGame, renderGames, renderReview, renderSettings, renderSyncBadge, replaceState,
     stopReviewPlayer, syncNow, tabs, toast
   } = App;
@@ -47,7 +47,7 @@ App.ready.then(() => {
     if (e.key === '?' && !/^(input|select|textarea)$/i.test(e.target.tagName || '') && !document.querySelector('dialog[open]')) { e.preventDefault(); openKeys(); return; }
     if (!$('view-edit').classList.contains('hidden')) { editorKey(e); return; }
     if ($('view-tag').classList.contains('hidden') || !App.G) return;
-    if ($('dlg-manual').open) return;
+    if (document.querySelector('dialog[open]')) return; // a popup (penalty, manual clip, …) has the keyboard
     const tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'select' || tag === 'textarea' || e.target.isContentEditable) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -64,6 +64,7 @@ App.ready.then(() => {
     else if (k === 'p' || k === 'P') { e.preventDefault(); markPeriod(); }
     else if (k === 'g' || k === 'G') { e.preventDefault(); markGoal('for'); } // either case, so Caps Lock can't flip it
     else if (k === 'h' || k === 'H') { e.preventDefault(); markGoal('against'); }
+    else if (k === 'x' || k === 'X') { e.preventDefault(); openPenalty(); }
     else if (/^[1-9]$/.test(k)) {
       const cat = WP.categoryForKey(S.settings.categories, k);
       if (cat) { e.preventDefault(); onCategory(cat); }

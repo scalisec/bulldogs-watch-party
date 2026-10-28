@@ -203,7 +203,8 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 
 ## Tests
 
-- `node --test tests/core.test.js` runs the core logic tests (76).
+- `node --test tests/core.test.js` runs the core logic tests (77).
+- `python3 tests/e2e_v14.py <screenshot-dir> <media-dir>` tests v1.4: penalties (popup, Back now, power play / penalty kill on clips and the timeline, the player on clips, Review's Penalty filter) (18 checks).
 - `python3 tests/e2e_v13.py <screenshot-dir> <media-dir>` tests v1.3: several categories on one clip (editor chips, main category, clip list and filter, Review filter and chips) (14 checks).
 - `python3 tests/e2e_v12.py <screenshot-dir>` tests v1.2: adding and switching teams, copied categories, each team's own games, roster, league and Drive folders, a second device finding the right team's data, the "which team?" choice, and removing a team (25 checks, simulated Drive).
 - `python3 tests/e2e_v11.py <screenshot-dir> <media-dir>` tests v1.1: the league team, the schedule picker, matching LiveBarn files to a game, logos and links, linking an older game, and the offline copy (31 checks, including Settings › Install the app). It serves the Alliance data from `tests/fixtures/alliance`.

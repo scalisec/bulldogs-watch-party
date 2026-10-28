@@ -16,7 +16,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=1.3.0">
+<link rel="stylesheet" href="styles.css?v=1.4.0">
 </head>
 <body>
 <header class="topbar">
@@ -136,11 +136,12 @@
       </details>
       <div class="card stack" id="marks-card" style="gap:10px">
         <div class="row spread">
-          <h2>Periods and goals</h2>
+          <h2>Periods, goals and penalties</h2>
           <div class="row">
             <button type="button" class="btn small" id="b-period" title="Period start / end (P)">Period start <kbd>P</kbd></button>
             <button type="button" class="btn small" id="b-goal-for" title="Goal for (G)" style="color:#86EFAC">Goal for <kbd>G</kbd></button>
             <button type="button" class="btn small" id="b-goal-against" title="Goal against (H)" style="color:#FCA5A5">Goal against <kbd>H</kbd></button>
+            <button type="button" class="btn small" id="b-penalty" title="Penalty: call one, or mark a player back (X)" style="color:#FCD34D">Penalty <kbd>X</kbd></button>
           </div>
         </div>
         <div class="chips" id="marks-list"></div>
@@ -483,6 +484,32 @@
   </form>
 </dialog>
 
+<dialog id="dlg-penalty" aria-labelledby="pen-h">
+  <form class="dlg" id="pen-form">
+    <div class="stack" style="gap:2px"><h2 id="pen-h">Penalty</h2><span class="small muted" id="pen-at"></span></div>
+    <div class="stack" id="pen-open" style="gap:6px"></div>
+    <div class="stack" style="gap:6px">
+      <span style="font-weight:600;font-size:13px">Who took it</span>
+      <div class="seg" role="group" aria-label="Which team" id="pen-team">
+        <button type="button" class="btn small" data-team="us">Us (penalty kill)</button>
+        <button type="button" class="btn small" data-team="them">Them (power play)</button>
+      </div>
+      <div class="chips" id="pen-players"></div>
+      <label class="field hidden" id="pen-num-wrap" style="max-width:200px">Their number (optional)<input type="text" id="pen-num" inputmode="numeric" maxlength="2" autocomplete="off"></label>
+    </div>
+    <label class="field">Penalty<select id="pen-type"></select></label>
+    <div class="stack" style="gap:6px">
+      <span style="font-weight:600;font-size:13px">Length</span>
+      <div class="seg" role="group" aria-label="Length" id="pen-len"></div>
+    </div>
+    <span class="small muted">Press <kbd>X</kbd> again when the player is back. A power-play goal ends a minor on its own.</span>
+    <div class="row" style="justify-content:flex-end">
+      <button type="button" class="btn" id="pen-cancel">Cancel</button>
+      <button type="submit" class="btn primary" id="pen-ok">Mark penalty</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="dlg-teams" aria-labelledby="teams-h">
   <div class="dlg">
     <div class="stack" style="gap:2px"><h2 id="teams-h">Teams on this device</h2>
@@ -539,27 +566,27 @@
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
-<script src="config.js?v=1.3.0"></script>
-<script src="core.js?v=1.3.0"></script>
-<script src="storage.js?v=1.3.0"></script>
-<script src="vendor/mp4-muxer.js?v=1.3.0"></script>
-<script src="render.js?v=1.3.0"></script>
-<script src="drive.js?v=1.3.0"></script>
-<script src="app/base.js?v=1.3.0"></script>
-<script src="app/player.js?v=1.3.0"></script>
-<script src="app/lineup.js?v=1.3.0"></script>
-<script src="app/league.js?v=1.3.0"></script>
-<script src="app/games.js?v=1.3.0"></script>
-<script src="app/tag.js?v=1.3.0"></script>
-<script src="app/editor.js?v=1.3.0"></script>
-<script src="app/record.js?v=1.3.0"></script>
-<script src="app/export.js?v=1.3.0"></script>
-<script src="app/settings.js?v=1.3.0"></script>
-<script src="app/team.js?v=1.3.0"></script>
-<script src="app/team-sync.js?v=1.3.0"></script>
-<script src="app/library.js?v=1.3.0"></script>
-<script src="app/review.js?v=1.3.0"></script>
-<script src="app/teams.js?v=1.3.0"></script>
-<script src="app/main.js?v=1.3.0"></script>
+<script src="config.js?v=1.4.0"></script>
+<script src="core.js?v=1.4.0"></script>
+<script src="storage.js?v=1.4.0"></script>
+<script src="vendor/mp4-muxer.js?v=1.4.0"></script>
+<script src="render.js?v=1.4.0"></script>
+<script src="drive.js?v=1.4.0"></script>
+<script src="app/base.js?v=1.4.0"></script>
+<script src="app/player.js?v=1.4.0"></script>
+<script src="app/lineup.js?v=1.4.0"></script>
+<script src="app/league.js?v=1.4.0"></script>
+<script src="app/games.js?v=1.4.0"></script>
+<script src="app/tag.js?v=1.4.0"></script>
+<script src="app/editor.js?v=1.4.0"></script>
+<script src="app/record.js?v=1.4.0"></script>
+<script src="app/export.js?v=1.4.0"></script>
+<script src="app/settings.js?v=1.4.0"></script>
+<script src="app/team.js?v=1.4.0"></script>
+<script src="app/team-sync.js?v=1.4.0"></script>
+<script src="app/library.js?v=1.4.0"></script>
+<script src="app/review.js?v=1.4.0"></script>
+<script src="app/teams.js?v=1.4.0"></script>
+<script src="app/main.js?v=1.4.0"></script>
 </body>
 </html>
