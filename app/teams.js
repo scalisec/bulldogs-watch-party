@@ -25,7 +25,10 @@ App.ready.then(() => {
     const db = WPStore.createDb({ name: t.db });
     const { state } = await db.load();
     state.settings.team = { name: n, season: S.settings.team.season || '' };
-    state.settings.league = WP.normalizeLeague({ teamId: '' });
+    // the league team, when the name clearly says which one (e.g. "Burlington Barracudas U13 B")
+    const guess = App.League && App.League.state.teams ? WP.guessLeagueTeam(App.League.state.teams, n) : null;
+    state.settings.league = WP.normalizeLeague(guess && guess.sure ? guess.team : { teamId: '' });
+    t.leagueGuess = guess && guess.sure ? guess.team : null;
     state.settings.coachName = S.settings.coachName;
     if (copyCats) state.settings.categories = JSON.parse(JSON.stringify(S.settings.categories));
     await db.writeAll();
@@ -66,7 +69,7 @@ App.ready.then(() => {
     try {
       const t = await addTeam($('teams-name').value, $('teams-copy').checked);
       $('teams-name').value = '';
-      toast('Added ' + t.name + '. Opening it…');
+      toast('Added ' + t.name + (t.leagueGuess ? ', with the ' + t.leagueGuess.name + ' schedule (' + t.leagueGuess.division + ')' : '') + '. Opening it…');
       await switchTo(t.id, '#team/info');
     } catch (err) { toast(err.message, { err: true }); }
   });

@@ -1054,3 +1054,16 @@ test('game status: strength and unended penalties (forgotten ones stay listed)',
   assert.equal(WP.unendedPenalties(g, est + 61).length, 1);
   assert.equal(WP.unendedPenalties(g, 50).length, 0, 'not yet called');
 });
+
+test('guessLeagueTeam finds the league team from a Watch Party team name', () => {
+  const teams = WP.leagueTeams(ALLIANCE_TEAMS.concat(require('./fixtures/alliance/data/clubs.json')));
+  const g = WP.guessLeagueTeam(teams, 'Burlington Barracudas U13 B');
+  assert.equal(g.team.teamId, 'bghc-2066:burlington-barracudas');
+  assert.ok(g.sure, 'name and division both match');
+  const b = WP.guessLeagueTeam(teams, 'Bulldogs U10 Blue');
+  assert.equal(b, null, 'no league team name is inside "Bulldogs U10 Blue"');
+  const b2 = WP.guessLeagueTeam(teams, 'Burlington Bulldogs Blue U10 BB');
+  assert.equal(b2.team.teamId, '2712:burlington-bulldogs-blue');
+  assert.ok(b2.sure);
+  assert.equal(WP.guessLeagueTeam(teams, 'Spare team'), null);
+});

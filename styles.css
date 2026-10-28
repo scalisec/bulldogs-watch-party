@@ -323,3 +323,6 @@ dialog.wide { max-width: 680px; }
 .gs-pen { display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 12px; border-radius: 10px; background: var(--surface-2); border-left: 4px solid #F97316; flex-wrap: wrap; }
 .gs-pen.them { border-left-color: #22C55E; }
 .gs-pen.over { outline: 1px dashed #F59E0B; }
+
+/* league team suggestion (v1.6.1) */
+.lgsuggest { gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent-soft); }

@@ -2,8 +2,8 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '1.6.0';
-  const APP_RELEASED = '2026-10-27';
+  const APP_VERSION = '1.6.1';
+  const APP_RELEASED = '2026-10-28';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
   const DEFAULT_AFTER = 4;
@@ -1434,6 +1434,28 @@
       .sort((a, b) => a.division.localeCompare(b.division, undefined, { numeric: true }) || a.name.localeCompare(b.name));
   }
 
+  /**
+   * The league team a Watch Party team most likely is, from its name, e.g. "Burlington Barracudas U13 B"
+   * -> Burlington Barracudas · U13 B (OWHA). Needs the league team's whole name in ours; the division
+   * ("U13 B", "U10 BB") breaks ties. Returns { team, sure } or null.
+   */
+  function guessLeagueTeam(teams, ourName) {
+    const norm = (x) => ' ' + String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() + ' ';
+    const ours = norm(ourName);
+    if (ours.trim().length < 3) return null;
+    const scored = [];
+    for (const t of teams || []) {
+      if (!ours.includes(norm(t.name))) continue;
+      const div = norm(String(t.division || '').replace(/\(.*\)/, ''));
+      scored.push({ t, s: norm(t.name).length + (div.trim() && ours.includes(div) ? 100 : 0) });
+    }
+    if (!scored.length) return null;
+    scored.sort((a, b) => b.s - a.s);
+    const best = scored[0];
+    const tie = scored.length > 1 && scored[1].s === best.s;
+    return tie ? null : { team: best.t, sure: best.s >= 100 };
+  }
+
   /** "Mountainside (Mountainside)" -> "Mountainside"; other venues stay as they are. */
   function cleanVenue(v) {
     const t = cleanText(v, 80);
@@ -1786,7 +1808,7 @@
     PENALTY_TYPES, PENALTY_LENGTHS, PENALTY_VIDEO_FACTOR, penaltyLabel, addPenalty, endPenalty, removePenalty, penaltyEnd, openPenalties, unendedPenalties, strengthAt, situationAt, strengthBands, clipSituation, penaltyPlayers,
     clipCategoryIds, categoriesPatch, toggleClipCategory, clipCategoryLabel,
     applyEntryTags, folderName, teamFolderKeys, destLabel,
-    DEFAULT_LEAGUE, divisionKey, normalizeLeague, leagueTeams, leagueLogo, cleanVenue, scoreResult, gamesheetUrl, teamSchedule, matchScheduleGame, scheduleFields, leagueLink, linkGame, formatClock
+    DEFAULT_LEAGUE, divisionKey, normalizeLeague, guessLeagueTeam, leagueTeams, leagueLogo, cleanVenue, scoreResult, gamesheetUrl, teamSchedule, matchScheduleGame, scheduleFields, leagueLink, linkGame, formatClock
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = WP;

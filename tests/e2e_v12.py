@@ -64,7 +64,7 @@ with sync_playwright() as p:
     check(A.url.endswith('#team/info') and A.text_content('#team-pill') == CUDAS, 'new team opens on its Team page, header shows ' + CUDAS)
     check(state(A, 'settings.roster') == [] and state(A, 'games') == [] and state(A, 'sync') is None, 'new team starts with no roster, no games and no Drive link')
     check(len(state(A, 'settings.categories')) == cats and any(c['name'] == 'Penalty kill' for c in state(A, 'settings.categories')), 'clip categories copied from the first team')
-    check(state(A, 'settings.league.teamId') == '' and state(A, 'settings.coachName') == 'Cristian', 'new team: no league team yet; your name carried over')
+    check(state(A, 'settings.league.teamId') == '' and state(A, 'settings.coachName') == 'Cristian', 'new team: no league team yet (offline here); your name carried over')
     A.wait_for_selector('#lg-team')
     check(A.input_value('#lg-team') == '', 'league picker starts on “Don’t use the league schedule”')
     team(A, 'roster'); A.fill('#r-num', '11'); A.fill('#r-name', 'Ava'); A.fill('#r-last', 'Scali'); A.click('#roster-add button[type=submit]')

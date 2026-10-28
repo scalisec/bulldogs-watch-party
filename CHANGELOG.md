@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.1 — 2026-10-28 (finding a club team's schedule)
+
+- **Barracudas (and other club teams) are easy to find now.**
+  - A team without a league team gets an **"Is this Burlington Barracudas · U13 B (OWHA)? Use its schedule"** button on the New game form and the Team page, whenever its name contains a league team's name.
+  - Adding a team whose name clearly says which league team it is (e.g. "Burlington Barracudas U13 B") picks that team's schedule automatically.
+- **League team picker:** a **Find a team** box narrows the 350+ teams as you type. Club teams (OWHA) are listed first, then Alliance teams by division ("Alliance · U10 BB").
+- The app's saved copy of the team list is refreshed. A copy saved before club teams were published (which had no Barracudas) is no longer used.
+
 ## 1.6.0 — 2026-10-27 (game status panel)
 
 - **A game status panel under the video**, always in view while you watch and tag:

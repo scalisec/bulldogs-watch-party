@@ -10,7 +10,7 @@ App.ready.then(() => {
   const BASE = String((window.WP_CONFIG && window.WP_CONFIG.leagueDataUrl) || 'https://scalisec.github.io/alliance-tracker/').replace(/\/?$/, '/');
   const GAMES_STALE = 30 * 60 * 1000;      // re-read the schedule after 30 minutes
   const TEAMS_STALE = 24 * 60 * 60 * 1000; // the team list changes rarely
-  const K_TEAMS = 'bwp-league-teams';
+  const K_TEAMS = 'bwp-league-teams-2'; // v1.6.1: new name, so copies saved before club teams existed are dropped
   const K_GAMES = App.teamKey('bwp-league-games');
 
   const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
@@ -131,7 +131,8 @@ App.ready.then(() => {
     const v = views.get(o.key) || { open: false, upcoming: false };
     views.set(o.key, v);
     if (!lg.teamId) {
-      box.replaceChildren(el('span', { class: 'small muted' }, 'Pick your league team on the ', el('a', { href: '#team/info' }, 'Team page'), ' to fill in games from the league schedule.'));
+      if (!L.teams && !L.loading && !L.error) load();
+      box.replaceChildren(suggestion(o.key + '-suggest') || el('span', { class: 'small muted' }, 'Pick your league team on the ', el('a', { href: '#team/info' }, 'Team page'), ' to fill in games from the league schedule.'));
       return;
     }
     const sched = schedule();
@@ -177,7 +178,29 @@ App.ready.then(() => {
     box.replaceChildren(...parts);
   }
 
+  /** Use this league team for the current team (shared with the coaches). */
+  function setLeagueTeam(t) {
+    S.settings.league = WP.normalizeLeague(t ? t : { teamId: '' });
+    App.teamChanged();
+    App.renderSettings();
+    load(true);
+    toast(t ? 'League team: ' + t.name + ' (' + t.division + ')' : 'Not using the league schedule');
+    notify();
+  }
+
+  /** "Is this Burlington Barracudas · U13 B (OWHA)? [Use its schedule]" when no league team is set and the name fits one. */
+  function suggestion(id) {
+    if (team().teamId || !L.teams) return null;
+    const g = WP.guessLeagueTeam(L.teams, S.settings.team.name);
+    if (!g) return null;
+    return el('div', { class: 'row lgsuggest', id: id || null },
+      logo(g.team.logo, 32),
+      el('span', { class: 'grow' }, 'Is this ', el('strong', {}, g.team.name), ' · ' + g.team.division + '?'),
+      el('button', { type: 'button', class: 'btn small primary', onclick: () => setLeagueTeam(g.team) }, 'Use its schedule'));
+  }
+
   // ---------------- Team › Team and league ----------------
+  let pickerFilter = '';
   function renderLeagueSetting() {
     const box = $('league-setting');
     if (!box) return;
@@ -185,34 +208,41 @@ App.ready.then(() => {
     const teams = L.teams;
     const sel = el('select', { id: 'lg-team', 'aria-label': 'League team', onchange: (e) => {
       const t = (L.teams || []).find((x) => x.teamId === e.target.value);
-      S.settings.league = WP.normalizeLeague(t ? t : { teamId: '' });
-      App.teamChanged();
-      App.renderSettings();
+      pickerFilter = '';
+      setLeagueTeam(t);
       renderLeagueSetting();
-      load(true);
-      toast(t ? 'League team: ' + t.name + ' (' + t.division + ')' : 'Not using the league schedule');
     } }, el('option', { value: '' }, 'Don’t use the league schedule'));
     if (teams) {
+      // club teams (OWHA etc.) first, then the Alliance by division; the Find box narrows the list
+      const q = pickerFilter.toLowerCase().split(/\s+/).filter(Boolean);
+      const fits = (t) => !q.length || q.every((w) => (t.name + ' ' + t.division + ' ' + (t.association || '')).toLowerCase().includes(w));
+      const club = (t) => t.league && t.league !== 'Alliance';
+      const shown = teams.filter(fits).sort((a, b) => (club(a) === club(b) ? 0 : club(a) ? -1 : 1));
       const byDiv = new Map();
-      for (const t of teams) { if (!byDiv.has(t.division)) byDiv.set(t.division, []); byDiv.get(t.division).push(t); }
+      for (const t of shown) { const k = club(t) ? t.league + ' · ' + t.division.replace(/\s*\(.*\)/, '') : 'Alliance · ' + t.division; if (!byDiv.has(k)) byDiv.set(k, []); byDiv.get(k).push(t); }
       for (const [div, list] of byDiv) sel.append(el('optgroup', { label: div }, ...list.map((t) => el('option', { value: t.teamId }, t.name))));
+      if (q.length && !shown.length) sel.append(el('option', { value: '', disabled: '' }, 'No team matches “' + pickerFilter + '”'));
     }
     if (lg.teamId && !(teams || []).some((t) => t.teamId === lg.teamId)) sel.append(el('option', { value: lg.teamId }, lg.name + (lg.division ? ' (' + lg.division + ')' : '')));
     sel.value = lg.teamId || '';
     const sched = schedule();
+    const search = el('input', { type: 'search', id: 'lg-search', placeholder: 'e.g. Barracudas or U13', 'aria-label': 'Find a league team', autocomplete: 'off', value: pickerFilter,
+      oninput: (e) => { pickerFilter = e.target.value; renderLeagueSetting(); const n = $('lg-search'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } } });
     box.replaceChildren(
-      el('div', { class: 'row', style: 'align-items:center' },
+      suggestion('lg-suggest-team') || '',
+      el('div', { class: 'row', style: 'align-items:flex-end' },
         lg.teamId ? logo(lg.logo, 48) : '',
-        el('label', { class: 'field grow' }, 'League team', sel)),
+        el('label', { class: 'field', style: 'flex:1 1 200px' }, 'Find a team', search),
+        el('label', { class: 'field', style: 'flex:2 1 260px' }, 'League team', sel)),
       el('span', { class: 'small muted' }, lg.teamId
         ? (sched ? sched.length + ' games on the schedule · ' : '') + 'New games fill in from this team’s schedule (' + (lg.division && /OWHA/.test(lg.division) ? 'its club site' : 'the Alliance') + '): opponent, rink, time, home or away, and the final score. Shared with every coach.'
-        : 'Pick your team to fill in games from its schedule instead of typing them. Alliance teams are listed by division; OWHA club teams are marked (OWHA).'),
+        : 'Pick your team to fill in games from its schedule instead of typing them. OWHA club teams are listed first, then Alliance teams by division.'),
       !teams ? el('span', { class: 'small ' + (L.error ? 'warn' : 'muted') }, L.loading ? 'Loading the league’s teams…' : L.error || '') : '');
     if (!teams && !L.loading && !L.error) load();
   }
 
   onChange(() => { if (!$('view-team').classList.contains('hidden')) renderLeagueSetting(); });
 
-  App.League = { load, schedule, lists, logoUrl, logo, onChange, whenText, vsText, metaText, state: L };
+  App.League = { load, schedule, lists, logoUrl, logo, onChange, whenText, vsText, metaText, setLeagueTeam, state: L };
   Object.assign(App, { renderSchedulePicker, renderLeagueSetting });
 }).catch((e) => setTimeout(() => { throw e; }));

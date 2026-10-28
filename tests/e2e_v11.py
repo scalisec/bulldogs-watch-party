@@ -45,7 +45,7 @@ with sync_playwright() as p:
     page.wait_for_function("document.querySelectorAll('#lg-team option').length > 10", timeout=10000)
     check(val(page, '#lg-team') == '2712:burlington-bulldogs-blue', 'league team defaults to Burlington Bulldogs Blue')
     check(page.locator('#league-setting img.lglogo').count() == 1, 'team logo shows next to the league team')
-    check(page.locator('#lg-team optgroup[label="U10 BB"]').count() == 1, 'league teams are grouped by division')
+    check(page.locator('#lg-team optgroup[label="Alliance · U10 BB"]').count() == 1, 'league teams are grouped by division')
     page.screenshot(path=SHOTS + '/v11-team-league.png', full_page=True)
 
     # ---- New game: dropping the LiveBarn files picks the Oct 18 game
@@ -132,7 +132,7 @@ with sync_playwright() as p:
     check('vs Burlington Bulldogs Blue' in page.text_content('#gs-list') or 'at Burlington Bulldogs Blue' in page.text_content('#gs-list'), 'schedule follows the new league team')
     # OWHA club team (Barracudas) from clubs.json
     page.goto(APP + '#team/info'); page.wait_for_selector('#lg-team')
-    check(page.locator('#lg-team optgroup[label="U13 B (OWHA)"] option').count() == 1, 'league team list includes OWHA club teams (Barracudas)')
+    check(page.locator('#lg-team optgroup[label="OWHA · U13 B"] option').count() == 1, 'league team list includes OWHA club teams (Barracudas)')
     page.select_option('#lg-team', 'bghc-2066:burlington-barracudas')
     page.goto(APP + '#games'); page.wait_for_selector('#gs-list', timeout=10000)
     txt = page.text_content('#gs-list')
