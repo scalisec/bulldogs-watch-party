@@ -87,6 +87,7 @@ In the clip editor, tick **Voice-over** and/or **Record at half speed**, then cl
 | I / O | Mark start / end |
 | P | Period start / end |
 | G / H | Goal for / goal against |
+| X | Penalty: call one (who, type, length), or mark a player back |
 | + / − / 0 | Zoom in / out / fit |
 | Esc | Cancel marks |
 
