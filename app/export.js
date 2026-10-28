@@ -3,7 +3,7 @@ App.ready.then(() => {
   'use strict';
   const {
     $, DB, S, catById, commit, edBusy, edRecording, edSeek, el, exitDraw, idb, recT, renderEditor,
-    renderRecPanel, save, setEdZoom, startPreview, stopPreview, stopRecording, toast, undoShape
+    renderRecPanel, save, session, setEdZoom, startPreview, stopPreview, stopRecording, toast, undoShape
   } = App;
 
   // ---- export ----
@@ -50,8 +50,15 @@ App.ready.then(() => {
         voiceBlob = await idb.get('voice:' + d.id);
         if (!voiceBlob) throw new Error('the voice-over for this clip isn\u2019t on this computer. Record it again.');
       }
+      // the game's own sound, read from the LiveBarn files for just this clip (normal-speed parts only)
+      const plan = WP.buildPlan(d);
+      let rink = null;
+      if (rinkOn()) {
+        try { rink = await WPAudio.rinkTrack(plan, App.TL, session.files.get(App.G.id) || []); } catch (e) { rink = null; }
+        if (!rink) toast('This video’s sound couldn’t be read, so the clip is exported without rink sound.', { ms: 6000 });
+      }
       const res = await WPRender.exportClip({
-        player: App.E.player, video: $('e-video'), plan: WP.buildPlan(d), W: App.E.W, H: App.E.H,
+        player: App.E.player, video: $('e-video'), plan, W: App.E.W, H: App.E.H, rink,
         zoom: d.zoom, shapes: d.freeze ? d.freeze.shapes : [], title: d.titleBar !== false ? WP.titleLines(d, cat, App.G) : null,
         frameAt: rec ? (outT) => ({ zoom: WP.recZoomAt(rec, outT), shapes: WP.recShapesAt(rec, outT) }) : null,
         voiceBlob,
@@ -114,6 +121,11 @@ App.ready.then(() => {
   // ---- editor: where the export goes ----
   // where exports go: remembered on this device
   const DEST_KEY = App.teamKey('bwp-dest-pick');
+  // Include rink sound (on unless turned off; remembered on this device)
+  const RINK_KEY = 'bwp-rink-sound';
+  const rinkOn = () => { try { return localStorage.getItem(RINK_KEY) !== 'off'; } catch (e) { return true; } };
+  $('e-rink').checked = rinkOn();
+  $('e-rink').addEventListener('change', (e) => { try { localStorage.setItem(RINK_KEY, e.target.checked ? 'on' : 'off'); } catch (err) { /* private window */ } });
   const destPick = Object.assign({ local: true, team: false, coaches: false, players: false, private: false }, (() => { try { return JSON.parse(localStorage.getItem(DEST_KEY) || '{}'); } catch (e) { return {}; } })());
   function saveDestPick() { try { localStorage.setItem(DEST_KEY, JSON.stringify(destPick)); } catch (e) { /* ignore */ } }
 

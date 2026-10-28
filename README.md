@@ -205,7 +205,8 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 
 ## Tests
 
-- `node --test tests/core.test.js` runs the core logic tests (79).
+- `node --test tests/core.test.js` runs the core logic tests (81), including reading the audio track of a small generated MP4 (`tests/fixtures/media`).
+- `python3 tests/e2e_v17.py <screenshot-dir> <media-dir>` tests v1.7: rink sound in exports (sound in normal-speed parts, quiet in slow motion, in sync, the on/off box, a clip across two parts). It needs MP4 copies of the test game with VP9 + Opus in `<media-dir>/opusmp4/`, because the test browser can't decode AAC (11 checks).
 - `python3 tests/e2e_v161.py <screenshot-dir>` tests v1.6.1: finding a club team's schedule (suggestion, automatic pick on Add team, Find box, club teams first, old saved list ignored) (11 checks).
 - `python3 tests/e2e_v16.py <screenshot-dir> <media-dir>` tests v1.6: the game status panel (period and score, strength, End penalty, quick buttons, forgotten penalties) (12 checks).
 - `python3 tests/e2e_v15.py <screenshot-dir> <media-dir>` tests v1.5: T for a custom tag (popup, suggestions, category, I/O marks, Esc) (14 checks).
@@ -238,6 +239,7 @@ GitHub runs the core tests, `e2e_drive.py`, `e2e_v07.py` and `e2e_v12.py` on eve
 | `app/export.js` | Export and save to this computer or Drive |
 | `app/lineup.js` | The lineup editor (New game form and game screen) |
 | `app/teams.js` | Several teams on one device: the header team switcher, Add a team, and the “which team?” choice |
+| `audio.js` | Rink sound for exports: reads a clip's audio straight from the MP4 (AAC or Opus), decodes it and lays it on the clip's timeline |
 | `app/league.js` | The league schedule: reads Alliance Tracker data, the schedule picker and the League team setting |
 | `app/settings.js` | Settings screen: your name, Google sign-in, shortcuts, about |
 | `app/team.js` | Team page: roster, coaches, categories, lists, and the Admin section |

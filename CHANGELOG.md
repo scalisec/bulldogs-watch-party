@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.7.0 — 2026-10-28 (rink sound in exported clips)
+
+- **Exported clips now carry the game's sound.** Until now, an exported clip only had sound when you'd recorded a breakdown with your voice.
+  - The rink sound plays during the normal-speed parts.
+  - Slow-motion and freeze-frame parts are quiet, and the sound picks up again in sync afterwards.
+  - On a breakdown with your voice-over, the rink sound goes underneath, quietly (about a quarter volume).
+- **"Include rink sound"** on the export panel turns it on or off. It's on by default, and the choice is remembered on this computer.
+- **How it works:** the app reads just the clip's few seconds of audio straight from the LiveBarn MP4, so there's no extra wait for long games. A clip that spans two LiveBarn files gets sound from both.
+- **If a video's sound can't be read** (e.g. not an MP4), the clip still exports, without rink sound, and the app says so.
+
 ## 1.6.1 — 2026-10-28 (finding a club team's schedule)
 
 - **Barracudas (and other club teams) are easy to find now.**

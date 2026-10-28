@@ -241,6 +241,7 @@
   }
 
   async function encodeAudio(voice, codec, muxer, maxSeconds) {
+    // a whole-clip track of silence-then-sound starts at 0, so every chunk's timestamp is its place in the clip
     let err = null;
     const enc = new AudioEncoder({ output: (chunk, meta) => muxer.addAudioChunk(chunk, meta), error: (e) => { err = e; } });
     enc.configure(codec.config);
@@ -262,17 +263,22 @@
 
   /** Export one clip to an MP4 Blob.
       o.frameAt(outT, seg) -> { zoom, shapes } lets a recorded breakdown change zoom and drawings frame by frame.
-      o.voiceBlob adds the coach's voice as the sound track. */
+      o.voiceBlob adds the coach's voice as the sound track.
+      o.rink ({ samples, sampleRate } from WPAudio.rinkTrack) adds the game's sound; with a voice it goes underneath, quietly. */
   async function exportClip(o) {
     const { player, video, plan, W, H } = o;
     const codec = await pickCodec(W, H);
     const total = WP.planDuration(plan);
     let voice = null;
     let acodec = null;
-    if (o.voiceBlob) {
-      voice = await decodeVoice(o.voiceBlob);
+    if (o.voiceBlob) voice = await decodeVoice(o.voiceBlob);
+    if (o.rink) voice = root.WPAudio.mixTracks(voice, o.rink, 0.25);
+    if (voice) {
       acodec = await pickAudioCodec(voice.sampleRate);
-      if (!acodec) throw new Error('This browser can\u2019t add sound to video files. Use the latest Chrome or Edge.');
+      if (!acodec) {
+        if (o.voiceBlob) throw new Error('This browser can\u2019t add sound to video files. Use the latest Chrome or Edge.');
+        voice = null; // rink sound only: export without it rather than fail
+      }
     }
     const target = new Mp4Muxer.ArrayBufferTarget();
     const muxer = new Mp4Muxer.Muxer(Object.assign({ target, video: { codec: codec.mux, width: W, height: H }, fastStart: 'in-memory', firstTimestampBehavior: 'offset' },

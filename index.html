@@ -16,7 +16,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=1.6.1">
+<link rel="stylesheet" href="styles.css?v=1.7.0">
 </head>
 <body>
 <header class="topbar">
@@ -291,6 +291,7 @@
       <span class="small muted" id="e-auto"></span>
       <div class="row"><strong style="font-size:13px">Zoom</strong><span class="small" id="e-zoom-text"></span><span class="small muted">Scroll or drag on the picture to change</span></div>
       <label style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:13px"><input type="checkbox" id="e-title-on" style="width:20px;height:20px;flex:none">Add title bar (category, game, players, note)</label>
+      <label style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:13px" title="The game's sound at normal speed; quiet during slow motion and freeze frames, and under your voice-over"><input type="checkbox" id="e-rink" style="width:20px;height:20px;flex:none" checked>Include rink sound</label>
       <div class="stack" style="gap:6px;border-top:1px solid var(--line);padding-top:12px">
         <div class="stack" style="gap:4px" id="e-dests"></div>
         <button type="button" class="btn primary" id="e-export">Export MP4</button>
@@ -593,27 +594,28 @@
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
-<script src="config.js?v=1.6.1"></script>
-<script src="core.js?v=1.6.1"></script>
-<script src="storage.js?v=1.6.1"></script>
-<script src="vendor/mp4-muxer.js?v=1.6.1"></script>
-<script src="render.js?v=1.6.1"></script>
-<script src="drive.js?v=1.6.1"></script>
-<script src="app/base.js?v=1.6.1"></script>
-<script src="app/player.js?v=1.6.1"></script>
-<script src="app/lineup.js?v=1.6.1"></script>
-<script src="app/league.js?v=1.6.1"></script>
-<script src="app/games.js?v=1.6.1"></script>
-<script src="app/tag.js?v=1.6.1"></script>
-<script src="app/editor.js?v=1.6.1"></script>
-<script src="app/record.js?v=1.6.1"></script>
-<script src="app/export.js?v=1.6.1"></script>
-<script src="app/settings.js?v=1.6.1"></script>
-<script src="app/team.js?v=1.6.1"></script>
-<script src="app/team-sync.js?v=1.6.1"></script>
-<script src="app/library.js?v=1.6.1"></script>
-<script src="app/review.js?v=1.6.1"></script>
-<script src="app/teams.js?v=1.6.1"></script>
-<script src="app/main.js?v=1.6.1"></script>
+<script src="config.js?v=1.7.0"></script>
+<script src="core.js?v=1.7.0"></script>
+<script src="storage.js?v=1.7.0"></script>
+<script src="vendor/mp4-muxer.js?v=1.7.0"></script>
+<script src="render.js?v=1.7.0"></script>
+<script src="audio.js?v=1.7.0"></script>
+<script src="drive.js?v=1.7.0"></script>
+<script src="app/base.js?v=1.7.0"></script>
+<script src="app/player.js?v=1.7.0"></script>
+<script src="app/lineup.js?v=1.7.0"></script>
+<script src="app/league.js?v=1.7.0"></script>
+<script src="app/games.js?v=1.7.0"></script>
+<script src="app/tag.js?v=1.7.0"></script>
+<script src="app/editor.js?v=1.7.0"></script>
+<script src="app/record.js?v=1.7.0"></script>
+<script src="app/export.js?v=1.7.0"></script>
+<script src="app/settings.js?v=1.7.0"></script>
+<script src="app/team.js?v=1.7.0"></script>
+<script src="app/team-sync.js?v=1.7.0"></script>
+<script src="app/library.js?v=1.7.0"></script>
+<script src="app/review.js?v=1.7.0"></script>
+<script src="app/teams.js?v=1.7.0"></script>
+<script src="app/main.js?v=1.7.0"></script>
 </body>
 </html>

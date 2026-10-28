@@ -1067,3 +1067,37 @@ test('guessLeagueTeam finds the league team from a Watch Party team name', () =>
   assert.ok(b2.sure);
   assert.equal(WP.guessLeagueTeam(teams, 'Spare team'), null);
 });
+
+// ---------- rink sound: reading the audio track from an MP4 (v1.7) ----------
+const WPAudio = require('../audio.js');
+const fsMod = require('node:fs');
+async function trackOf(path) {
+  const buf = fsMod.readFileSync(path);
+  return WPAudio.readTrack(async (o, n) => new Uint8Array(buf.buffer, buf.byteOffset + o, Math.min(n, buf.length - o)), buf.length);
+}
+
+test('MP4 audio track: AAC, with the index at the end or the start', async () => {
+  for (const f of ['tone-aac.mp4', 'tone-aac-faststart.mp4']) {
+    const t = await trackOf(__dirname + '/fixtures/media/' + f);
+    assert.equal(t.codec, 'mp4a.40.2', f);
+    assert.equal(t.sampleRate, 48000);
+    assert.equal(t.channels, 2);
+    assert.ok(t.description.length >= 2, 'AudioSpecificConfig found');
+    const dur = (t.samples[t.samples.length - 1].dts + t.samples[t.samples.length - 1].dur - t.shift) / t.timescale;
+    assert.ok(Math.abs(dur - 2) < 0.1, f + ': about 2 s of audio (' + dur + ')');
+    assert.ok(t.samples.every((s, i) => s.size > 0 && (!i || s.dts > t.samples[i - 1].dts)), 'sample table in order');
+  }
+  const buf = fsMod.readFileSync(__dirname + '/fixtures/media/tone-aac.mp4');
+  const t = await trackOf(__dirname + '/fixtures/media/tone-aac.mp4');
+  const s0 = t.samples[3];
+  assert.ok(s0.offset + s0.size <= buf.length, 'sample offsets point inside the file');
+});
+
+test('mixTracks: voice on top, rink sound quietly underneath', () => {
+  const voice = { samples: new Float32Array([0.5, 0.5, 0]), sampleRate: 48000 };
+  const rink = { samples: new Float32Array([0.4, 0.4, 0.4, 0.4]), sampleRate: 48000 };
+  const m = WPAudio.mixTracks(voice, rink, 0.25);
+  assert.deepEqual(Array.from(m.samples).map((x) => Math.round(x * 100) / 100), [0.6, 0.6, 0.1, 0.1]);
+  assert.equal(WPAudio.mixTracks(null, rink), rink);
+  assert.equal(WPAudio.mixTracks(voice, null), voice);
+});
