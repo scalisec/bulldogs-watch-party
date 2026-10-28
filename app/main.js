@@ -3,7 +3,7 @@ App.ready.then(() => {
   'use strict';
   const {
     $, DB, LIB, R, S, Team, applyZoom, cancelMarks, closeEditor, edBusy, edRecording, editorKey, el,
-    libSyncAll, libSyncIfStale, loaded, markGoal, markIn, markOut, markPeriod, onCategory, openPenalty,
+    libSyncAll, libSyncIfStale, loaded, markGoal, markIn, markOut, markPeriod, onCategory, openPenalty, openQuickTag,
     openEditor, openGame, renderGames, renderReview, renderSettings, renderSyncBadge, replaceState,
     stopReviewPlayer, syncNow, tabs, toast
   } = App;
@@ -65,6 +65,7 @@ App.ready.then(() => {
     else if (k === 'g' || k === 'G') { e.preventDefault(); markGoal('for'); } // either case, so Caps Lock can't flip it
     else if (k === 'h' || k === 'H') { e.preventDefault(); markGoal('against'); }
     else if (k === 'x' || k === 'X') { e.preventDefault(); openPenalty(); }
+    else if (k === 't' || k === 'T') { e.preventDefault(); openQuickTag(); }
     else if (/^[1-9]$/.test(k)) {
       const cat = WP.categoryForKey(S.settings.categories, k);
       if (cat) { e.preventDefault(); onCategory(cat); }

@@ -290,6 +290,7 @@ App.ready.then(() => {
     let clip;
     try {
       clip = WP.makeClip(Object.assign({ total: App.TL.total, by: S.settings.coachName }, fields));
+      if (fields.tags) clip.tags = WP.normalizeTags(fields.tags);
       const pp = WP.penaltyPlayers(App.G, clip.start, clip.end);
       if (pp.length) clip.players = WP.normalizePlayers(clip.players.concat(pp));
     } catch (e) { toast(e.message, { err: true }); return null; }
@@ -451,6 +452,7 @@ App.ready.then(() => {
         el('span', {}, c.players.length ? c.players.map((p) => '#' + p).join(' ') : 'No players'),
         el('span', { class: 'pill ' + c.flag }, c.flag === 'work' ? 'Work on this' : 'Do this'),
         WP.hasRec(c) ? el('span', { class: 'pill recpill' }, '\u25CF Breakdown' + (c.rec.voice ? ' + voice' : '')) : (c.zoom ? el('span', { class: 'pill zoompill' }, zoomLabel(c.zoom)) : null),
+        ...(c.tags || []).map((t) => el('span', { class: 'pill tagpill' }, '#' + t)),
         c.by ? el('span', {}, 'by ' + c.by) : null
       ),
       (WP.clipEvents(App.G, c).length || autoLine(App.G, c) || c.private || c.starred) ? el('div', { class: 'meta' }, ...evBadges(App.G, c), autoLine(App.G, c) ? el('span', {}, autoLine(App.G, c)) : '', c.starred ? el('span', { style: 'color:#FACC15' }, '\u2605') : '', c.private ? el('span', { class: 'pill lockpill' }, '\uD83D\uDD12 Private') : '') : null,
@@ -532,6 +534,46 @@ App.ready.then(() => {
     const id = m.goals.find((g) => Math.abs(g.t - Math.round(t * 10) / 10) < 0.01 && g.side === side).id;
     toast((side === 'for' ? 'Goal for' : 'Goal against') + ' at ' + WP.formatTime(t) + ' — score ' + f + '–' + a, { action: { label: 'Undo', fn: () => { App.G.marks = WP.removeGoal(App.G, id); marksChanged(); } } });
   }
+
+  // ---- custom tag (T): a new clip at this moment with a tag you type ----
+  const QT = { t: 0, wasPlaying: false, catId: null, range: null };
+  function openQuickTag() {
+    if (!App.player || !App.G) { toast('Connect the video files first', { err: true }); return; }
+    QT.t = App.player.time();
+    QT.range = App.awaiting ? { start: App.awaiting.start, end: App.awaiting.end } : App.pendingStart != null && QT.t > App.pendingStart ? { start: App.pendingStart, end: QT.t } : null;
+    QT.wasPlaying = App.player.isPlaying();
+    if (QT.wasPlaying) App.player.pause();
+    const cats = S.settings.categories.filter((c) => !c.hidden);
+    const last = App.G.clips.length ? App.G.clips[App.G.clips.length - 1].categoryId : null;
+    QT.catId = cats.some((c) => c.id === QT.catId) ? QT.catId : cats.some((c) => c.id === last) ? last : (cats[0] || {}).id;
+    $('qt-cat').replaceChildren(...cats.map((c) => el('option', { value: c.id }, c.name)));
+    $('qt-cat').value = QT.catId || '';
+    $('dl-qtags').replaceChildren(...App.allTags().map((t) => el('option', { value: t })));
+    $('qt-at').textContent = QT.range ? 'Clip ' + WP.formatTime(QT.range.start) + '–' + WP.formatTime(QT.range.end) + ' (your start/end marks)' : 'At ' + WP.formatTime(QT.t) + ' · uses the category’s before/after window';
+    $('qt-tag').value = '';
+    $('dlg-qtag').showModal();
+    $('qt-tag').focus();
+  }
+  function closeQuickTag() {
+    if ($('dlg-qtag').open) $('dlg-qtag').close();
+    if (QT.wasPlaying && App.player) App.player.resume();
+    QT.wasPlaying = false;
+  }
+  function saveQuickTag() {
+    const tags = WP.normalizeTags($('qt-tag').value.split(','));
+    if (!tags.length) { toast('Type a tag first', { err: true }); $('qt-tag').focus(); return; }
+    const cat = catById($('qt-cat').value);
+    if (!cat) { toast('Pick a category', { err: true }); return; }
+    QT.catId = cat.id;
+    const w = QT.range || WP.autoWindow(QT.t, cat, App.TL.total);
+    const c = addClip({ start: w.start, end: w.end, categoryId: cat.id, method: QT.range ? 'marks' : 'tap', zoom: currentZoom(), tags }, { name: cat.name + ' · ' + tags.join(', ') });
+    if (c && QT.range) { App.pendingStart = null; App.awaiting = null; updateMarks(); }
+    closeQuickTag();
+  }
+  $('qt-form').addEventListener('submit', (e) => { e.preventDefault(); saveQuickTag(); });
+  $('qt-cancel').addEventListener('click', closeQuickTag);
+  $('dlg-qtag').addEventListener('cancel', (e) => { e.preventDefault(); closeQuickTag(); });
+  $('b-qtag').addEventListener('click', openQuickTag);
 
   // ---- penalties (X): call a penalty, or mark a player back ----
   const PEN = { team: 'us', player: '', type: 'tripping', minutes: 2, t: 0, wasPlaying: false };
@@ -621,7 +663,7 @@ App.ready.then(() => {
   }
   Object.assign(App, {
     renderTagLineup,
-    applyZoom, autoLine, cancelMarks, evBadges, markGoal, markIn, markOut, markPeriod, onCategory, openPenalty,
+    applyZoom, autoLine, cancelMarks, evBadges, markGoal, markIn, markOut, markPeriod, onCategory, openPenalty, openQuickTag,
     openGame, removeClip, renderClips, renderTags, sameJ, selectOpts, zoomLabel
   });
 }).catch((e) => setTimeout(() => { throw e; }));

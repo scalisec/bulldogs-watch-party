@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.0 — 2026-10-27 (custom tag while watching)
+
+- **Press T to tag a moment with your own words.** The video pauses and a small popup asks for the tag (e.g. "Great backcheck") and a category.
+- **Saving makes a new clip** around that moment, using the category's before/after window. If you've marked a start and end with I and O, it uses those instead.
+- **Suggestions as you type:** tags used before (on any clip, yours or the team library's) are offered as you type. Separate several tags with commas; suggestions cover the first one.
+- **Category:** starts on the one you used last.
+- **Keys:** Enter saves, Esc cancels, and the video carries on afterwards. There's also a **Custom tag T** button on the game screen.
+- Clip cards on the game screen now show their custom tags.
+
 ## 1.4.0 — 2026-10-27 (penalties)
 
 - **Mark penalties with X.** The video pauses and a popup asks who took it (our player from the game's lineup, or the other team with an optional number), the penalty (tripping, hooking, slashing, …) and the length: minor 2, double minor 4, major 5, misconduct 10.

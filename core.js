@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '1.4.0';
+  const APP_VERSION = '1.5.0';
   const APP_RELEASED = '2026-10-27';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
@@ -1627,6 +1627,7 @@
       ['G', 'Goal for (we score)'],
       ['H', 'Goal against'],
       ['X', 'Penalty: call one, or mark a player back'],
+      ['T', 'New clip with a custom tag you type'],
       ['+ / \u2212', 'Zoom in / out'],
       ['0', 'Back to the whole rink'],
       ['Scroll \u00b7 drag \u00b7 double-click', 'Zoom \u00b7 move \u00b7 zoom in or back out']

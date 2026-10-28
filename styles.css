@@ -308,3 +308,5 @@ dialog.wide { max-width: 680px; }
 .mark.pk { background: var(--bad-soft); color: #FDBA74; } .mark.pp { background: var(--good-soft); color: var(--good); }
 .tl .sband { position: absolute; top: 0; height: 6px; pointer-events: none; border-radius: 2px; }
 .tl .sband.pp { background: #22C55Ecc; } .tl .sband.pk { background: #F97316cc; }
+
+.pill.tagpill { background: var(--surface-2); color: var(--accent-text); font-weight: 500; }
