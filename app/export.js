@@ -200,9 +200,16 @@ App.ready.then(() => {
   async function ensureDestFolder(dest) {
     if (dest === 'private') { await App.ensurePrivateLibrary(); return S.lib.privSync.folderId; }
     // the admin account creates every team folder up front; coaches save into them once connected
-    if (!(S.lib.team.folders || {})[dest] && S.sync && S.sync.owner) await App.ensureTeamFolders();
-    const id = (S.lib.team.folders || {})[dest];
     const label = WP.destLabel(dest, S.settings.roster);
+    let id = (S.lib.team.folders || {})[dest];
+    if (S.sync && S.sync.owner && (!id || !(await App.hasFolderAccess(id)))) {
+      // never created, or deleted in Drive: ask before creating it (and any others that are missing)
+      App.folderAccessReset();
+      await App.ensureTeamFolders({ interactive: true, force: true });
+      id = (S.lib.team.folders || {})[dest];
+      if (id && !(await App.hasFolderAccess(id))) id = null;
+      if (!id) throw new Error('the ' + label + ' folder isn\u2019t in Google Drive. Create it from Team \u203a Drive and access.');
+    }
     if (!id) throw new Error('the ' + label + ' folder isn\u2019t set up yet. The admin account creates it the next time it opens the app.');
     if (S.sync && !S.sync.owner && !(await App.hasFolderAccess(id))) {
       const e = new Error('this account isn\u2019t connected to the ' + label + ' folder yet');

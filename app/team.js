@@ -146,6 +146,19 @@ App.ready.then(() => {
   // ---------------- admin: Drive and access (owner of the team folder only) ----------------
   const driveFolderUrl = (id) => 'https://drive.google.com/drive/folders/' + encodeURIComponent(id);
 
+  /** Look for team folders that were never made or were deleted in Drive, and offer to create them. */
+  async function checkFolders() {
+    T.checking = true; renderAdmin();
+    try {
+      await App.ensureSignedIn();
+      App.folderAccessReset();
+      const missing = await App.missingTeamFolders(true);
+      if (!missing.length) toast('All ' + WP.teamFolderKeys(S.settings.roster).length + ' team folders are in Google Drive');
+      else await App.ensureTeamFolders({ interactive: true });
+    } catch (e) { toast('Couldn\u2019t check the team folders: ' + e.message, { err: true }); }
+    T.checking = false; renderAdmin();
+  }
+
   function renderAdmin() {
     const box = $('admin-body');
     if (!S.sync) {
@@ -167,7 +180,8 @@ App.ready.then(() => {
         stat('Coaches with access', (others.length - notShared.length) + ' of ' + others.length, notShared.length ? notShared.length + ' not shared yet' : 'Everyone on the list', notShared.length ? 'warn' : 'ok'),
         stat('Clip folders', String(keys.filter((k) => folders[k]).length), 'Team, Coaches only and ' + S.settings.roster.length + ' family folders')),
       el('div', { class: 'row' },
-        S.sync.folderId ? el('a', { class: 'btn small outline', href: driveFolderUrl(S.sync.folderId), target: '_blank', rel: 'noopener' }, 'Open team folder in Google Drive') : ''),
+        S.sync.folderId ? el('a', { class: 'btn small outline', href: driveFolderUrl(S.sync.folderId), target: '_blank', rel: 'noopener' }, 'Open team folder in Google Drive') : '',
+        btn('Check for missing folders', checkFolders, '', T.checking)),
       el('div', { class: 'card flush stack', style: 'gap:0' },
         el('div', { class: 'row spread cardhead' }, el('h2', {}, 'Coach access'),
           btn(notShared.length ? 'Share with ' + notShared.length + ' new coach' + (notShared.length === 1 ? '' : 'es') : 'Everyone has access', () => App.shareWithCoaches(), 'primary', !notShared.length)),
@@ -186,7 +200,7 @@ App.ready.then(() => {
           el('tbody', {}, ...keys.map((k) => el('tr', {},
             el('td', { style: 'font-weight:600' }, WP.folderName(k, S.settings.roster)),
             el('td', {}, String(counts[k] || 0)),
-            el('td', { class: 'actions' }, folders[k] ? el('a', { href: driveFolderUrl(folders[k]), target: '_blank', rel: 'noopener' }, 'Open in Drive') : el('span', { class: 'small muted' }, 'Created on next sync'))))))))
+            el('td', { class: 'actions' }, folders[k] ? el('a', { href: driveFolderUrl(folders[k]), target: '_blank', rel: 'noopener' }, 'Open in Drive') : el('span', { class: 'small muted' }, 'Not created yet'))))))))
     );
   }
 

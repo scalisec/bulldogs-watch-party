@@ -71,7 +71,7 @@ def root_items(root_name='Bulldogs Watch Party'):
     return [{'id': f['id'], 'name': f['name'], 'mimeType': f['mime']} for f in drive.values() if f['parents'] == [root['id']] and not f['trashed']]
 
 def meta(f):
-    return {'id': f['id'], 'name': f['name'], 'version': str(f['version']), 'modifiedTime': '2026-10-20T00:00:00Z', 'trashed': False,
+    return {'id': f['id'], 'name': f['name'], 'version': str(f['version']), 'modifiedTime': '2026-10-20T00:00:00Z', 'trashed': f['trashed'],
             'parents': f['parents'], 'owners': [{'emailAddress': f['owner']}], 'lastModifyingUser': {'emailAddress': f['lastBy'], 'displayName': f['lastBy'].split('@')[0]}}
 
 def new_file(user, name, mime, parents, content='', description=''):
@@ -258,7 +258,11 @@ with sync_playwright() as p:
     check([p['number'] for p in d3['roster']] == ['7', '12'] and 'Milton' in d3['opponents'] and 'Appleby Ice Centre' in d3['rinks'],
           'A: its change merged with B’s; both kept in Drive')
     check(roster(A) == [('7', 'Sam'), ('12', 'Leo')], 'A: picked up B’s player while syncing')
-    # the admin's app creates the new player's family folder; B connects it with "Connect team folders"
+    # the admin's app asks to create the new player's family folder (v2.0.2), then creates it; B connects it with "Connect team folders"
+    A.evaluate('App.libSyncAll(false); 0')
+    A.wait_for_selector('#dlg-ask[open]', timeout=10000)
+    check('Family \u2013 #12 Leo' in A.text_content('#dlg-ask') and A.text_content('#ask-ok') == 'Create folders', 'A (admin): asks before creating the new player’s family folder')
+    A.click('#ask-ok')
     A.wait_for_function("(window.__bwp.state.lib.team.folders || {})['player:12']", timeout=8000)
     fam12 = [f for f in drive.values() if f['name'] == 'Family \u2013 #12 Leo']
     check(len(fam12) == 1 and fam12[0]['owner'] == 'a@team.com', 'A (admin): creates the family folder for the new player #12')

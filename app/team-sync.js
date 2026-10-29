@@ -112,7 +112,7 @@ App.ready.then(() => {
       S.sync = { fileId: file.id, folderId: root.id, appFolderId: root.id, version: file.version, base: WP.normalizeTeamData(WP.teamSnapshot(S.settings)), dirty: false, account: who.email, owner: true, lastSyncAt: Date.now(), lastBy: 'you', sharedWith: [] };
       Team.lastErr = null;
       save();
-      await App.ensureTeamFolders();
+      await App.ensureTeamFolders({ ask: false });
       await App.ensureTeamLibrary(); // before sharing, so a coach who joins right away gets the clip library too
       Team.busy = false;
       toast('Team data and team folders created in your Google Drive (' + App.driveNames().root + ')');
@@ -353,6 +353,6 @@ App.ready.then(() => {
   }
   Object.assign(App, {
     Team, connectTeamFolders, shareWithCoaches, libSyncIfStale, renderGameLists, renderSyncBadge, renderTeamCard, renderTeamSettings,
-    syncNow, teamChanged
+    syncNow, teamChanged, ensureSignedIn
   });
 }).catch((e) => setTimeout(() => { throw e; }));

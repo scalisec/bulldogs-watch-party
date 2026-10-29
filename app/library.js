@@ -23,18 +23,87 @@ App.ready.then(() => {
   }
 
   /** Admin account only: create the Team, Coaches only and one family folder per player, side by side in the team folder. */
-  async function ensureTeamFolders() {
-    if (!S.sync || !S.sync.owner || !S.sync.folderId) return 0;
-    const folders = S.lib.team.folders || (S.lib.team.folders = {});
-    let made = 0;
-    for (const key of WP.teamFolderKeys(S.settings.roster)) {
-      if (folders[key]) continue;
-      folders[key] = (await WPDrive.createFolder(WP.folderName(key, S.settings.roster), S.sync.folderId)).id;
-      made += 1;
+  // ---- the team's clip folders (admin account): find missing or deleted ones and, with permission, create them ----
+  const FOLDERS = { checked: new Set(), declined: false, asking: null };
+
+  /** Is this Drive folder still there (not deleted or in the trash)? */
+  async function folderAlive(id) {
+    try { const m = await WPDrive.getMeta(id); return !m.trashed; }
+    catch (e) { if (e.code === 404 || e.code === 403) return false; throw e; }
+  }
+
+  /**
+   * The team's folders that need creating: never created yet, or deleted / in the trash in Google Drive.
+   * Also follows the team data file if it was moved to another folder (that folder becomes the team folder).
+   * Returns [{ key, name, why: 'new' | 'deleted' }].
+   */
+  async function missingTeamFolders(force) {
+    if (!S.sync || !S.sync.owner || !S.sync.fileId) return [];
+    if (force) FOLDERS.checked.clear();
+    if (!FOLDERS.checked.has('root')) {
+      const meta = await WPDrive.getMeta(S.sync.fileId);
+      const parent = (meta.parents || [])[0];
+      if (parent && parent !== S.sync.folderId) { S.sync.folderId = parent; S.sync.appFolderId = parent; save(); }
+      FOLDERS.checked.add('root');
     }
-    if (folders.root !== S.sync.folderId) { folders.root = S.sync.folderId; made += 1; }
-    if (made) { DB.touch('lib:team'); save(); }
-    return made;
+    const folders = S.lib.team.folders || (S.lib.team.folders = {});
+    const out = [];
+    for (const key of WP.teamFolderKeys(S.settings.roster)) {
+      const id = folders[key];
+      if (!id) { out.push({ key, name: WP.folderName(key, S.settings.roster), why: 'new' }); continue; }
+      if (FOLDERS.checked.has(id)) continue;
+      if (await folderAlive(id)) FOLDERS.checked.add(id);
+      else out.push({ key, name: WP.folderName(key, S.settings.roster), why: 'deleted' });
+    }
+    return out;
+  }
+
+  /**
+   * Make sure every team folder exists. Nothing is created without asking: the coach sees which folders are
+   * missing and where they'll go, and says yes. ask:false is only for first-time setup, which the coach started.
+   * interactive: asked again even after "Not now" earlier (Settings button, or an export that needs the folder).
+   * Returns how many folders were created.
+   */
+  async function ensureTeamFolders(o) {
+    const opt = o || {};
+    if (!S.sync || !S.sync.owner || !S.sync.folderId) return 0;
+    if (FOLDERS.asking) return FOLDERS.asking;
+    const run = (async () => {
+      const missing = await missingTeamFolders(opt.force);
+      const folders = S.lib.team.folders || (S.lib.team.folders = {});
+      let made = 0;
+      if (folders.root !== S.sync.folderId) { folders.root = S.sync.folderId; made += 1; }
+      if (missing.length) {
+        if (opt.ask !== false) {
+          if (FOLDERS.declined && !opt.interactive) { if (made) { DB.touch('lib:team'); save(); } return 0; }
+          const deleted = missing.filter((m) => m.why === 'deleted');
+          const list = missing.map((m) => m.name + (m.why === 'deleted' ? ' (deleted in Drive)' : '')).join(', ');
+          const yes = await App.ask({
+            title: 'Create ' + missing.length + ' team folder' + (missing.length === 1 ? '' : 's') + ' in Google Drive?',
+            message: (deleted.length ? deleted.length + (deleted.length === 1 ? ' folder was' : ' folders were') + ' deleted or moved to the trash in Google Drive. ' : '') +
+              'These folders will be created inside “' + App.driveNames().root + '”: ' + list + '. Clips exported to them are saved there. Nothing else in Drive is changed.',
+            ok: 'Create folders', danger: false });
+          if (!yes) {
+            FOLDERS.declined = true;
+            if (made) { DB.touch('lib:team'); save(); }
+            toast('No folders created. You can create them later in Team › Drive and access.', { ms: 6000 });
+            return 0;
+          }
+        }
+        for (const m of missing) {
+          const f = await WPDrive.createFolder(m.name, S.sync.folderId);
+          folders[m.key] = f.id;
+          FOLDERS.checked.add(f.id);
+          made += 1;
+        }
+        FOLDERS.declined = false;
+        if (opt.ask !== false) toast('Created ' + missing.length + ' team folder' + (missing.length === 1 ? '' : 's') + ' in Google Drive');
+      }
+      if (made) { DB.touch('lib:team'); save(); libChanged(); if (App.renderTeam && !$('view-team').classList.contains('hidden')) App.renderTeam(); }
+      return made;
+    })();
+    FOLDERS.asking = run;
+    try { return await run; } finally { FOLDERS.asking = null; }
   }
 
   // which team folders this Google account's app can save into (coaches connect them by picking)
@@ -136,10 +205,11 @@ App.ready.then(() => {
     if (LIB.busy) { LIB.again = true; return; }
     LIB.busy = true;
     try {
-      await ensureTeamFolders();
       await ensureTeamLibrary();
       await ensurePrivateLibrary();
       if (S.lib.teamSync) await libSync('team');
+      // after the library sync, so this device knows the folders other devices already made (no duplicates)
+      if (!(App.Team && App.Team.busy) && S.lib.teamSync && (await ensureTeamFolders())) await libSync('team');
       await libSync('priv');
       const keep = new Set([...Object.keys(S.lib.team.entries), ...Object.keys(S.lib.priv.entries)]);
       S.lib.deleted = S.lib.deleted.filter((id) => keep.has(id));
@@ -157,7 +227,7 @@ App.ready.then(() => {
     }
   }
   Object.assign(App, {
-    LIB, ensurePrivateLibrary, ensureTeamFolders, ensureTeamLibrary, folderAccessReset, folderStatus, hasFolderAccess,
+    LIB, ensurePrivateLibrary, ensureTeamFolders, missingTeamFolders, ensureTeamLibrary, folderAccessReset, folderStatus, hasFolderAccess,
     libChanged, libSyncAll, myLibrary
   });
 }).catch((e) => setTimeout(() => { throw e; }));

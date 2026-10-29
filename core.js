@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '2.0.1';
+  const APP_VERSION = '2.0.2';
   const APP_RELEASED = '2026-10-29';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
@@ -580,7 +580,7 @@
     const who = (clip.players || []).map((p) => '#' + p).join(' ');
     const clean = (x) => String(x || '').replace(/[\\/:*?"<>|]+/g, '-').replace(/[\s.]+$/g, '').replace(/\s+/g, ' ').trim();
     const base = clean([d, category ? category.name : 'Clip', t, who].filter(Boolean).join(' ')).slice(0, 120);
-    // the clip's note goes at the end (v2.0.1), cut at a word boundary so names stay readable
+    // the clip's note goes at the end (v2.0.2), cut at a word boundary so names stay readable
     let note = clean(clip.note);
     if (note.length > 80) note = note.slice(0, 80).replace(/\s+\S*$/, '') + '…';
     return base + (note ? ' - ' + note : '') + '.mp4';
@@ -1358,7 +1358,14 @@
     const views = mergeKeyed(B.views, M.views, T.views, (v) => v.id, (v) => 'saved view “' + v.name + '”', conflicts);
     const entries = {};
     for (const e of ents) entries[e.id] = e;
-    return { merged: { entries, views, folders: Object.assign({}, M.folders, T.folders) }, conflicts };
+    return { merged: { entries, views, folders: mergeFolders(B.folders, M.folders, T.folders) }, conflicts };
+  }
+
+  /** Folder ids: a folder this device changed (e.g. re-created after it was deleted in Drive) wins; otherwise theirs. */
+  function mergeFolders(base, mine, theirs) {
+    const out = Object.assign({}, theirs);
+    for (const [k, v] of Object.entries(mine || {})) if (!(k in out) || (base || {})[k] !== v) out[k] = v;
+    return out;
   }
 
   function syncLibraryStep(o) {

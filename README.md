@@ -217,6 +217,7 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 ## Tests
 
 - `node --test tests/core.test.js` runs the core logic tests (82), including reading the audio track of a small generated MP4 (`tests/fixtures/media`).
+- `python3 tests/e2e_v202.py <screenshot-dir>` tests v2.0.2 against the simulated Google Drive: deleted or never-made team folders are found, the app asks before creating them, Cancel creates nothing, the team folder follows a moved team data file, and re-created folders reach the clip library.
 - `python3 tests/e2e_v20.py <screenshot-dir> <media-dir>` tests v2.0: Games home and the New game screen, a game's tabs, the scoreboard, Game details, the Summary (goal edits, notes), the Summaries tab, Season stats and phone widths.
 - `python3 tests/e2e_v18.py <screenshot-dir> <media-dir>` tests v1.8: the goal popup and goal clips (scorer, assists, on-ice players), and zoom while a clip plays setting its view (19 checks). Per-game Drive folders are checked in `e2e_library.py`.
 - `python3 tests/e2e_v17.py <screenshot-dir> <media-dir>` tests v1.7: rink sound in exports (sound in normal-speed parts, quiet in slow motion, in sync, the on/off box, a clip across two parts). It needs MP4 copies of the test game with VP9 + Opus in `<media-dir>/opusmp4/`, because the test browser can't decode AAC (11 checks).

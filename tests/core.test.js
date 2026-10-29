@@ -1202,3 +1202,16 @@ test('v2.0: season stats, goal edits and notes', () => {
   assert.deepEqual(WP.summaryNotes({}), { wentWell: '', workOn: '' });
   assert.equal(WP.summaryNotes({ summaryNotes: { wentWell: 'Breakouts' } }).wentWell, 'Breakouts');
 });
+
+test('v2.0.2: a folder re-created on this device wins the library merge', () => {
+  const lib = (folders) => ({ entries: {}, views: [], folders });
+  const base = lib({ team: 'T1', 'player:7': 'old7' });
+  const mine = lib({ team: 'T1', 'player:7': 'new7' });
+  const theirs = lib({ team: 'T1', 'player:7': 'old7', 'player:30': 'f30' });
+  const r = WP.syncLibraryStep({ base, mine, theirs, dirty: true });
+  assert.deepEqual(r.data.folders, { team: 'T1', 'player:7': 'new7', 'player:30': 'f30' });
+  assert.equal(r.push, true);
+  // unchanged here: theirs wins
+  const r2 = WP.syncLibraryStep({ base, mine: base, theirs: lib({ team: 'T2', 'player:7': 'old7' }), dirty: true });
+  assert.equal(r2.data.folders.team, 'T2');
+});

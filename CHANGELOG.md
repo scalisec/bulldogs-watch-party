@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.2 — 2026-10-29 (missing team folders: asks before creating)
+
+- **The app now finds team folders that were deleted in Google Drive** (or are in the trash), along with folders that were never made, such as one for a new player.
+- **It asks before creating anything.** A pop-up lists each folder ("Family – #7 … (deleted in Drive)") and where it will go. **Create folders** makes them; **Cancel** makes nothing and doesn't ask again until the app is reopened.
+  - The check runs when the admin account opens the app or syncs, and before exporting to a folder that's missing.
+  - **Team › Drive and access › Check for missing folders** runs it at any time.
+- **Folders always go next to the team data file.** If the team data file was moved to another folder, that folder becomes the team folder.
+- **Fixed: duplicate folders.** The app used to create a second set of folders when the admin account opened the team on a second device before its clip library had synced. It now checks only after the library sync, so it knows the folders that already exist.
+- **Fixed: re-created folders being overwritten.** A folder re-created on this device is no longer replaced by the old ID from the copy in Drive.
+- First-time setup ("Create team data in my Drive") still creates the folders straight away, since you started it.
+
 ## 2.0.1 — 2026-10-29 (Games home is the season schedule again)
 
 - **The Games home lists the whole season again.**
