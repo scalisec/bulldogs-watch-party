@@ -16,7 +16,7 @@ Keep using the same browser on the same PC: that's where your games and clips ar
 
 ## Screens (v2.0)
 
-- **Games:** your games, with result, clips and summary state. League games already played but not added yet are listed under "Played, waiting for video" with an **Add video** button.
+- **Games:** the whole season as a table: **Coming up** (the next 2, or all) and **Played** (newest first: league games and your own games by date). Each row has the time, rink, result, summary state, clips, LiveBarn/GameSheet links, and **Open** or **Add video**.
   - **+ New game** opens its own screen: video files, which league game, then details and lineup.
 - **A game** has three tabs:
   - **Watch and tag:** the video, with a scoreboard (score, period, power play or penalty kill) built from your marks, one row of event buttons, the timeline and the clip buttons.

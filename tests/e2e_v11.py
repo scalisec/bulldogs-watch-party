@@ -95,6 +95,10 @@ with sync_playwright() as p:
     # ---- an existing game that isn't linked: Link to league schedule
     page.goto(APP + '#games'); page.wait_for_selector('#view-games:not(.hidden)')
     check(page.locator('#games .gamerow img.lglogo').count() == 1, 'Games list shows the opponent logo')
+    check(page.locator('#g-played tr.gamerow a:has-text("Open")').count() == 1 and page.locator('#g-played tr.schedrow a:has-text("Add video")').count() >= 1, 'Games home: the season table has your game (Open) and league games without video (Add video)')
+    check(page.locator('#g-played a:has-text("GameSheet")').count() >= 1, 'played games link to GameSheet')
+    page.evaluate("document.getElementById('toasts').replaceChildren()")
+    page.screenshot(path=SHOTS + '/v20-games-season.png', full_page=True)
     page.goto(APP + '#new'); page.wait_for_selector('#view-new:not(.hidden)')
     page.set_input_files('#file-input', [P1, P2])
     page.wait_for_function("!document.getElementById('g-start').disabled", timeout=20000)

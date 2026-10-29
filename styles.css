@@ -401,3 +401,12 @@ table.dtable { width: 100%; border-collapse: collapse; }
   a { color: #000; }
 }
 tr.gamerow { display: table-row; padding: 0; border: 0; }
+tr.upcoming td { color: var(--on-navy); }
+tr.schedrow td { background: transparent; }
+#g-upcoming, #g-played { table-layout: fixed; }
+#g-upcoming th:nth-child(1), #g-played th:nth-child(1) { width: 120px; }
+#g-upcoming th:nth-child(3), #g-played th:nth-child(3) { width: 100px; }
+#g-upcoming th:nth-child(4), #g-played th:nth-child(4) { width: 210px; }
+#g-upcoming th:nth-child(5), #g-played th:nth-child(5) { width: 140px; }
+#g-upcoming th:nth-child(6), #g-played th:nth-child(6) { width: 230px; }
+#g-upcoming th:nth-child(7), #g-played th:nth-child(7) { width: 130px; }

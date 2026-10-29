@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.1 — 2026-10-29 (Games home is the season schedule again)
+
+- **The Games home lists the whole season again.**
+  - **Coming up** shows the next 2 games, with **Show all upcoming**.
+  - **Played** lists every game, newest first. That includes league games without video and your own games that aren't on the league schedule, mixed in by date.
+- **Each row shows** date and time, opponent with logo, rink, home/away, result, summary status, clips (and how many were exported), and LiveBarn and GameSheet links.
+  - Rows end with **Open** for a game you've added, or **Add video** for a played game that isn't added yet.
+- The separate "Played, waiting for video" box is gone, because those games are now rows in the table.
+
 ## 2.0.0 — 2026-10-29 (game summaries, new layout)
 
 - **Games home and New game are separate screens.**

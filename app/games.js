@@ -157,14 +157,8 @@ App.ready.then(() => {
   }
   App.officialResult = officialResult;
 
-  /** League games already played that have no game here yet (newest first, a few). */
-  function waitingGames() {
-    const sched = App.League.schedule();
-    if (!sched) return [];
-    const today = new Date().toISOString().slice(0, 10);
-    const have = new Set(S.games.map((g) => g.league && g.league.id).filter(Boolean));
-    return sched.filter((x) => (x.final || x.date < today) && !have.has(x.id)).slice(-4).reverse();
-  }
+  const todayIso = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const UP = { all: false };
 
   function summaryPill(g) {
     const sum = WP.gameSummary(g, S.settings.roster, officialResult(g));
@@ -174,42 +168,94 @@ App.ready.then(() => {
     return el('span', { class: 'pill plain' }, 'No score yet');
   }
 
+  const linkBtn = (href, text) => href ? el('a', { class: 'btn small', href, target: '_blank', rel: 'noopener noreferrer', style: 'text-decoration:none' }, text) : '';
+
+  /**
+   * The season as one list: every league schedule game (with your game, when you've added it) and your other
+   * games (tournaments, exhibitions, games not on the schedule) by date.
+   */
+  function seasonRows() {
+    const sched = App.League.schedule() || [];
+    const mine = new Map();
+    for (const g of S.games) if (g.league && g.league.id) mine.set(g.league.id, g);
+    const used = new Set();
+    const rows = sched.map((x) => {
+      const g = mine.get(x.id) || null;
+      if (g) used.add(g.id);
+      return { s: x, g, date: x.date, time: x.time };
+    });
+    for (const g of S.games) if (!used.has(g.id)) rows.push({ s: null, g, date: g.date || '', time: g.time || '' });
+    return rows;
+  }
+
+  function rowText(r) {
+    const g = r.g, x = r.s;
+    return [g && WP.gameTitle(g), g && g.opponent, g && g.rink, x && x.opponent, x && x.rink, r.date, g && g.result, x && x.result].filter(Boolean).join(' ').toLowerCase();
+  }
+
+  function gameRow(r) {
+    const g = r.g, x = r.s;
+    const opp = g && g.opponent ? g.opponent : x ? x.opponent : '';
+    const ha = (g && g.homeAway) || (x && x.homeAway) || '';
+    const rink = (g && g.rink) || (x && x.rink) || '';
+    const type = (g && g.gameType) || (x && x.gameType) || '';
+    const logoPath = x ? x.opponentLogo : g && g.league ? g.league.opponentLogo : '';
+    const sum = g ? WP.gameSummary(g, S.settings.roster, officialResult(g)) : null;
+    const res = (sum && WP.summaryResult(sum)) || (g && g.result) || (x && x.result) || '';
+    const outcome = (sum && sum.outcome) || res.charAt(0);
+    const live = (x && x.liveBarn) || (g && g.league && g.league.liveBarn) || '';
+    const gs = (x && x.gamesheet) || (g && g.league && g.league.gamesheet) || '';
+    const played = !!g || !x || x.final || x.date <= todayIso();
+    const exported = g ? g.clips.filter((c) => c.exported).length : 0;
+    const title = (r.date ? WP.formatDate(r.date) : 'Undated') + ' ' + (opp ? (ha === 'away' ? 'at ' : 'vs ') + opp : '');
+    return el('tr', { class: (g ? 'gamerow click' : 'schedrow') + (played ? '' : ' upcoming'), onclick: g ? (e) => { if (!e.target.closest('a,button')) location.hash = 'tag/' + g.id; } : null },
+      el('td', { style: 'white-space:nowrap' }, r.date ? WP.formatDate(r.date) : 'Undated', el('div', { class: 'small muted' }, WP.formatClock(r.time))),
+      el('td', {}, el('div', { class: 'row', style: 'gap:10px;flex-wrap:nowrap' }, logoPath ? App.League.logo(logoPath, 32) : el('span', { class: 'lglogo none', style: 'width:32px;height:32px', 'aria-hidden': 'true' }),
+        el('div', { class: 'stack', style: 'gap:0;min-width:0' },
+          el('strong', {}, opp ? (ha === 'away' ? '@ ' : 'vs ') + opp : (g ? WP.gameTitle(g) : '')),
+          el('span', { class: 'small muted' }, [rink, ha === 'home' ? 'Home' : ha === 'away' ? 'Away' : '', type && type !== 'league' ? WP.label(WP.GAME_TYPES, type) : '', !x && g && !type ? 'Not on the league schedule' : ''].filter(Boolean).join(' · '))))),
+      el('td', {}, res ? el('span', { class: 'res ' + outcome }, res) : el('span', { class: 'muted' }, played ? '—' : 'Upcoming')),
+      el('td', {}, g ? el('a', { href: '#sum/' + g.id, style: 'text-decoration:none' }, summaryPill(g)) : played ? el('span', { class: 'small muted' }, 'No video yet') : ''),
+      el('td', { style: 'white-space:nowrap' }, g ? g.clips.length + (g.clips.length === 1 ? ' clip' : ' clips') + (exported ? ' · ' + exported + ' exported' : '') : ''),
+      el('td', {}, el('div', { class: 'row', style: 'gap:4px;flex-wrap:nowrap' }, linkBtn(live, 'LiveBarn ↗'), played ? linkBtn(gs, 'GameSheet ↗') : '')),
+      el('td', { style: 'text-align:right' },
+        g ? el('a', { class: 'btn small primary', href: '#tag/' + g.id, style: 'text-decoration:none', 'aria-label': 'Open ' + WP.gameTitle(g) }, 'Open')
+          : played ? el('a', { class: 'btn small outline', href: '#new/' + encodeURIComponent(x.id), style: 'text-decoration:none', 'aria-label': 'Add video for ' + title }, 'Add video') : ''));
+  }
+
+  function table(rows, id, caption) {
+    return el('div', { class: 'tablewrap' }, el('table', { class: 'dtable', id, style: 'min-width:900px' },
+      el('caption', { class: 'sr' }, caption),
+      el('thead', {}, el('tr', {}, el('th', {}, 'Date'), el('th', {}, 'Game'), el('th', {}, 'Result'), el('th', {}, 'Summary'), el('th', {}, 'Clips'), el('th', {}, 'Links'), el('th', {}, el('span', { class: 'sr' }, 'Open or add video')))),
+      el('tbody', {}, ...rows.map(gameRow))));
+  }
+
   function renderGames() {
     App.League.load();
     renderWho();
     App.renderGameLists();
-    // league games waiting for their video
-    const wait = waitingGames();
-    $('g-waiting-card').hidden = !wait.length;
-    $('g-waiting').replaceChildren(...wait.map((x) => el('div', { class: 'waitcard' },
-      App.League.logo(x.opponentLogo, 32),
-      el('div', { class: 'grow stack', style: 'gap:0' }, el('strong', {}, App.League.whenText(x) + ' · ' + App.League.vsText(x)),
-        el('span', { class: 'small muted' }, [x.result ? 'Final ' + x.result : 'Played', x.gamesheet ? 'GameSheet available' : ''].filter(Boolean).join(' · '))),
-      el('a', { class: 'btn small outline', href: '#new/' + encodeURIComponent(x.id), style: 'text-decoration:none', 'aria-label': 'Add video for ' + App.League.whenText(x) + ' ' + App.League.vsText(x) }, 'Add video'))));
-    // your games
     const q = String($('g-find').value || '').trim().toLowerCase();
-    const games = S.games.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.createdAt - a.createdAt)
-      .filter((g) => !q || [WP.gameTitle(g), g.opponent, g.rink, g.date, g.result].join(' ').toLowerCase().includes(q));
-    if (!games.length) {
-      $('games').replaceChildren(el('div', { class: 'card empty' }, S.games.length ? 'No games match “' + q + '”.' : 'No games yet. Press + New game and add your first LiveBarn download.'));
-      return;
+    const t = todayIso();
+    const all = seasonRows().filter((r) => !q || rowText(r).includes(q));
+    const isUp = (r) => !r.g && r.s && !r.s.final && r.s.date > t;
+    const key = (r) => String(r.date) + ' ' + String(r.time);
+    const upcoming = all.filter(isUp).sort((a, b) => key(a).localeCompare(key(b)));
+    const played = all.filter((r) => !isUp(r)).sort((a, b) => key(b).localeCompare(key(a)) || ((b.g && b.g.createdAt) || 0) - ((a.g && a.g.createdAt) || 0));
+    const lg = S.settings.league;
+    const parts = [];
+    if (upcoming.length) {
+      const shown = UP.all ? upcoming : upcoming.slice(0, 2);
+      parts.push(el('section', { class: 'stack', style: 'gap:8px', 'aria-labelledby': 'up-h' },
+        el('div', { class: 'row spread', style: 'align-items:baseline' }, el('h2', { id: 'up-h' }, 'Coming up'),
+          upcoming.length > 2 ? el('button', { type: 'button', class: 'btn small', id: 'g-up-all', onclick: () => { UP.all = !UP.all; renderGames(); } }, UP.all ? 'Show the next 2' : 'Show all ' + upcoming.length + ' upcoming') : ''),
+        table(shown, 'g-upcoming', 'Upcoming games')));
     }
-    $('games').replaceChildren(el('div', { class: 'tablewrap' }, el('table', { class: 'dtable' },
-      el('thead', {}, el('tr', {}, el('th', {}, 'Date'), el('th', {}, 'Game'), el('th', {}, 'Result'), el('th', {}, 'Clips'), el('th', {}, 'Summary'), el('th', {}, el('span', { class: 'sr' }, 'Open')))),
-      el('tbody', {}, ...games.map((g) => {
-        const sum = WP.gameSummary(g, S.settings.roster, officialResult(g));
-        const res = WP.summaryResult(sum) || g.result || '';
-        const exported = g.clips.filter((c) => c.exported).length;
-        return el('tr', { class: 'gamerow click', onclick: (e) => { if (!e.target.closest('a,button')) location.hash = 'tag/' + g.id; } },
-          el('td', { style: 'white-space:nowrap' }, g.date ? WP.formatDate(g.date) : 'Undated', el('div', { class: 'small muted' }, WP.formatClock(g.time))),
-          el('td', {}, el('div', { class: 'row', style: 'gap:10px;flex-wrap:nowrap' }, g.league ? App.League.logo(g.league.opponentLogo, 32) : '',
-            el('div', { class: 'stack', style: 'gap:0' }, el('strong', {}, g.opponent ? (g.homeAway === 'away' ? '@ ' : 'vs ') + g.opponent : WP.gameTitle(g)),
-              el('span', { class: 'small muted' }, [g.rink, g.parts.length + (g.parts.length === 1 ? ' part' : ' parts') + ' · ' + WP.formatTime(WP.gameTimeline(g).total), 'video on this computer'].filter(Boolean).join(' · '))))),
-          el('td', {}, res ? el('span', { class: 'res ' + (sum.outcome || '') }, res) : el('span', { class: 'muted' }, '—')),
-          el('td', { style: 'white-space:nowrap' }, g.clips.length + (g.clips.length === 1 ? ' clip' : ' clips') + (exported ? ' · ' + exported + ' exported' : '')),
-          el('td', {}, el('a', { href: '#sum/' + g.id, style: 'text-decoration:none' }, summaryPill(g))),
-          el('td', { style: 'text-align:right' }, el('a', { class: 'btn small primary', href: '#tag/' + g.id, style: 'text-decoration:none', 'aria-label': 'Open ' + WP.gameTitle(g) }, 'Open')));
-      })))));
+    parts.push(el('section', { class: 'stack', style: 'gap:8px', 'aria-labelledby': 'played-h' },
+      el('div', { class: 'row spread', style: 'align-items:baseline' }, el('h2', { id: 'played-h' }, 'Played'),
+        el('span', { class: 'small muted' }, lg && lg.teamId ? 'League schedule and your own games. Videos stay on this computer.' : 'Your games. Pick your league team on the Team page to list the whole schedule here.')),
+      played.length ? table(played, 'g-played', 'Played games')
+        : el('div', { class: 'card empty' }, q ? 'No games match “' + q + '”.' : 'No games yet. Press + New game and add your first LiveBarn download.')));
+    $('games').replaceChildren(...parts);
   }
 
   async function deleteGame(g) {

@@ -16,7 +16,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=2.0.0">
+<link rel="stylesheet" href="styles.css?v=2.0.1">
 </head>
 <body>
 <header class="topbar">
@@ -47,14 +47,7 @@
         <a class="btn primary" href="#new" id="new-game-btn" style="text-decoration:none">+ New game</a>
       </div>
     </div>
-    <section class="card stack" id="g-waiting-card" aria-labelledby="waiting-h" hidden>
-      <div class="row spread" style="align-items:baseline"><h2 id="waiting-h">Played, waiting for video</h2><span class="small muted">From the league schedule. Add the LiveBarn files to start tagging the game.</span></div>
-      <div class="waitgrid" id="g-waiting"></div>
-    </section>
-    <section class="stack" aria-labelledby="recent-h" style="gap:10px">
-      <div class="row spread" style="align-items:baseline"><h2 id="recent-h">Your games</h2><span class="small muted" id="g-where">Saved on this computer only. Each game’s video stays on this computer.</span></div>
-      <div id="games"></div>
-    </section>
+    <div class="stack" id="games" style="gap:20px"></div>
   </div>
 </main>
 
@@ -648,29 +641,29 @@
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
-<script src="config.js?v=2.0.0"></script>
-<script src="core.js?v=2.0.0"></script>
-<script src="storage.js?v=2.0.0"></script>
-<script src="vendor/mp4-muxer.js?v=2.0.0"></script>
-<script src="render.js?v=2.0.0"></script>
-<script src="audio.js?v=2.0.0"></script>
-<script src="drive.js?v=2.0.0"></script>
-<script src="app/base.js?v=2.0.0"></script>
-<script src="app/player.js?v=2.0.0"></script>
-<script src="app/lineup.js?v=2.0.0"></script>
-<script src="app/league.js?v=2.0.0"></script>
-<script src="app/games.js?v=2.0.0"></script>
-<script src="app/tag.js?v=2.0.0"></script>
-<script src="app/editor.js?v=2.0.0"></script>
-<script src="app/record.js?v=2.0.0"></script>
-<script src="app/export.js?v=2.0.0"></script>
-<script src="app/settings.js?v=2.0.0"></script>
-<script src="app/team.js?v=2.0.0"></script>
-<script src="app/team-sync.js?v=2.0.0"></script>
-<script src="app/library.js?v=2.0.0"></script>
-<script src="app/review.js?v=2.0.0"></script>
-<script src="app/summary.js?v=2.0.0"></script>
-<script src="app/teams.js?v=2.0.0"></script>
-<script src="app/main.js?v=2.0.0"></script>
+<script src="config.js?v=2.0.1"></script>
+<script src="core.js?v=2.0.1"></script>
+<script src="storage.js?v=2.0.1"></script>
+<script src="vendor/mp4-muxer.js?v=2.0.1"></script>
+<script src="render.js?v=2.0.1"></script>
+<script src="audio.js?v=2.0.1"></script>
+<script src="drive.js?v=2.0.1"></script>
+<script src="app/base.js?v=2.0.1"></script>
+<script src="app/player.js?v=2.0.1"></script>
+<script src="app/lineup.js?v=2.0.1"></script>
+<script src="app/league.js?v=2.0.1"></script>
+<script src="app/games.js?v=2.0.1"></script>
+<script src="app/tag.js?v=2.0.1"></script>
+<script src="app/editor.js?v=2.0.1"></script>
+<script src="app/record.js?v=2.0.1"></script>
+<script src="app/export.js?v=2.0.1"></script>
+<script src="app/settings.js?v=2.0.1"></script>
+<script src="app/team.js?v=2.0.1"></script>
+<script src="app/team-sync.js?v=2.0.1"></script>
+<script src="app/library.js?v=2.0.1"></script>
+<script src="app/review.js?v=2.0.1"></script>
+<script src="app/summary.js?v=2.0.1"></script>
+<script src="app/teams.js?v=2.0.1"></script>
+<script src="app/main.js?v=2.0.1"></script>
 </body>
 </html>
