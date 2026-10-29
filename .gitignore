@@ -9,3 +9,6 @@ shots/
 node_modules/
 .DS_Store
 Thumbs.db
+
+# except the tiny synthetic sound files the core tests read (no game video)
+!tests/fixtures/media/*.mp4
