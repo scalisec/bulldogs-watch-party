@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.8.0 — 2026-10-28 (goal clips, view follows your zoom, folders per game)
+
+- **Goals make their own clip.** G and H (or the Goal buttons) pause the video and open a goal popup:
+  - **Our goal:** who scored and up to two assists, from the game's lineup.
+  - **Their goal:** their scorer's and assists' numbers, plus which of our players were on the ice. All optional.
+  - **Save goal** (or Enter) marks the goal and adds a goal clip from 10 s before to 5 s after, tagged with those players. It goes in the scoring category (changeable in the popup), with a note like "Goal #7 (A: #12, #4)". Undo removes both.
+  - The marks list and game panel show the scorer.
+- **The exported view matches your screen.** While a clip plays on the game screen (▶ Play clip), zooming and dragging the picture sets that clip's view, so its export shows exactly what you see. A note confirms "View saved to this clip". When the clip ends or you move elsewhere, zooming goes back to being just for watching.
+- **Drive exports go in a folder per game:**
+  - Inside Team clips, Coaches only, each family folder and your private folder, each game gets a folder like "2026-10-18 vs Burlington Raiders".
+  - The folder is made the first time a clip from that game is saved, and found again on your other devices.
+  - Another coach exporting the same game makes their own folder of the same name, because Google only lets the app use folders it created on that account.
+- Enter saves the goal and penalty popups even after tapping player buttons.
+
 ## 1.7.0 — 2026-10-28 (rink sound in exported clips)
 
 - **Exported clips now carry the game's sound.** Until now, an exported clip only had sound when you'd recorded a breakdown with your voice.

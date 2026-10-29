@@ -58,9 +58,9 @@ App.ready.then(() => {
     else if (k === 'i' || k === 'I') { e.preventDefault(); markIn(); }
     else if (k === 'o' || k === 'O') { e.preventDefault(); markOut(); }
     else if (k === 'Escape') { cancelMarks(); }
-    else if (k === '+' || k === '=') { e.preventDefault(); applyZoom(WP.zoomAt(App.zoom, 1.25)); }
-    else if (k === '-' || k === '_') { e.preventDefault(); applyZoom(WP.zoomAt(App.zoom, 1 / 1.25)); }
-    else if (k === '0') { e.preventDefault(); applyZoom(WP.FIT); }
+    else if (k === '+' || k === '=') { e.preventDefault(); App.userZoom(WP.zoomAt(App.zoom, 1.25)); }
+    else if (k === '-' || k === '_') { e.preventDefault(); App.userZoom(WP.zoomAt(App.zoom, 1 / 1.25)); }
+    else if (k === '0') { e.preventDefault(); App.userZoom(WP.FIT); }
     else if (k === 'p' || k === 'P') { e.preventDefault(); markPeriod(); }
     else if (k === 'g' || k === 'G') { e.preventDefault(); markGoal('for'); } // either case, so Caps Lock can't flip it
     else if (k === 'h' || k === 'H') { e.preventDefault(); markGoal('against'); }

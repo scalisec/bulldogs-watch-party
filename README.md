@@ -86,7 +86,7 @@ In the clip editor, tick **Voice-over** and/or **Record at half speed**, then cl
 | 1–9 | Tag with that category |
 | I / O | Mark start / end |
 | P | Period start / end |
-| G / H | Goal for / goal against |
+| G / H | Goal for / goal against: scorer and assists, and a goal clip tagged with them |
 | X | Penalty: call one (who, type, length), or mark a player back |
 | T | New clip with a custom tag you type (suggests tags you've used before) |
 | + / − / 0 | Zoom in / out / fit |
@@ -205,7 +205,8 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 
 ## Tests
 
-- `node --test tests/core.test.js` runs the core logic tests (81), including reading the audio track of a small generated MP4 (`tests/fixtures/media`).
+- `node --test tests/core.test.js` runs the core logic tests (82), including reading the audio track of a small generated MP4 (`tests/fixtures/media`).
+- `python3 tests/e2e_v18.py <screenshot-dir> <media-dir>` tests v1.8: the goal popup and goal clips (scorer, assists, on-ice players), and zoom while a clip plays setting its view (19 checks). Per-game Drive folders are checked in `e2e_library.py`.
 - `python3 tests/e2e_v17.py <screenshot-dir> <media-dir>` tests v1.7: rink sound in exports (sound in normal-speed parts, quiet in slow motion, in sync, the on/off box, a clip across two parts). It needs MP4 copies of the test game with VP9 + Opus in `<media-dir>/opusmp4/`, because the test browser can't decode AAC (11 checks).
 - `python3 tests/e2e_v161.py <screenshot-dir>` tests v1.6.1: finding a club team's schedule (suggestion, automatic pick on Add team, Find box, club teams first, old saved list ignored) (11 checks).
 - `python3 tests/e2e_v16.py <screenshot-dir> <media-dir>` tests v1.6: the game status panel (period and score, strength, End penalty, quick buttons, forgotten penalties) (12 checks).

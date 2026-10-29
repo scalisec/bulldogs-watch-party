@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '1.7.0';
+  const APP_VERSION = '1.8.0';
   const APP_RELEASED = '2026-10-28';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
@@ -273,7 +273,7 @@
       flag: fields.flag === 'work' ? 'work' : 'do',
       note: String(fields.note || '').slice(0, 140),
       by: String(fields.by || '').slice(0, 40),
-      method: ['tap', 'marks', 'manual'].includes(fields.method) ? fields.method : 'manual',
+      method: ['tap', 'marks', 'manual', 'goal'].includes(fields.method) ? fields.method : 'manual',
       zoom: isZoomed(fields.zoom) ? normalizeZoom(fields.zoom) : null,
       speeds: [],
       freeze: null,
@@ -1088,11 +1088,53 @@
     return { marks: m, did: 'start', n };
   }
 
-  function addGoal(game, t, side) {
+  const jersey = (v) => String(v == null ? '' : v).replace(/[^0-9]/g, '').slice(0, 2);
+  const jerseys = (list, max) => [...new Set((Array.isArray(list) ? list : []).map(jersey).filter(Boolean))].slice(0, max || 30);
+
+  /**
+   * Mark a goal. details (v1.8, all optional):
+   *   ours ('for'):  scorer, assists [up to 2]
+   *   theirs:        oppScorer, oppAssists [up to 2] (their numbers), onIce (our players on the ice)
+   */
+  function addGoal(game, t, side, details) {
     const m = gameMarks(game);
-    m.goals.push({ id: uid('goal'), t: round1(t), side: side === 'against' ? 'against' : 'for' });
+    const d = details || {};
+    const g = { id: uid('goal'), t: round1(t), side: side === 'against' ? 'against' : 'for' };
+    if (g.side === 'for') {
+      g.scorer = jersey(d.scorer);
+      g.assists = jerseys(d.assists).filter((x) => x !== g.scorer).slice(0, 2);
+    } else {
+      g.oppScorer = jersey(d.oppScorer);
+      g.oppAssists = jerseys(d.oppAssists, 2);
+      g.onIce = jerseys(d.onIce, 6);
+    }
+    m.goals.push(g);
     m.goals.sort((a, b) => a.t - b.t);
     return m;
+  }
+
+  /** Our players to tag on a goal's clip: scorer and assists for ours, the players on the ice for theirs. */
+  function goalPlayers(g) {
+    return g.side === 'for' ? [g.scorer].concat(g.assists || []).filter(Boolean) : (g.onIce || []).slice();
+  }
+
+  /** "Goal #7 (A: #12, #4)" / "Goal against #19 (A: #3)" — or plain "Goal for" without details. */
+  function goalLabel(g) {
+    const who = (s, a) => (s ? ' #' + s : '') + (a && a.length ? ' (A: ' + a.map((x) => '#' + x).join(', ') + ')' : s ? ' (unassisted)' : '');
+    return g.side === 'for' ? 'Goal' + (g.scorer ? who(g.scorer, g.assists) : ' for') : 'Goal against' + who(g.oppScorer, g.oppAssists);
+  }
+
+  const GOAL_BEFORE = 10, GOAL_AFTER = 5;
+
+  /** The clip window for a goal at t: 10 s before (the build-up) to 5 s after. */
+  function goalWindow(t, total) {
+    return { start: round1(Math.max(0, t - GOAL_BEFORE)), end: round1(Math.min(total, t + GOAL_AFTER)) };
+  }
+
+  /** The category goal clips go in: one named like "Goal", else "scoring"/"shots", else the first. */
+  function goalCategory(categories) {
+    const live = (categories || []).filter((c) => !c.hidden);
+    return live.find((c) => /\bgoals?\b/i.test(c.name)) || live.find((c) => /scor|shot/i.test(c.name)) || live[0] || null;
   }
 
   function removeGoal(game, id) { const m = gameMarks(game); m.goals = m.goals.filter((g) => g.id !== id); return m; }
@@ -1577,6 +1619,12 @@
     };
   }
 
+  /** Drive folder for one game's clips, e.g. "2026-10-18 vs Burlington Raiders" (sorts by date). */
+  function gameFolderName(game) {
+    const opp = cleanText(game.opponent, 60).replace(/[\\/:*?"<>|]+/g, '-');
+    return [(game.date || 'Undated'), opp ? 'vs ' + opp : (game.time ? formatClock(game.time) : 'Game')].join(' ');
+  }
+
   function gameTitle(game) {
     const d = game.date ? formatDate(game.date) : 'Undated game';
     return game.opponent ? d + ' vs ' + game.opponent : d;
@@ -1805,6 +1853,7 @@
     EVENTS, EVENT_IDS, GAME_TYPES, HOME_AWAY, ZONES, SITUATIONS, label, eventLabel, gameMarks, togglePeriod, addGoal, removeGoal, removePeriod, periodName,
     clipAuto, clipEvents, toggleEvent, normalizeTags, clipFeatures, libraryEntry, SHARED_TAG_FIELDS, emptyFilters, normalizeFilters, filterCount, entryMatches,
     sortEntries, describeFilters, addView, removeView, normalizeLibrary, libraryFileText, parseLibraryFile, mergeLibrary, syncLibraryStep, buildMyLibrary,
+    gameFolderName, goalPlayers, goalLabel, goalWindow, goalCategory, GOAL_BEFORE, GOAL_AFTER,
     PENALTY_TYPES, PENALTY_LENGTHS, PENALTY_VIDEO_FACTOR, penaltyLabel, addPenalty, endPenalty, removePenalty, penaltyEnd, openPenalties, unendedPenalties, strengthAt, situationAt, strengthBands, clipSituation, penaltyPlayers,
     clipCategoryIds, categoriesPatch, toggleClipCategory, clipCategoryLabel,
     applyEntryTags, folderName, teamFolderKeys, destLabel,

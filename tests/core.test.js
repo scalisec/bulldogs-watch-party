@@ -1101,3 +1101,23 @@ test('mixTracks: voice on top, rink sound quietly underneath', () => {
   assert.equal(WPAudio.mixTracks(null, rink), rink);
   assert.equal(WPAudio.mixTracks(voice, null), voice);
 });
+
+test('goals with scorer and assists: players for the clip, label, window, category', () => {
+  const g = { id: 'g', marks: { periods: [], goals: [] }, clips: [] };
+  g.marks = WP.addGoal(g, 100, 'for', { scorer: '#7', assists: ['12', '7', '4', '9'] });
+  const ours = WP.gameMarks(g).goals[0];
+  assert.deepEqual([ours.scorer, ours.assists], ['7', ['12', '4']], 'scorer not also an assist; at most two assists');
+  assert.deepEqual(WP.goalPlayers(ours), ['7', '12', '4']);
+  assert.equal(WP.goalLabel(ours), 'Goal #7 (A: #12, #4)');
+  g.marks = WP.addGoal(g, 200, 'against', { oppScorer: '19', onIce: ['3', '5'] });
+  const theirs = WP.gameMarks(g).goals[1];
+  assert.equal(WP.goalLabel(theirs), 'Goal against #19 (unassisted)');
+  assert.deepEqual(WP.goalPlayers(theirs), ['3', '5'], 'our players on the ice');
+  assert.equal(WP.goalLabel(WP.gameMarks({ marks: { goals: [{ id: 'x', t: 1, side: 'for' }] } }).goals[0]), 'Goal for', 'older goals without details');
+  assert.deepEqual(WP.goalWindow(5, 3600), { start: 0, end: 10 });
+  assert.deepEqual(WP.goalWindow(100, 102), { start: 90, end: 102 });
+  assert.equal(WP.goalCategory(WP.defaultCategories()).name, 'Shots & scoring chances');
+  assert.equal(WP.goalCategory([{ id: 'a', name: 'Breakouts' }, { id: 'b', name: 'Goals' }]).id, 'b');
+  const c = WP.makeClip({ start: 90, end: 105, total: 3600, categoryId: 'b', method: 'goal' });
+  assert.equal(c.method, 'goal');
+});

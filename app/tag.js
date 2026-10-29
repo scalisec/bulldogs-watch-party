@@ -44,6 +44,31 @@ App.ready.then(() => {
     $('ov-zoom').classList.toggle('hidden', !on);
   }
 
+  // While a clip plays on the game screen ("Play clip"), zooming or dragging changes that clip's view,
+  // so the exported video matches what's on screen. Saved a moment after you stop moving.
+  App.playingClipId = null;
+  let zoomSaveT = 0;
+  function userZoom(z) {
+    applyZoom(z);
+    const c = App.playingClipId && App.G && App.G.clips.find((x) => x.id === App.playingClipId);
+    if (!c || !App.player) return;
+    const t = App.player.time();
+    if (t < c.start - 0.5 || t >= c.end - 0.05) { App.playingClipId = null; return; }
+    if (WP.hasRec(c)) return; // a recorded breakdown has its own zoom moves
+    clearTimeout(zoomSaveT);
+    zoomSaveT = setTimeout(() => {
+      const zz = WP.isZoomed(App.zoom) ? WP.normalizeZoom(App.zoom) : null;
+      App.G.clips = App.G.clips.map((x) => (x.id === c.id ? WP.updateClip(x, { zoom: zz }, App.TL.total) : x));
+      save();
+      renderClips();
+      const ov = $('ov-tag');
+      ov.textContent = zz ? 'View saved to this clip (' + zoomLabel(zz) + ')' : 'This clip shows the whole rink';
+      ov.classList.remove('hidden');
+      clearTimeout(userZoom.t);
+      userZoom.t = setTimeout(() => ov.classList.add('hidden'), 1600);
+    }, 350);
+  }
+
   function sizeFrame() {
     const v = $('video');
     if (!v.videoWidth || !v.videoHeight) return;
@@ -65,12 +90,12 @@ App.ready.then(() => {
       if (!App.player) return;
       e.preventDefault();
       const { fx, fy } = frameFrac(e);
-      applyZoom(WP.zoomAt(App.zoom, e.deltaY < 0 ? 1.15 : 1 / 1.15, fx, fy));
+      userZoom(WP.zoomAt(App.zoom, e.deltaY < 0 ? 1.15 : 1 / 1.15, fx, fy));
     }, { passive: false });
     f.addEventListener('dblclick', (e) => {
       if (!App.player) return;
       const { fx, fy } = frameFrac(e);
-      applyZoom(WP.isZoomed(App.zoom) ? WP.FIT : WP.zoomAt(WP.FIT, 2.5, fx, fy));
+      userZoom(WP.isZoomed(App.zoom) ? WP.FIT : WP.zoomAt(WP.FIT, 2.5, fx, fy));
     });
     let drag = null;
     f.addEventListener('pointerdown', (e) => {
@@ -81,15 +106,15 @@ App.ready.then(() => {
     });
     f.addEventListener('pointermove', (e) => {
       if (!drag) return;
-      applyZoom(WP.panZoom(drag.z, (e.clientX - drag.x) / drag.r.width, (e.clientY - drag.y) / drag.r.height));
+      userZoom(WP.panZoom(drag.z, (e.clientX - drag.x) / drag.r.width, (e.clientY - drag.y) / drag.r.height));
     });
     const end = () => { drag = null; f.classList.remove('dragging'); };
     f.addEventListener('pointerup', end);
     f.addEventListener('pointercancel', end);
   })();
-  $('z-in').addEventListener('click', () => applyZoom(WP.zoomAt(App.zoom, 1.25)));
-  $('z-out').addEventListener('click', () => applyZoom(WP.zoomAt(App.zoom, 1 / 1.25)));
-  $('z-fit').addEventListener('click', () => applyZoom(WP.FIT));
+  $('z-in').addEventListener('click', () => userZoom(WP.zoomAt(App.zoom, 1.25)));
+  $('z-out').addEventListener('click', () => userZoom(WP.zoomAt(App.zoom, 1 / 1.25)));
+  $('z-fit').addEventListener('click', () => userZoom(WP.FIT));
   function currentZoom() { return WP.isZoomed(App.zoom) ? App.zoom : null; }
   function zoomLabel(z) { return 'Zoom ' + (Math.round(z.scale * 10) / 10) + '×'; }
 
@@ -269,6 +294,12 @@ App.ready.then(() => {
   function onTick() {
     if (!App.G) return;
     renderGameStatus();
+    // the played clip stops owning the zoom once it has finished or the playhead has left it
+    if (App.playingClipId && App.player) {
+      const pc = App.G.clips.find((x) => x.id === App.playingClipId);
+      const pt = App.player.time();
+      if (!pc || pt < pc.start - 0.5 || pt >= pc.end - 0.05) App.playingClipId = null;
+    }
     const t = App.player ? App.player.time() : 0;
     $('clock').textContent = WP.formatTime(t) + ' / ' + WP.formatTime(App.TL.total);
     const loc = WP.locate(App.TL, t);
@@ -332,6 +363,7 @@ App.ready.then(() => {
       if (pp.length) clip.players = WP.normalizePlayers(clip.players.concat(pp));
     } catch (e) { toast(e.message, { err: true }); return null; }
     App.G.clips.push(clip);
+    App.playingClipId = null; // tagging something new: zooming is for what comes next, not the clip you played
     save();
     renderTimelineStatic();
     renderClips();
@@ -495,7 +527,7 @@ App.ready.then(() => {
       (WP.clipEvents(App.G, c).length || autoLine(App.G, c) || c.private || c.starred) ? el('div', { class: 'meta' }, ...evBadges(App.G, c), autoLine(App.G, c) ? el('span', {}, autoLine(App.G, c)) : '', c.starred ? el('span', { style: 'color:#FACC15' }, '\u2605') : '', c.private ? el('span', { class: 'pill lockpill' }, '\uD83D\uDD12 Private') : '') : null,
       c.note ? el('div', { class: 'small' }, c.note) : null,
       el('div', { class: 'row' },
-        el('button', { type: 'button', class: 'btn small', onclick: () => { App.selectedClipId = c.id; renderTimelineStatic(); renderClips(); applyZoom(c.zoom); App.player && App.player.playRange(c.start, c.end); } }, '▶ Play clip'),
+        el('button', { type: 'button', class: 'btn small', onclick: () => { App.selectedClipId = c.id; App.playingClipId = c.id; renderTimelineStatic(); renderClips(); applyZoom(c.zoom); App.player && App.player.playRange(c.start, c.end); } }, '▶ Play clip'),
         el('a', { class: 'btn small', href: '#edit/' + App.G.id + '/' + c.id, style: 'text-decoration:none' }, 'Edit'),
         c.exported ? el('span', { class: 'small muted', title: c.exported.name }, '\u2713 Exported') : null
       )
@@ -527,7 +559,7 @@ App.ready.then(() => {
     for (const g of m.goals) {
       if (g.side === 'for') f += 1; else a += 1;
       items.push(el('span', { class: 'mark ' + (g.side === 'for' ? 'gf' : 'ga') },
-        el('button', { type: 'button', style: 'width:auto;padding:0 4px;background:none', title: 'Go to this goal', onclick: () => App.player && App.player.seek(Math.max(0, g.t - 3)) }, (g.side === 'for' ? 'Goal for ' : 'Goal against ') + WP.formatTime(g.t) + ' (' + f + '–' + a + ')'),
+        el('button', { type: 'button', style: 'width:auto;padding:0 4px;background:none', title: 'Go to this goal', onclick: () => App.player && App.player.seek(Math.max(0, g.t - 3)) }, WP.goalLabel(g) + ' · ' + WP.formatTime(g.t) + ' (' + f + '–' + a + ')'),
         el('button', { type: 'button', 'aria-label': 'Delete goal at ' + WP.formatTime(g.t), onclick: () => { App.G.marks = WP.removeGoal(App.G, g.id); marksChanged(); } }, '✕')));
     }
     for (const p of m.penalties) {
@@ -561,17 +593,89 @@ App.ready.then(() => {
     } catch (e) { toast(e.message, { err: true }); }
   }
 
+  // ---- goals (G / H): who scored, then a goal clip tagged with those players ----
+  const GL = { side: 'for', t: 0, wasPlaying: false, scorer: '', assists: [], onIce: [] };
+
   function markGoal(side) {
     if (!App.player) return;
-    const t = App.player.time();
-    App.G.marks = WP.addGoal(App.G, t, side);
+    GL.side = side === 'against' ? 'against' : 'for';
+    GL.t = App.player.time();
+    GL.wasPlaying = App.player.isPlaying();
+    if (GL.wasPlaying) App.player.pause();
+    GL.scorer = ''; GL.assists = []; GL.onIce = [];
+    for (const id of ['gl-oscorer', 'gl-oa1', 'gl-oa2']) $(id).value = '';
+    const cats = S.settings.categories.filter((c) => !c.hidden);
+    selectOpts($('gl-cat'), cats.map((c) => [c.id, c.name]), (WP.goalCategory(S.settings.categories) || {}).id, null);
+    const w = WP.goalWindow(GL.t, App.TL.total);
+    $('gl-h').textContent = GL.side === 'for' ? 'Goal for 🎉' : 'Goal against';
+    $('gl-at').textContent = 'At ' + WP.formatTime(GL.t) + ' · the clip runs ' + WP.formatTime(w.start) + '–' + WP.formatTime(w.end);
+    renderGoalForm();
+    $('dlg-goal').showModal();
+    if (GL.side === 'against') $('gl-oscorer').focus(); else $('gl-ok').focus(); // Enter saves straight away
+  }
+
+  function renderGoalForm() {
+    const rows = WP.gameLineup(App.G, S.settings.roster).filter((r) => !r.away);
+    const chip = (r, on, fn) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(on), title: r.name || null, onclick: fn }, '#' + r.number + (r.name ? ' ' + r.name : ''));
+    $('gl-ours').hidden = GL.side !== 'for';
+    $('gl-theirs').hidden = GL.side !== 'against';
+    $('gl-scorer').replaceChildren(...rows.map((r) => chip(r, GL.scorer === r.number, () => { GL.scorer = GL.scorer === r.number ? '' : r.number; GL.assists = GL.assists.filter((x) => x !== GL.scorer); renderGoalForm(); })));
+    $('gl-assists').replaceChildren(...rows.filter((r) => r.number !== GL.scorer).map((r) => chip(r, GL.assists.includes(r.number), () => {
+      GL.assists = GL.assists.includes(r.number) ? GL.assists.filter((x) => x !== r.number) : GL.assists.concat([r.number]).slice(-2);
+      renderGoalForm();
+    })));
+    $('gl-onice').replaceChildren(...rows.map((r) => chip(r, GL.onIce.includes(r.number), () => {
+      GL.onIce = GL.onIce.includes(r.number) ? GL.onIce.filter((x) => x !== r.number) : GL.onIce.concat([r.number]);
+      renderGoalForm();
+    })));
+    $('gl-note').textContent = rows.length ? 'Everything here is optional. The players are tagged on the goal clip.' : 'Add a lineup (or roster) to pick players here. Everything is optional.';
+  }
+
+  function closeGoal() {
+    if ($('dlg-goal').open) $('dlg-goal').close();
+    if (GL.wasPlaying && App.player) App.player.resume();
+    GL.wasPlaying = false;
+  }
+
+  function saveGoal() {
+    const side = GL.side;
+    const details = side === 'for' ? { scorer: GL.scorer, assists: GL.assists } : { oppScorer: $('gl-oscorer').value, oppAssists: [$('gl-oa1').value, $('gl-oa2').value], onIce: GL.onIce };
+    App.G.marks = WP.addGoal(App.G, GL.t, side, details);
     const m = WP.gameMarks(App.G);
+    const goal = m.goals.filter((g) => g.side === side && Math.abs(g.t - Math.round(GL.t * 10) / 10) < 0.01).pop();
+    // the goal clip: 10 s before to 5 s after, tagged with the players, in the goal category
+    const cat = catById($('gl-cat').value) || WP.goalCategory(S.settings.categories);
+    let clip = null;
+    if (cat) {
+      const w = WP.goalWindow(GL.t, App.TL.total);
+      try {
+        clip = WP.makeClip({ start: w.start, end: w.end, total: App.TL.total, categoryId: cat.id, method: 'goal', zoom: currentZoom(), by: S.settings.coachName,
+          players: WP.goalPlayers(goal), note: WP.goalLabel(goal) });
+        App.G.clips.push(clip);
+        goal.clipId = clip.id;
+        App.G.marks = Object.assign({}, m, { goals: m.goals.map((g) => (g.id === goal.id ? goal : g)) });
+      } catch (e) { toast(e.message, { err: true }); }
+    }
+    marksChanged();
     const f = m.goals.filter((g) => g.side === 'for').length;
     const a = m.goals.length - f;
-    marksChanged();
-    const id = m.goals.find((g) => Math.abs(g.t - Math.round(t * 10) / 10) < 0.01 && g.side === side).id;
-    toast((side === 'for' ? 'Goal for' : 'Goal against') + ' at ' + WP.formatTime(t) + ' — score ' + f + '–' + a, { action: { label: 'Undo', fn: () => { App.G.marks = WP.removeGoal(App.G, id); marksChanged(); } } });
+    closeGoal();
+    toast(WP.goalLabel(goal) + ' at ' + WP.formatTime(goal.t) + ' — score ' + f + '–' + a + (clip ? ' · clip added' : ''), { ms: 6000, action: { label: 'Undo', fn: () => {
+      App.G.marks = WP.removeGoal(App.G, goal.id);
+      if (clip) App.G.clips = App.G.clips.filter((c) => c.id !== clip.id);
+      marksChanged();
+    } } });
   }
+  $('gl-form').addEventListener('submit', (e) => { e.preventDefault(); saveGoal(); });
+  // Enter saves from anywhere in these popups (focus may be on a player button)
+  // (on the document: tapping a player button redraws the list, which can move focus out of the popup)
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.isComposing || /^(select|textarea)$/i.test(e.target.tagName || '')) return;
+    if ($('dlg-goal').open) { e.preventDefault(); saveGoal(); }
+    else if ($('dlg-penalty').open) { e.preventDefault(); savePenalty(); }
+  });
+  $('gl-cancel').addEventListener('click', closeGoal);
+  $('dlg-goal').addEventListener('cancel', (e) => { e.preventDefault(); closeGoal(); });
 
   // ---- custom tag (T): a new clip at this moment with a tag you type ----
   const QT = { t: 0, wasPlaying: false, catId: null, range: null };
@@ -705,7 +809,7 @@ App.ready.then(() => {
   }
   Object.assign(App, {
     renderTagLineup,
-    applyZoom, autoLine, cancelMarks, evBadges, markGoal, markIn, markOut, markPeriod, onCategory, openPenalty, openQuickTag,
+    applyZoom, userZoom, autoLine, cancelMarks, evBadges, markGoal, markIn, markOut, markPeriod, onCategory, openPenalty, openQuickTag,
     openGame, removeClip, renderClips, renderTags, sameJ, selectOpts, zoomLabel
   });
 }).catch((e) => setTimeout(() => { throw e; }));

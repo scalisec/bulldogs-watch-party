@@ -16,7 +16,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=1.7.0">
+<link rel="stylesheet" href="styles.css?v=1.8.0">
 </head>
 <body>
 <header class="topbar">
@@ -188,7 +188,7 @@
         <button type="button" class="btn small" id="b-backup">Backup this game</button>
         <a href="#games" class="btn small" style="text-decoration:none">All games</a>
       </div>
-      <span class="small muted">Click Edit to trim, draw, add tags and export a clip to this computer or Google Drive. Find clips from every game in Review.</span>
+      <span class="small muted">While a clip plays (▶ Play clip), zoom and drag the picture to set what the exported clip shows. Click Edit to trim, draw, add tags and export. Find clips from every game in Review.</span>
     </aside>
   </div>
 </main>
@@ -499,6 +499,30 @@
   </form>
 </dialog>
 
+<dialog id="dlg-goal" aria-labelledby="gl-h">
+  <form class="dlg" id="gl-form">
+    <div class="stack" style="gap:2px"><h2 id="gl-h">Goal</h2><span class="small muted" id="gl-at"></span></div>
+    <div class="stack" id="gl-ours" style="gap:10px">
+      <div class="stack" style="gap:6px"><span style="font-weight:600;font-size:13px">Scored by</span><div class="chips" id="gl-scorer"></div></div>
+      <div class="stack" style="gap:6px"><span style="font-weight:600;font-size:13px">Assists <span class="small muted">(up to 2)</span></span><div class="chips" id="gl-assists"></div></div>
+    </div>
+    <div class="stack" id="gl-theirs" style="gap:10px">
+      <div class="row" style="gap:10px;align-items:flex-end">
+        <label class="field" style="width:130px">Their scorer #<input type="text" id="gl-oscorer" inputmode="numeric" maxlength="2" autocomplete="off"></label>
+        <label class="field" style="width:110px">Assist #<input type="text" id="gl-oa1" inputmode="numeric" maxlength="2" autocomplete="off"></label>
+        <label class="field" style="width:110px">Assist #<input type="text" id="gl-oa2" inputmode="numeric" maxlength="2" autocomplete="off"></label>
+      </div>
+      <div class="stack" style="gap:6px"><span style="font-weight:600;font-size:13px">Our players on the ice <span class="small muted">(optional)</span></span><div class="chips" id="gl-onice"></div></div>
+    </div>
+    <label class="field">Clip category<select id="gl-cat"></select></label>
+    <span class="small muted" id="gl-note"></span>
+    <div class="row" style="justify-content:flex-end">
+      <button type="button" class="btn" id="gl-cancel">Cancel</button>
+      <button type="submit" class="btn primary" id="gl-ok">Save goal</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="dlg-qtag" aria-labelledby="qt-h">
   <form class="dlg" id="qt-form">
     <div class="stack" style="gap:2px"><h2 id="qt-h">New clip with a tag</h2><span class="small muted" id="qt-at"></span></div>
@@ -594,28 +618,28 @@
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
-<script src="config.js?v=1.7.0"></script>
-<script src="core.js?v=1.7.0"></script>
-<script src="storage.js?v=1.7.0"></script>
-<script src="vendor/mp4-muxer.js?v=1.7.0"></script>
-<script src="render.js?v=1.7.0"></script>
-<script src="audio.js?v=1.7.0"></script>
-<script src="drive.js?v=1.7.0"></script>
-<script src="app/base.js?v=1.7.0"></script>
-<script src="app/player.js?v=1.7.0"></script>
-<script src="app/lineup.js?v=1.7.0"></script>
-<script src="app/league.js?v=1.7.0"></script>
-<script src="app/games.js?v=1.7.0"></script>
-<script src="app/tag.js?v=1.7.0"></script>
-<script src="app/editor.js?v=1.7.0"></script>
-<script src="app/record.js?v=1.7.0"></script>
-<script src="app/export.js?v=1.7.0"></script>
-<script src="app/settings.js?v=1.7.0"></script>
-<script src="app/team.js?v=1.7.0"></script>
-<script src="app/team-sync.js?v=1.7.0"></script>
-<script src="app/library.js?v=1.7.0"></script>
-<script src="app/review.js?v=1.7.0"></script>
-<script src="app/teams.js?v=1.7.0"></script>
-<script src="app/main.js?v=1.7.0"></script>
+<script src="config.js?v=1.8.0"></script>
+<script src="core.js?v=1.8.0"></script>
+<script src="storage.js?v=1.8.0"></script>
+<script src="vendor/mp4-muxer.js?v=1.8.0"></script>
+<script src="render.js?v=1.8.0"></script>
+<script src="audio.js?v=1.8.0"></script>
+<script src="drive.js?v=1.8.0"></script>
+<script src="app/base.js?v=1.8.0"></script>
+<script src="app/player.js?v=1.8.0"></script>
+<script src="app/lineup.js?v=1.8.0"></script>
+<script src="app/league.js?v=1.8.0"></script>
+<script src="app/games.js?v=1.8.0"></script>
+<script src="app/tag.js?v=1.8.0"></script>
+<script src="app/editor.js?v=1.8.0"></script>
+<script src="app/record.js?v=1.8.0"></script>
+<script src="app/export.js?v=1.8.0"></script>
+<script src="app/settings.js?v=1.8.0"></script>
+<script src="app/team.js?v=1.8.0"></script>
+<script src="app/team-sync.js?v=1.8.0"></script>
+<script src="app/library.js?v=1.8.0"></script>
+<script src="app/review.js?v=1.8.0"></script>
+<script src="app/teams.js?v=1.8.0"></script>
+<script src="app/main.js?v=1.8.0"></script>
 </body>
 </html>

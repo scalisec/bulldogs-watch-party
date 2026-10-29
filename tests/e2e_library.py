@@ -18,6 +18,12 @@ P2 = MEDIA + '2__Mountainside_Arena_Rink__LEAGUE_PARTNER_GAMES_ONLY__2026-10-18T
 def by_name(name):
     return [f for f in drive.values() if f['name'] == name and not f['trashed']]
 
+def in_game_folder(f, parent_id):
+    """v1.8: clips go in a per-game folder ("<date> vs <opponent>") inside the destination folder."""
+    if not f['parents']: return False
+    gf = drive.get(f['parents'][0])
+    return bool(gf) and gf['parents'] == [parent_id] and gf['name'].startswith('2026-') and ' vs ' in gf['name']
+
 def lib_json():
     f = by_name('Watch Party clip library.json')
     return json.loads(f[0]['content']) if f else None
@@ -70,8 +76,11 @@ with sync_playwright() as p:
 
     # ---- periods and goals
     seek(A, 2); A.keyboard.press('p')
-    seek(A, 20); A.keyboard.press('g')
-    seek(A, 35); A.keyboard.press('h')
+    # G / H open the goal popup (v1.8); Enter saves the goal. Its automatic goal clip is removed here so the
+    # clip counts below stay as they were (tests/e2e_v18.py covers goal clips).
+    seek(A, 20); A.keyboard.press('g'); A.wait_for_selector('#dlg-goal[open]'); A.keyboard.press('Enter'); A.wait_for_function('!document.getElementById("dlg-goal").open')
+    seek(A, 35); A.keyboard.press('h'); A.wait_for_selector('#dlg-goal[open]'); A.keyboard.press('Enter'); A.wait_for_function('!document.getElementById("dlg-goal").open')
+    A.evaluate("(() => { const g = window.__bwp.state.games[0]; g.clips = g.clips.filter(c => c.method !== 'goal'); })()"); A.evaluate('App.renderTagView && 0')
     seek(A, 38); A.keyboard.press('p')
     seek(A, 41); A.keyboard.press('p')
     marks = A.evaluate('window.__bwp.state.games[0].marks')
@@ -112,8 +121,10 @@ with sync_playwright() as p:
     A.click('#e-export')
     A.wait_for_function("window.__bwp.editor.mode === 'idle' && (window.__bwp.editor.d.drive || []).length === 2", timeout=60000)
     tc = by_name('Team clips'); fam = by_name('Family \u2013 #7 Sam')
-    check(len(tc) == 1 and len(fam) == 1 and fam[0]['parents'] == tc[0]['parents'], 'Drive: clip saved into the Team clips and Family \u2013 #7 Sam folders (no new folders)')
+    check(len(tc) == 1 and len(fam) == 1 and fam[0]['parents'] == tc[0]['parents'], 'Drive: still one Team clips and one Family \u2013 #7 Sam folder')
     vids = [f for f in drive.values() if (f['name'] or '').endswith('.mp4')]
+    check(sorted(in_game_folder(v, tc[0]['id']) or in_game_folder(v, fam[0]['id']) for v in vids) == [True, True] and any(in_game_folder(v, tc[0]['id']) for v in vids) and any(in_game_folder(v, fam[0]['id']) for v in vids),
+          'Drive: the clip is in a game folder inside Team clips and inside the family folder')
     check(len(vids) == 2 and all(isinstance(v['content'], bytes) and len(v['content']) > 100000 for v in vids), 'two MP4 copies uploaded (%s bytes)' % [len(v['content']) for v in vids])
     check(all('Breakouts' in v['description'] and 'P1' in v['description'] and 'wall' not in v['description'] for v in vids), 'Drive description is neutral: category, game, period (no note)')
     check(A.locator('.toast', has_text='Saved to Drive').count() == 1, 'toast confirms Drive save')
@@ -141,14 +152,14 @@ with sync_playwright() as p:
     A.route('https://www.googleapis.com/upload/drive/v3/files/*', flaky)
     A.click('#e-export')
     A.wait_for_selector('#e-retry-upload', timeout=60000)
-    check(A.locator('.toast', has_text='Retry upload').count() >= 1 and len([f for f in drive.values() if (f['name'] or '').endswith('.mp4') and f['parents'] == [pf[0]['id']]]) == 0, 'failed upload: video kept, Retry offered, no empty file left in Drive')
+    check(A.locator('.toast', has_text='Retry upload').count() >= 1 and len([f for f in drive.values() if (f['name'] or '').endswith('.mp4') and (f['parents'] == [pf[0]['id']] or in_game_folder(f, pf[0]['id']))]) == 0, 'failed upload: video kept, Retry offered, no empty file left in Drive')
     A.unroute('https://www.googleapis.com/upload/drive/v3/files/*', flaky)
     frames_before = A.evaluate('window.__bwp.lastExport && window.__bwp.lastExport.frames')
     A.click('#e-retry-upload')
     A.wait_for_function("window.__bwp.editor.mode === 'idle' && (window.__bwp.editor.d.drive || []).length === 1", timeout=60000)
     check(not A.is_visible('#e-retry-upload'), 'retry uploaded the kept video (no new export)')
-    pv = [f for f in drive.values() if (f['name'] or '').endswith('.mp4') and f['parents'] == [pf[0]['id']]]
-    check(len(pv) == 1, 'private clip uploaded to the private folder')
+    pv = [f for f in drive.values() if (f['name'] or '').endswith('.mp4') and in_game_folder(f, pf[0]['id'])]
+    check(len(pv) == 1, 'private clip uploaded to the game folder inside the private folder')
     A.click('#e-back'); A.wait_for_selector('#view-tag:not(.hidden)')
     A.wait_for_timeout(3200); idle(A)
     L = lib_json(); PL = priv_json()
@@ -227,7 +238,7 @@ with sync_playwright() as p:
     B.click('#e-export')
     B.wait_for_function("window.__bwp.editor && window.__bwp.editor.mode === 'idle' && (window.__bwp.editor.d.drive || []).length === 1", timeout=60000)
     bv = [f for f in drive.values() if (f['name'] or '').endswith('.mp4') and f['owner'] == 'b@team.com']
-    check(len(bv) == 1 and bv[0]['parents'] == [tc[0]['id']], 'B (coach): saved a clip into the admin\u2019s Team clips folder')
+    check(len(bv) == 1 and in_game_folder(bv[0], tc[0]['id']), 'B (coach): saved a clip into a game folder in the admin\u2019s Team clips folder')
     B.goto(APP + '#settings')
 
     # A syncs and gets the note in its own clip

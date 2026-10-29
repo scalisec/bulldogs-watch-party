@@ -188,6 +188,24 @@ App.ready.then(() => {
     return id;
   }
 
+  /**
+   * Each game gets its own folder inside a destination (e.g. Team clips › "2026-10-18 vs Raiders").
+   * Remembered on the game; on another device the same account finds it by name; otherwise it's made.
+   */
+  async function gameFolder(parentId) {
+    const g = App.G;
+    const name = WP.gameFolderName(g);
+    g.driveFolders = g.driveFolders || {};
+    const known = g.driveFolders[parentId];
+    if (known && known.name === name) return known.id;
+    let id = null;
+    try { const found = await WPDrive.findByName(name, WPDrive.FOLDER, parentId); id = found.length ? found[0].id : null; } catch (e) { id = null; }
+    if (!id) id = (await WPDrive.createFolder(name, parentId)).id;
+    g.driveFolders[parentId] = { id, name };
+    save();
+    return id;
+  }
+
   /** Upload once, then let Google copy it into the other folders (no second upload).
       On failure the error carries .partial = { list, done } so finished folders aren't forgotten. */
   async function uploadToDrive(d, blob, name, dests, onStep) {
@@ -200,7 +218,7 @@ App.ready.then(() => {
     try {
       for (const dest of dests) {
         if (onStep) onStep(dest, null);
-        const folderId = await ensureDestFolder(dest);
+        const folderId = await gameFolder(await ensureDestFolder(dest));
         let f = null;
         if (firstId) { try { f = await WPDrive.copyFile(firstId, name, folderId, desc); } catch (e) { if (e.code === 401 || e.code === 0) throw e; f = null; } }
         if (!f) f = await WPDrive.uploadBlob(name, folderId, blob, desc, (p) => onStep && onStep(dest, p));

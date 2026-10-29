@@ -34,7 +34,7 @@ with sync_playwright() as p:
 
     check(page.is_visible('#gstatus') and 'Even strength' in txt(page, '#gs-str') and 'No goals marked' in txt(page, '#gs-score'), 'status panel shows even strength, no goals yet')
     seek(page, 2); page.keyboard.press('p')
-    seek(page, 5); page.click('#gs-gf'); page.wait_for_timeout(200)
+    seek(page, 5); page.click('#gs-gf'); page.wait_for_selector('#dlg-goal[open]'); page.keyboard.press('Enter'); page.wait_for_timeout(300)
     check('P1 · Score 1–0' in txt(page, '#gs-score'), 'period and score update (P1 · 1–0), Goal for button works')
 
     # their penalty via the panel's button: power play 5-on-4, listed with time left
