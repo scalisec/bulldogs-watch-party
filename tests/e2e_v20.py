@@ -17,6 +17,10 @@ def check(cond, msg):
 
 def seek(page, t): page.evaluate('window.__bwp.player.seek(%s)' % t); page.wait_for_timeout(400)
 def game(page): return page.evaluate('window.__bwp.state.games[0]')
+def shot(page, name, full=True):
+    page.evaluate("document.getElementById('toasts').replaceChildren()")
+    page.screenshot(path=SHOTS + '/' + name, full_page=full)
+
 def view(page, v): page.wait_for_selector('#view-%s:not(.hidden)' % v)
 
 def goal(page, key, scorer=None, assists=()):
@@ -48,7 +52,7 @@ with sync_playwright() as p:
     page.set_input_files('#file-input', [P1, P2])
     page.wait_for_function("!document.getElementById('g-start').disabled", timeout=20000)
     page.fill('#g-opp', 'Burlington Raiders'); page.fill('#g-date', '2026-10-18'); page.select_option('#g-type', 'league'); page.select_option('#g-ha', 'away')
-    page.screenshot(path=SHOTS + '/v20-new-game.png', full_page=True)
+    shot(page, 'v20-new-game.png')
     page.click('#g-start'); view(page, 'tag')
     page.wait_for_function("document.getElementById('clock').textContent.endsWith('1:10')", timeout=10000)
 
@@ -70,14 +74,14 @@ with sync_playwright() as p:
     sbt = page.text_content('#sb')
     check('Bulldogs' in sbt and 'Raiders' in sbt and page.text_content('#sb .sb-per') == '2nd' and page.text_content('#sb .sb-us .sb-n') == '2' and page.text_content('#sb .sb-them .sb-n') == '1', 'scoreboard: Bulldogs 2, 2nd, 1 Raiders: ' + sbt)
     check(not any(ch.isdigit() and ':' in sbt for ch in sbt) and ':' not in sbt, 'scoreboard shows no clock')
-    page.screenshot(path=SHOTS + '/v20-watch-and-tag.png')
+    shot(page, 'v20-watch-and-tag.png', False)
 
     # ---- Game details tab
     page.click('#gt-info'); view(page, 'ginfo')
     check(page.input_value('#gi-opp') == 'Burlington Raiders' and page.input_value('#t-gtype') == 'league' and 'Goal #7' in page.text_content('#marks-list'), 'Game details: date/opponent/type and the marks list')
     page.fill('#gi-result', 'W 3–1'); page.press('#gi-result', 'Tab'); page.wait_for_timeout(200)
     check(game(page)['result'] == 'W 3–1', 'final score saved from Game details')
-    page.screenshot(path=SHOTS + '/v20-details.png', full_page=True)
+    shot(page, 'v20-details.png')
 
     # ---- Summary tab
     page.click('#gt-sum'); view(page, 'gsum')
@@ -101,7 +105,7 @@ with sync_playwright() as p:
     page.fill('#gsn-well', 'Breakouts on the strong side'); page.fill('#gsn-work', 'Backchecking'); page.wait_for_timeout(700)
     check(game(page).get('summaryNotes') == {'wentWell': 'Breakouts on the strong side', 'workOn': 'Backchecking'}, 'coach’s notes saved')
     check('Export all goal clips (3)' in page.text_content('#gs-export-goals'), 'Export all goal clips button counts the goal clips')
-    page.screenshot(path=SHOTS + '/v20-summary.png', full_page=True)
+    shot(page, 'v20-summary.png')
     # ▶ on a goal opens Watch and tag at that moment
     page.click('#gs-goals tbody tr:nth-child(1) button[aria-label^="Watch at"]'); view(page, 'tag')
     page.wait_for_timeout(600)
@@ -112,26 +116,26 @@ with sync_playwright() as p:
     check(page.locator('[data-nav="summaries"][aria-current="page"]').count() == 1, 'Summaries is in the menu')
     check(page.locator('#sum-cards .sumcard').count() == 1 and 'Goals: #7 (#12, #4) · #4 (#7)' in page.text_content('#sum-cards'), 'game card lists our scorers')
     check('1–0–0' in page.text_content('#sums .tiles'), 'record tile counts the win (league): ' + page.text_content('#sums .tiles'))
-    page.screenshot(path=SHOTS + '/v20-summaries.png', full_page=True)
+    shot(page, 'v20-summaries.png')
     page.click('a:has-text("Season stats")'); view(page, 'stats')
     rows = page.eval_on_selector_all('#stats-skaters tbody tr', 'r => r.map(x => [...x.children].map(c => c.textContent))')
     seven = [r for r in rows if r[0].startswith('#7')][0]
     check(seven[1:6] == ['1', '1', '1', '2', '0'], 'season stats #7: GP 1, G 1, A 1, PTS 2, PIM 0: %s' % seven)
     check(page.locator('#stats-goalies tbody tr').count() == 1 and '#30' in page.text_content('#stats-goalies'), 'goalie table with #30')
-    page.screenshot(path=SHOTS + '/v20-stats.png', full_page=True)
+    shot(page, 'v20-stats.png')
     page.click('#stats-skaters tbody tr:has-text("#7") button'); view(page, 'review')
     check('#7' in page.text_content('#rv-active'), 'a player’s clips open in Review, filtered to them')
 
     # ---- Games home row and phone widths
     page.goto(APP + '#games'); view(page, 'games')
     check('W 2–1' in page.text_content('#games') or 'Goals don’t match' in page.text_content('#games'), 'games list shows the result and summary state')
-    page.screenshot(path=SHOTS + '/v20-games.png', full_page=True)
+    shot(page, 'v20-games.png')
     page.set_viewport_size({'width': 390, 'height': 900})
     for h in ['#games', '#summaries', '#stats', '#sum/' + game(page)['id']]:
         page.goto(APP + h); page.wait_for_timeout(400)
         w = page.evaluate('document.documentElement.scrollWidth')
         check(w <= 390, 'phone: %s fits (%d)' % (h, w))
-    page.screenshot(path=SHOTS + '/v20-phone-summary.png', full_page=True)
+    shot(page, 'v20-phone-summary.png')
     check(not errors, 'no page errors: ' + '; '.join(errors[:3]))
     b.close()
 print('\n%d failures' % len(fails))
