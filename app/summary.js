@@ -47,14 +47,17 @@ App.ready.then(() => {
       const sum = sumOf(g);
       const ours = sum.goals.filter((x) => x.side === 'for');
       const pens = sum.penalties.map((p) => WP.penaltyLabel(p).replace(/ · (\d+) min$/, ''));
-      const status = sum.mismatch ? el('span', { class: 'pill work' }, 'Goals don’t match the final score')
-        : sum.marked ? el('span', { class: 'pill good' }, 'From your marks') : sum.score ? el('span', { class: 'pill plain' }, 'Score only') : el('span', { class: 'pill plain' }, 'No score yet');
+      const clipsTxt = g.noVideo ? 'No video' : g.clips.length + (g.clips.length === 1 ? ' clip' : ' clips');
+      const status = sum.sheetCheck && sum.sheetCheck.differs ? el('span', { class: 'pill work' }, sum.sheetCheck.differs + ' differ from the game sheet')
+        : sum.mismatch ? el('span', { class: 'pill work' }, 'Goals don’t match the final score')
+        : sum.source === 'sheet' ? el('span', { class: 'pill do' }, g.noVideo ? 'Game sheet · no video' : 'From the game sheet')
+        : sum.marked ? el('span', { class: 'pill good' }, sum.sheet ? 'Your marks + game sheet' : 'From your marks') : sum.score ? el('span', { class: 'pill plain' }, 'Score only') : el('span', { class: 'pill plain' }, 'No score yet');
       return el('a', { class: 'sumcard' + (sum.mismatch ? ' flag' : ''), href: '#sum/' + g.id, 'aria-label': 'Summary: ' + WP.gameTitle(g) },
         el('span', { class: 'when' }, el('span', { class: 'small muted' }, [g.date ? WP.formatDate(g.date) : 'Undated', WP.label(WP.HOME_AWAY, g.homeAway)].filter(Boolean).join(' · ')), el('strong', {}, vs(g))),
         resEl(sum, g.result),
         el('span', { class: 'lines' },
-          el('span', {}, ours.length ? 'Goals: ' + ours.map(goalLine).join(' · ') : sum.marked ? 'No goals for us' : 'Goals not marked yet'),
-          el('span', { class: 'muted' }, [pens.length ? 'Penalties: ' + pens.join(' · ') : 'No penalties marked', g.clips.length + (g.clips.length === 1 ? ' clip' : ' clips')].join(' · '))),
+          el('span', {}, ours.length ? 'Goals: ' + ours.map(goalLine).join(' · ') : sum.goals.length ? 'No goals for us' : 'Goals not marked yet'),
+          el('span', { class: 'muted' }, [pens.length ? 'Penalties: ' + pens.join(' · ') : 'No penalties marked', clipsTxt].join(' · '))),
         status);
     });
     // league games played with no game here yet (no video): score only
@@ -62,11 +65,13 @@ App.ready.then(() => {
     const sched = App.League.schedule() || [];
     const today = new Date().toISOString().slice(0, 10);
     const bare = sched.filter((x) => x.final && x.date <= today && !have.has(x.id)).reverse();
-    const bareCards = bare.map((x) => el('a', { class: 'sumcard', href: '#new/' + encodeURIComponent(x.id), 'aria-label': 'Add video: ' + App.League.whenText(x) + ' ' + App.League.vsText(x) },
+    const bareCards = bare.map((x) => el('div', { class: 'sumcard' },
       el('span', { class: 'when' }, el('span', { class: 'small muted' }, App.League.whenText(x)), el('strong', {}, App.League.vsText(x))),
       el('span', { class: 'res ' + String(x.result).charAt(0) }, x.result || '—'),
-      el('span', { class: 'lines' }, el('span', { class: 'muted' }, 'No video yet. Add it to mark goals, penalties and clips.')),
-      el('span', { class: 'pill plain' }, 'League score only')));
+      el('span', { class: 'lines' }, el('span', { class: 'muted' }, 'Not added yet. Add the video, or just the game sheet for a summary.')),
+      el('span', { class: 'row noprint', style: 'gap:4px' },
+        el('a', { class: 'btn small outline', href: '#new/' + encodeURIComponent(x.id), style: 'text-decoration:none', 'aria-label': 'Add video: ' + App.League.whenText(x) + ' ' + App.League.vsText(x) }, 'Add video'),
+        el('button', { type: 'button', class: 'btn small', 'aria-label': 'Add game sheet: ' + App.League.whenText(x) + ' ' + App.League.vsText(x), onclick: () => App.importSheet({ sched: x }) }, 'Game sheet'))));
     $('sums').replaceChildren(el('div', { class: 'stack', style: 'gap:20px' },
       el('div', { class: 'row spread', style: 'align-items:center' }, el('h1', {}, 'Game summaries'),
         el('div', { class: 'row noprint' }, el('a', { class: 'btn', href: '#stats', style: 'text-decoration:none' }, 'Season stats'))),
@@ -92,6 +97,20 @@ App.ready.then(() => {
   function renderGameSummary() {
     const g = App.G;
     if (!g) return;
+    // goals and penalties marked after the game sheet was added: fill in what they're missing (never the coach's own details)
+    if (g.sheet) {
+      const r = WP.fillFromSheet(g, g.sheet);
+      if (r.filled) {
+        g.marks = r.marks;
+        for (const x of WP.gameMarks(g).goals) {
+          const c = x.clipId && g.clips.find((k) => k.id === x.clipId);
+          if (c && !(c.players || []).length) c.players = WP.goalPlayers(x);
+          if (c && (!c.note || /^Goal( for| against)?$/.test(c.note))) c.note = WP.goalLabel(x);
+        }
+        save();
+        toast('Filled in ' + r.filled + ' detail' + (r.filled === 1 ? '' : 's') + ' from the game sheet');
+      }
+    }
     const sum = sumOf(g);
     const us = WP.shortTeamName(S.settings.team.name) || 'Us';
     const them = WP.shortTeamName(g.opponent) || 'Them';
@@ -106,44 +125,69 @@ App.ready.then(() => {
           el('span', { class: 'muted', style: 'font-size:24px' }, '–'),
           el('div', { class: 'stack', style: 'gap:2px;align-items:center' }, el('span', { class: 'who' }, them), el('span', { class: 'n' }, sum.score ? String(sum.score.against) : '–')),
           sum.outcome ? el('span', { class: 'pill ' + (sum.outcome === 'W' ? 'good' : sum.outcome === 'L' ? 'bad' : 'work') }, { W: 'Win', L: 'Loss', T: 'Tie' }[sum.outcome]) : ''),
-        sum.marked ? el('div', { class: 'tablewrap', style: 'flex:1 1 280px;border:0;background:none' }, el('table', { class: 'dtable', style: 'min-width:260px' },
+        sum.goals.length ? el('div', { class: 'tablewrap', style: 'flex:1 1 280px;border:0;background:none' }, el('table', { class: 'dtable', style: 'min-width:260px' },
           el('thead', {}, el('tr', {}, el('th', {}, 'Goals'), ...periods.map((p) => el('th', { class: 'num' }, p.n == null ? 'Other' : WP.periodLabel(p.n))), el('th', { class: 'num' }, 'Total'))),
           el('tbody', {},
             el('tr', {}, el('td', {}, us), ...periods.map((p) => el('td', { class: 'num' }, String(p.for))), el('td', { class: 'num' }, el('strong', {}, String(sum.score.for)))),
             el('tr', {}, el('td', {}, them), ...periods.map((p) => el('td', { class: 'num' }, String(p.against))), el('td', { class: 'num' }, el('strong', {}, String(sum.score.against))))))) : ''),
-      sum.mismatch ? el('div', { class: 'warnbar' }, 'Your marked goals add up to ' + sum.score.for + '–' + sum.score.against + ', but the final score is ' + sum.typed.for + '–' + sum.typed.against + '. A goal may be missing, or the final score may be wrong (Game details).') : '',
-      !sum.marked ? el('span', { class: 'small muted' }, sum.score ? 'This score comes from the final score, not your marks. Mark goals with G and H on Watch and tag to fill in this summary.' : 'Mark goals with G and H on Watch and tag (or enter the final score in Game details).') : '',
-      sum.marked && !sum.periodsMarked ? el('span', { class: 'small muted' }, 'Mark periods with P to see goals by period.') : '');
+      sum.mismatch ? el('div', { class: 'warnbar' }, 'The goals here add up to ' + sum.score.for + '–' + sum.score.against + ', but ' + (sum.sheet ? 'the game sheet' : 'the final score') + ' says ' + sum.typed.for + '–' + sum.typed.against + '. A goal may be missing' + (sum.sheet ? ' or marked twice.' : ', or the final score may be wrong (Game details).')) : '',
+      sum.source === 'sheet' ? el('span', { class: 'small muted' }, 'From the official game sheet' + (g.noVideo ? ' (no video for this game).' : '. Mark goals with G and H on Watch and tag to link them to the video.')) : '',
+      sum.source === 'result' || sum.source === 'none' ? el('span', { class: 'small muted' }, sum.score ? 'This score comes from the final score, not your marks. Mark goals with G and H on Watch and tag, or import the game sheet.' : 'Mark goals with G and H on Watch and tag, or import the game sheet.') : '',
+      sum.marked && !sum.periodsMarked && !sum.sheet ? el('span', { class: 'small muted' }, 'Mark periods with P to see goals by period.') : '');
+
+    // the official game sheet: import, replace or remove
+    const sheetBar = el('section', { class: 'card row noprint', id: 'gs-sheet', style: 'align-items:center' },
+      g.sheet ? el('span', { class: 'grow stack', style: 'gap:2px' }, el('strong', {}, 'Game sheet' + (g.sheet.number ? ' ' + g.sheet.number : '')),
+        el('span', { class: 'small muted' }, App.sheetLine(g.sheet) + ' · imported ' + new Date(g.sheet.importedAt || Date.now()).toLocaleDateString() +
+          (sum.sheetCheck ? ' · ' + [sum.sheetCheck.differs ? sum.sheetCheck.differs + ' differ' : '', sum.sheetCheck.sheetOnly ? sum.sheetCheck.sheetOnly + ' only on the sheet' : '', sum.sheetCheck.markOnly ? sum.sheetCheck.markOnly + ' not on the sheet' : ''].filter(Boolean).join(', ') || ' · matches your marks' : '')))
+        : el('span', { class: 'grow small muted' }, 'Add the official game sheet (PDF from GameSheet) to fill in scorers, assists and penalties. It’s read on this computer and never uploaded.'),
+      el('button', { type: 'button', class: 'btn small' + (g.sheet ? '' : ' primary'), id: 'gs-import', onclick: importHere }, g.sheet ? 'Replace game sheet' : 'Import game sheet (PDF)'),
+      g.sheet ? el('button', { type: 'button', class: 'btn small', onclick: removeSheet }, 'Remove') : '');
 
     // goals
-    const goalRows = sum.goals.map((x) => el('tr', {},
-      el('td', { style: 'white-space:nowrap' }, x.n ? WP.periodLabel(x.n) : '—'),
+    const sheetWho = (sg) => (sg.scorer ? '#' + sg.scorer : 'no scorer') + (sg.assists && sg.assists.length ? ' (A: ' + sg.assists.map((n) => '#' + n).join(', ') + ')' : '');
+    const sheetCell = (x) => {
+      if (x.fromSheet) return el('span', { class: 'pill do' }, 'From game sheet');
+      if (x.sheetState === 'same') return el('span', { class: 'pill good' }, 'Matches game sheet');
+      if (x.sheetState === 'kept') return el('span', { class: 'small muted' }, 'Kept yours (sheet: ' + sheetWho(x.sheet) + ')');
+      if (x.sheetState === 'not-on-sheet') return el('span', { class: 'pill bad' }, 'Not on the game sheet');
+      if (x.sheetState === 'differs') return el('div', { class: 'stack', style: 'gap:4px' }, el('span', { class: 'pill work', style: 'align-self:flex-start' }, 'Differs'),
+        el('span', { class: 'small muted' }, 'Game sheet: ' + sheetWho(x.sheet)),
+        el('span', { class: 'row', style: 'gap:4px' },
+          el('button', { type: 'button', class: 'btn small noprint', onclick: () => keepMine(x.id) }, 'Keep mine'),
+          el('button', { type: 'button', class: 'btn small noprint', onclick: () => useSheet(x.id, x.sheet) }, 'Use game sheet')));
+      return '';
+    };
+    const goalRows = sum.goals.map((x) => el('tr', { class: x.fromSheet ? 'fromsheet' : '' },
+      el('td', { style: 'white-space:nowrap' }, x.n ? WP.periodLabel(x.n) : '—', x.fromSheet || x.sheet ? el('div', { class: 'small muted' }, (x.fromSheet ? x.time : x.sheet.time) + ' left') : ''),
       el('td', { class: x.side === 'for' ? 'ok' : '', style: x.side === 'for' ? '' : 'color:var(--bad)' }, x.side === 'for' ? us : them),
       el('td', {}, x.side === 'for' ? (x.scorer ? el('strong', {}, pl(x.scorer)) : el('span', { class: 'muted' }, 'Not set')) : (x.oppScorer ? '#' + x.oppScorer : el('span', { class: 'muted' }, '—'))),
       el('td', {}, x.side === 'for' ? ((x.assists || []).map(pl).join(', ') || (x.scorer ? 'Unassisted' : '')) : [(x.oppAssists || []).map((n) => '#' + n).join(', '), x.onIce && x.onIce.length ? 'On ice: ' + x.onIce.map((n) => '#' + n).join(' ') : ''].filter(Boolean).join(' · ')),
       el('td', {}, x.strength ? el('span', { class: 'pill ' + (x.side === 'for' ? 'good' : 'work'), title: x.strength === 'pp' ? 'Power-play goal' : 'Short-handed goal' }, (x.side === 'for' ? '' : 'Their ') + (x.strength === 'pp' ? 'PP' : 'SH')) : ''),
       el('td', { class: 'small muted', style: 'white-space:nowrap' }, x.score.for + '–' + x.score.against),
-      el('td', { style: 'white-space:nowrap;text-align:right' }, el('button', { type: 'button', class: 'btn small noprint', 'aria-label': 'Edit goal at ' + WP.formatTime(x.t), onclick: () => App.editGoal(x.id, renderGameSummary) }, 'Edit'), ' ', watch(x.t))));
+      sum.sheet ? el('td', {}, sheetCell(x)) : '',
+      el('td', { style: 'white-space:nowrap;text-align:right' }, x.fromSheet ? '' : [el('button', { type: 'button', class: 'btn small noprint', 'aria-label': 'Edit goal at ' + WP.formatTime(x.t), onclick: () => App.editGoal(x.id, renderGameSummary) }, 'Edit'), ' ', watch(x.t)])));
     const goalsCard = card({ 'aria-labelledby': 'gs-goals-h' },
-      el('div', { class: 'row spread', style: 'align-items:baseline' }, el('h2', { id: 'gs-goals-h' }, 'Goals'), el('span', { class: 'small muted' }, 'From your marks. Edit fixes who scored; the goal clip follows.')),
+      el('div', { class: 'row spread', style: 'align-items:baseline' }, el('h2', { id: 'gs-goals-h' }, 'Goals'), el('span', { class: 'small muted' }, sum.sheet ? 'Your marks win; the game sheet fills in what they’re missing.' : 'From your marks. Edit fixes who scored; the goal clip follows.')),
       sum.goals.length ? el('div', { class: 'tablewrap', style: 'border:0;background:none' }, el('table', { class: 'dtable', id: 'gs-goals', style: 'min-width:640px' },
-        el('thead', {}, el('tr', {}, el('th', {}, 'Period'), el('th', {}, 'Team'), el('th', {}, 'Scorer'), el('th', {}, 'Assists'), el('th', {}, ''), el('th', {}, 'Score'), el('th', {}, el('span', { class: 'sr' }, 'Actions')))),
+        el('thead', {}, el('tr', {}, el('th', {}, 'Period'), el('th', {}, 'Team'), el('th', {}, 'Scorer'), el('th', {}, 'Assists'), el('th', {}, ''), el('th', {}, 'Score'), sum.sheet ? el('th', {}, 'Game sheet') : '', el('th', {}, el('span', { class: 'sr' }, 'Actions')))),
         el('tbody', {}, ...goalRows))) : el('span', { class: 'small muted' }, 'No goals marked yet.'));
 
     // penalties
-    const penRows = sum.penalties.map((p) => el('tr', {},
-      el('td', {}, p.n ? WP.periodLabel(p.n) : '—'),
+    const penRows = sum.penalties.map((p) => el('tr', { class: p.fromSheet ? 'fromsheet' : '' },
+      el('td', { style: 'white-space:nowrap' }, p.n ? WP.periodLabel(p.n) : '—', p.fromSheet && p.time ? el('div', { class: 'small muted' }, p.time + ' left') : ''),
       el('td', {}, p.team === 'us' ? (p.player ? pl(p.player) : us) : them + (p.player ? ' #' + p.player : '')),
       el('td', {}, WP.label(WP.PENALTY_TYPES, p.type) || 'Penalty'),
       el('td', { class: 'num' }, p.minutes === 10 ? '10 (misc.)' : String(p.minutes)),
-      el('td', {}, WP.OUTCOME_LABELS[p.outcome] || ''),
-      el('td', { style: 'text-align:right' }, watch(p.t))));
+      el('td', {}, p.fromSheet ? el('span', { class: 'pill do' }, 'From game sheet') : WP.OUTCOME_LABELS[p.outcome] || ''),
+      el('td', { style: 'text-align:right' }, p.fromSheet ? '' : watch(p.t))));
     const pensCard = card({ 'aria-labelledby': 'gs-pens-h' },
       el('div', { class: 'row spread', style: 'align-items:baseline' }, el('h2', { id: 'gs-pens-h' }, 'Penalties'),
         el('span', { class: 'small muted' }, 'PIM: ' + us + ' ' + sum.pim.us + ' · ' + them + ' ' + sum.pim.them)),
       sum.penalties.length ? el('div', { class: 'tablewrap', style: 'border:0;background:none' }, el('table', { class: 'dtable', id: 'gs-pens', style: 'min-width:560px' },
         el('thead', {}, el('tr', {}, el('th', {}, 'Period'), el('th', {}, 'Player'), el('th', {}, 'Infraction'), el('th', { class: 'num' }, 'Min'), el('th', {}, 'Result'), el('th', {}, el('span', { class: 'sr' }, 'Watch')))),
-        el('tbody', {}, ...penRows))) : el('span', { class: 'small muted' }, 'No penalties marked.'));
+        el('tbody', {}, ...penRows))) : el('span', { class: 'small muted' }, 'No penalties marked.'),
+      sum.penalties.some((p) => p.fromSheet) ? el('span', { class: 'small muted' }, 'Penalties “from game sheet” aren’t marked on the video. Mark them with X on Watch and tag if you want clips for them.') : '');
 
     // clips
     const clips = g.clips.slice().sort((a, b) => a.start - b.start);
@@ -171,13 +215,50 @@ App.ready.then(() => {
       sum.score && sum.goalies.length ? el('div', { class: 'ptsrow' }, el('span', {}, sum.goalies.map(pl).join(', ') + ' (G)'), el('span', { class: 'muted' }, sum.score.against + ' GA')) : '');
     const goalClips = sum.goals.filter((x) => x.clipId && g.clips.some((c) => c.id === x.clipId));
     const actCard = card({ class: 'card stack noprint', 'aria-label': 'Actions' },
-      el('button', { type: 'button', class: 'btn primary', id: 'gs-export-goals', disabled: goalClips.length ? null : '', onclick: () => App.exportGoalClips(g) }, 'Export all goal clips (' + goalClips.length + ')'),
-      el('span', { class: 'small muted' }, 'Uses the “Save to” choices from your last export.'),
+      g.noVideo ? '' : el('button', { type: 'button', class: 'btn primary', id: 'gs-export-goals', disabled: goalClips.length ? null : '', onclick: () => App.exportGoalClips(g) }, 'Export all goal clips (' + goalClips.length + ')'),
+      g.noVideo ? '' : el('span', { class: 'small muted' }, 'Uses the “Save to” choices from your last export.'),
       el('button', { type: 'button', class: 'btn', onclick: () => window.print() }, 'Print or save as PDF'));
 
     $('gsum').replaceChildren(el('div', { class: 'sumgrid' },
-      el('div', { class: 'sum-main' }, scoreCard, goalsCard, pensCard, clipsCard),
+      el('div', { class: 'sum-main' }, scoreCard, sheetBar, goalsCard, pensCard, g.noVideo ? '' : clipsCard),
       el('div', { class: 'sum-side' }, notesCard, ptsCard, actCard)));
+  }
+
+  // ---- game sheet actions on the summary ----
+  async function importHere() {
+    const g = App.G;
+    if (!g) return;
+    const file = await App.pickPdf();
+    if (!file) return;
+    let facts;
+    try { facts = await App.readSheet(file); } catch (e) { toast('Couldn’t read the game sheet: ' + e.message, { err: true, ms: 9000 }); return; }
+    if (facts && await App.attachSheet(g, facts)) renderGameSummary();
+  }
+  async function removeSheet() {
+    const g = App.G;
+    if (!g || !(await App.askYes('Remove the game sheet from this game?', 'Goals and penalties that came only from the sheet disappear from the summary. Details it filled into your marks (scorers, assists) stay.', 'Remove'))) return;
+    delete g.sheet;
+    save();
+    renderGameSummary();
+  }
+  function setGoal(id, fn) {
+    const g = App.G;
+    const m = WP.gameMarks(g);
+    g.marks = Object.assign({}, m, { goals: m.goals.map((x) => (x.id === id ? fn(x) : x)) });
+    save();
+    renderGameSummary();
+  }
+  function keepMine(id) { setGoal(id, (x) => Object.assign({}, x, { sheetKeep: true })); }
+  function useSheet(id, sg) {
+    const g = App.G;
+    const before = WP.gameMarks(g).goals.find((x) => x.id === id);
+    g.marks = WP.updateGoal(g, id, WP.sheetGoalDetails(sg, before));
+    const goal = WP.gameMarks(g).goals.find((x) => x.id === id);
+    const clip = before && before.clipId ? g.clips.find((c) => c.id === before.clipId) : null;
+    if (clip) { clip.players = WP.goalPlayers(goal); if (!clip.note || clip.note === WP.goalLabel(before)) clip.note = WP.goalLabel(goal); }
+    save();
+    toast('Goal updated from the game sheet: ' + WP.goalLabel(goal));
+    renderGameSummary();
   }
 
   // =====================================================================

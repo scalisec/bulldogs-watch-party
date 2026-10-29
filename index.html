@@ -16,7 +16,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=2.0.2">
+<link rel="stylesheet" href="styles.css?v=2.1.0">
 </head>
 <body>
 <header class="topbar">
@@ -42,6 +42,7 @@
       <h1>Games</h1>
       <div class="row">
         <label class="findbox"><span class="muted">Find</span><input type="search" id="g-find" placeholder="Opponent, date…" autocomplete="off"></label>
+        <button type="button" class="btn" id="g-import-sheet" title="Add a GameSheet PDF to a game, or make a summary-only game from it">Import game sheet</button>
         <button type="button" class="btn" id="import-backup">Import backup</button>
         <input type="file" id="backup-input" accept=".json,application/json" class="hidden">
         <a class="btn primary" href="#new" id="new-game-btn" style="text-decoration:none">+ New game</a>
@@ -60,7 +61,7 @@
       </div>
       <a class="btn" href="#games" style="text-decoration:none">← Games</a>
     </div>
-    <ol class="steps" aria-label="Steps"><li>Video files</li><li>Which game</li><li>Details and lineup</li></ol>
+    <ol class="steps" aria-label="Steps"><li>Video files</li><li>Which game</li><li>Details and lineup</li><li>Game sheet (optional)</li></ol>
       <div class="drop" id="drop">
         <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#078DFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
         <strong>Drag video files here</strong>
@@ -83,6 +84,10 @@
         <label class="field">Home or away<select id="g-ha"><option value="">Not set</option><option value="home">Home</option><option value="away">Away</option></select></label>
       </div>
       <div class="stack lineup" id="g-lineup" aria-label="Lineup for this game"></div>
+      <div class="stack" id="g-sheet" style="gap:6px" aria-labelledby="g-sheet-h">
+        <div class="row spread"><h3 id="g-sheet-h">Game sheet (optional)</h3><button type="button" class="btn small" id="g-sheet-pick">Choose game sheet PDF…</button></div>
+        <div id="g-sheet-status"></div>
+      </div>
       <div class="row" style="justify-content:flex-end">
         <button type="button" class="btn" id="g-clear">Clear</button>
         <button type="button" class="btn primary" id="g-start" disabled>Start tagging</button>
@@ -641,29 +646,30 @@
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
-<script src="config.js?v=2.0.2"></script>
-<script src="core.js?v=2.0.2"></script>
-<script src="storage.js?v=2.0.2"></script>
-<script src="vendor/mp4-muxer.js?v=2.0.2"></script>
-<script src="render.js?v=2.0.2"></script>
-<script src="audio.js?v=2.0.2"></script>
-<script src="drive.js?v=2.0.2"></script>
-<script src="app/base.js?v=2.0.2"></script>
-<script src="app/player.js?v=2.0.2"></script>
-<script src="app/lineup.js?v=2.0.2"></script>
-<script src="app/league.js?v=2.0.2"></script>
-<script src="app/games.js?v=2.0.2"></script>
-<script src="app/tag.js?v=2.0.2"></script>
-<script src="app/editor.js?v=2.0.2"></script>
-<script src="app/record.js?v=2.0.2"></script>
-<script src="app/export.js?v=2.0.2"></script>
-<script src="app/settings.js?v=2.0.2"></script>
-<script src="app/team.js?v=2.0.2"></script>
-<script src="app/team-sync.js?v=2.0.2"></script>
-<script src="app/library.js?v=2.0.2"></script>
-<script src="app/review.js?v=2.0.2"></script>
-<script src="app/summary.js?v=2.0.2"></script>
-<script src="app/teams.js?v=2.0.2"></script>
-<script src="app/main.js?v=2.0.2"></script>
+<script src="config.js?v=2.1.0"></script>
+<script src="core.js?v=2.1.0"></script>
+<script src="storage.js?v=2.1.0"></script>
+<script src="vendor/mp4-muxer.js?v=2.1.0"></script>
+<script src="render.js?v=2.1.0"></script>
+<script src="audio.js?v=2.1.0"></script>
+<script src="drive.js?v=2.1.0"></script>
+<script src="app/base.js?v=2.1.0"></script>
+<script src="app/player.js?v=2.1.0"></script>
+<script src="app/lineup.js?v=2.1.0"></script>
+<script src="app/league.js?v=2.1.0"></script>
+<script src="app/games.js?v=2.1.0"></script>
+<script src="app/tag.js?v=2.1.0"></script>
+<script src="app/editor.js?v=2.1.0"></script>
+<script src="app/record.js?v=2.1.0"></script>
+<script src="app/export.js?v=2.1.0"></script>
+<script src="app/settings.js?v=2.1.0"></script>
+<script src="app/team.js?v=2.1.0"></script>
+<script src="app/team-sync.js?v=2.1.0"></script>
+<script src="app/library.js?v=2.1.0"></script>
+<script src="app/review.js?v=2.1.0"></script>
+<script src="app/summary.js?v=2.1.0"></script>
+<script src="app/gamesheet.js?v=2.1.0"></script>
+<script src="app/teams.js?v=2.1.0"></script>
+<script src="app/main.js?v=2.1.0"></script>
 </body>
 </html>

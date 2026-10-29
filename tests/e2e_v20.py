@@ -90,7 +90,7 @@ with sync_playwright() as p:
     check('1st' in rows[0] and '#7 S. Smith' in rows[0] and '#12 L. Lane, #4 M. Moss' in rows[0], 'goal 1: 1st, #7 S. Smith (#12, #4): ' + rows[0])
     check('PP' in rows[1] and '2nd' not in rows[1], 'goal 2 is a power-play goal in the 1st: ' + rows[1])
     check('2nd' in rows[2] and 'Raiders' in rows[2], 'their goal in the 2nd: ' + rows[2])
-    check('Your marked goals add up to 2–1, but the final score is 3–1' in page.text_content('#gsum'), 'marks that disagree with the final score are flagged')
+    check('The goals here add up to 2–1, but the final score says 3–1' in page.text_content('#gsum'), 'marks that disagree with the final score are flagged')
     check(page.locator('#gs-pens tbody tr').count() == 2 and 'Power-play goal' in page.text_content('#gs-pens'), 'penalties with their result (power-play goal)')
     check('#7 S. Smith' in page.text_content('#gsum') and '1 G · 1 A' in page.text_content('#gsum'), 'points this game')
     # fix the scorer of goal 2: #4 instead of #12; the goal clip follows

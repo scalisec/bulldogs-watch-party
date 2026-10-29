@@ -43,6 +43,8 @@ App.ready.then(() => {
     const needTeams = force || !L.teams || now - L.teamsAt > TEAMS_STALE;
     const needGames = !!lg.teamId && lg.divisionId != null && (force || L.gamesDiv !== lg.divisionId || now - L.gamesAt > GAMES_STALE);
     if (!needTeams && !needGames) return Promise.resolve();
+    // after a failed try, wait a minute before trying again on its own (screens re-render on every result; Refresh forces)
+    if (!force && L.error && now - (L.errAt || 0) < 60000) return Promise.resolve();
     L.loading = (async () => {
       try {
         const div = WP.divisionKey(lg.divisionId);
@@ -61,6 +63,7 @@ App.ready.then(() => {
         }
         L.error = '';
       } catch (e) {
+        L.errAt = Date.now();
         L.error = 'Couldn’t reach the league schedule' + (navigator.onLine === false ? ' (offline)' : '') + '.';
       } finally {
         L.loading = null;

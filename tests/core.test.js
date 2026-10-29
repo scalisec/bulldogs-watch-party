@@ -1203,7 +1203,7 @@ test('v2.0: season stats, goal edits and notes', () => {
   assert.equal(WP.summaryNotes({ summaryNotes: { wentWell: 'Breakouts' } }).wentWell, 'Breakouts');
 });
 
-test('v2.0.2: a folder re-created on this device wins the library merge', () => {
+test('v2.1.0: a folder re-created on this device wins the library merge', () => {
   const lib = (folders) => ({ entries: {}, views: [], folders });
   const base = lib({ team: 'T1', 'player:7': 'old7' });
   const mine = lib({ team: 'T1', 'player:7': 'new7' });
@@ -1214,4 +1214,70 @@ test('v2.0.2: a folder re-created on this device wins the library merge', () => 
   // unchanged here: theirs wins
   const r2 = WP.syncLibraryStep({ base, mine: base, theirs: lib({ team: 'T2', 'player:7': 'old7' }), dirty: true });
   assert.equal(r2.data.folders.team, 'T2');
+});
+
+test('v2.1: reading a GameSheet game sheet', () => {
+  const items = require('./fixtures/gamesheet/u10-sheet-items.json').items;
+  const p = WP.parseGameSheet(items);
+  assert.equal(p.number, 'U10BE38');
+  assert.equal(p.date, '2026-10-24');
+  assert.equal(p.location, 'Sports Park (2)');
+  assert.deepEqual(p.periods, { 1: 10, 2: 10, 3: 15 });
+  assert.equal(p.home.name, 'Cambridge Hawks');
+  assert.equal(p.visitor.name, 'Burlington Bulldogs Blue');
+  assert.equal(p.visitor.goals.length, 11);
+  assert.equal(p.home.goals.length, 2);
+  assert.deepEqual(p.visitor.goals[0], { per: 1, time: '03:14', g: '23', a: ['2'] });
+  assert.deepEqual(p.home.goals[1], { per: 1, time: '00:44', g: '66', a: ['21'] });
+  assert.deepEqual(p.visitor.penalties.map((x) => [x.per, x.no, x.type, x.minutes]), [[1, '97', 'hooking', 2], [3, '2', 'body_checking', 2], [3, '16', 'tripping', 2]]);
+  assert.equal(p.home.penalties.find((x) => x.code === 'USC-MIN').no, '', 'a bench minor (BK) has no player');
+  assert.equal(WP.sheetSide(p, ['Bulldogs U10 Blue', 'Burlington Bulldogs Blue']), 'visitor');
+  assert.equal(WP.sheetSide(p, ['Somebody Else']), null);
+  assert.throws(() => WP.parseGameSheet([{ s: 'hello', x: 1, y: 1, w: 10 }]), /GameSheet/);
+  const f = WP.sheetFacts(p, 'visitor');
+  assert.deepEqual(f.score, { for: 11, against: 2 });
+  assert.equal(f.us, 'Burlington Bulldogs Blue');
+  assert.equal(f.goals.length, 13);
+  assert.deepEqual(f.goals.slice(0, 2).map((g) => [g.side, g.per, g.time]), [['against', 1, '06:17'], ['for', 1, '03:14']], 'their 06:17 goal came first (clock counts down)');
+  assert.ok(f.goals.every((g, i, a) => !i || a[i - 1].per < g.per || (a[i - 1].per === g.per && WP.clockElapsed(a[i - 1].time, 10) <= WP.clockElapsed(g.time, 10))), 'game order');
+  assert.equal(JSON.stringify(f).includes('KEVIN'), false, 'no names kept');
+});
+
+test('v2.1: game sheet in the summary: fills, conflicts, sheet-only goals and penalties, summary-only games', () => {
+  const sheet = { periods: { 1: 10, 2: 10, 3: 15 }, score: { for: 3, against: 1 },
+    goals: [{ side: 'for', per: 1, time: '08:00', scorer: '7', assists: ['12'] }, { side: 'against', per: 1, time: '05:00', scorer: '19', assists: [] },
+      { side: 'for', per: 2, time: '03:00', scorer: '12', assists: [] }, { side: 'for', per: 3, time: '01:00', scorer: '4', assists: ['7', '12'] }],
+    penalties: [{ team: 'us', per: 2, player: '4', minutes: 2, type: 'tripping' }, { team: 'them', per: 3, player: '9', minutes: 2, type: 'slashing' }] };
+  let g = { clips: [], lineup: null, marks: { periods: [{ n: 1, start: 0, end: 100 }, { n: 2, start: 120, end: 220 }, { n: 3, start: 240, end: null }], goals: [], penalties: [] }, sheet };
+  g.marks = WP.addGoal(g, 30, 'for', {});                        // no scorer: filled from the sheet
+  g.marks = WP.addGoal(g, 60, 'against', {});
+  g.marks = WP.addGoal(g, 150, 'for', { scorer: '3' });          // differs from the sheet (#12)
+  g.marks = WP.addPenalty(g, 160, { team: 'us', type: 'other' }).marks; // filled: #4 tripping
+  const r = WP.fillFromSheet(g, sheet);
+  g.marks = r.marks;
+  const gs = WP.gameMarks(g).goals;
+  assert.deepEqual([gs[0].scorer, gs[0].assists], ['7', ['12']]);
+  assert.equal(gs[1].oppScorer, '19');
+  assert.equal(gs[2].scorer, '3', 'the coach’s scorer is never overwritten');
+  assert.deepEqual([WP.gameMarks(g).penalties[0].player, WP.gameMarks(g).penalties[0].type], ['4', 'tripping']);
+  const s = WP.gameSummary(g, [{ number: '7', name: 'S' }]);
+  assert.deepEqual(s.score, { for: 3, against: 1 });
+  assert.equal(s.goals.length, 4, 'the 3rd-period goal is only on the sheet');
+  assert.deepEqual(s.goals.map((x) => x.fromSheet ? 'sheet' : x.sheetState), ['same', 'same', 'differs', 'sheet']);
+  assert.deepEqual(s.sheetCheck, { differs: 1, sheetOnly: 1, markOnly: 0 });
+  assert.equal(s.mismatch, false);
+  assert.equal(s.penalties.length, 2, 'their penalty is only on the sheet');
+  assert.ok(s.penalties.some((p) => p.fromSheet && p.player === '9'));
+  assert.equal(s.points.find((p) => p.number === '4').g, 1, 'sheet-only goals count for points');
+  // keeping the coach's version
+  g.marks = Object.assign({}, WP.gameMarks(g), { goals: WP.gameMarks(g).goals.map((x) => (x.scorer === '3' ? Object.assign({}, x, { sheetKeep: true }) : x)) });
+  assert.equal(WP.gameSummary(g, []).goals[2].sheetState, 'kept');
+  // a game with no video: everything comes from the sheet
+  const ng = WP.newSheetGame(Object.assign({ side: 'visitor', them: 'Cambridge Hawks', date: '2026-10-24', location: 'Sports Park (2)' }, sheet), {});
+  assert.equal(ng.noVideo, true);
+  assert.deepEqual([ng.opponent, ng.homeAway, ng.parts.length], ['Cambridge Hawks', 'away', 0]);
+  const ns = WP.gameSummary(ng, []);
+  assert.deepEqual([ns.source, ns.score.for, ns.goals.length, ns.outcome], ['sheet', 3, 4, 'W']);
+  const st = WP.seasonStats([ng], [{ number: '7', name: 'S' }], '');
+  assert.equal(st.players.find((p) => p.number === '7').pts, 2, '#7: a goal and an assist from the sheet');
 });

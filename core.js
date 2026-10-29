@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '2.0.2';
+  const APP_VERSION = '2.1.0';
   const APP_RELEASED = '2026-10-29';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
@@ -580,7 +580,7 @@
     const who = (clip.players || []).map((p) => '#' + p).join(' ');
     const clean = (x) => String(x || '').replace(/[\\/:*?"<>|]+/g, '-').replace(/[\s.]+$/g, '').replace(/\s+/g, ' ').trim();
     const base = clean([d, category ? category.name : 'Clip', t, who].filter(Boolean).join(' ')).slice(0, 120);
-    // the clip's note goes at the end (v2.0.2), cut at a word boundary so names stay readable
+    // the clip's note goes at the end (v2.1.0), cut at a word boundary so names stay readable
     let note = clean(clip.note);
     if (note.length > 80) note = note.slice(0, 80).replace(/\s+\S*$/, '') + '…';
     return base + (note ? ' - ' + note : '') + '.mp4';
@@ -1886,23 +1886,54 @@
    */
   function gameSummary(game, roster, officialResult) {
     const m = gameMarks(game);
+    const sheet = game.sheet || null;
+    const len = (n) => (sheet && sheet.periods && sheet.periods[n]) || 0;
     const goals = [];
-    let f = 0, a = 0;
     for (const g of m.goals) {
-      if (g.side === 'for') f += 1; else a += 1;
       const st = strengthAt(game, g.t - 0.05);
       const strength = g.side === 'for' ? (st.situation === 'pp' ? 'pp' : st.situation === 'pk' ? 'sh' : '') : (st.situation === 'pk' ? 'pp' : st.situation === 'pp' ? 'sh' : '');
-      goals.push(Object.assign({}, g, { n: periodAt(game, g.t), score: { for: f, against: a }, strength }));
+      goals.push(Object.assign({}, g, { n: periodAt(game, g.t), strength }));
     }
-    const penalties = m.penalties.map((p) => Object.assign({}, p, { n: periodAt(game, p.t), outcome: penaltyOutcome(game, p) }));
-    const typed = parseResult(game.result) || parseResult(officialResult);
-    const marked = m.goals.length > 0;
+    // the official game sheet: pair it with the marks; goals only on the sheet are added (no video time)
+    let sheetCheck = null;
+    if (sheet) {
+      const mt = matchSheetGoals(game, sheet);
+      for (const p of mt.pairs) {
+        const g = goals.find((x) => x.id === p.mark.id);
+        g.sheet = p.sheet;
+        g.sheetState = g.sheetKeep ? 'kept' : sheetGoalAgrees(g, p.sheet);
+        if (g.n == null) g.n = p.sheet.per;
+      }
+      for (const id of mt.markOnly.map((x) => x.id)) goals.find((x) => x.id === id).sheetState = 'not-on-sheet';
+      for (const sg of mt.sheetOnly) goals.push({ id: 'sheet-' + sg.side + '-' + sg.per + '-' + sg.time, side: sg.side, n: sg.per, time: sg.time, fromSheet: true, strength: '',
+        scorer: sg.side === 'for' ? sg.scorer : undefined, assists: sg.side === 'for' ? sg.assists : undefined,
+        oppScorer: sg.side === 'against' ? sg.scorer : undefined, oppAssists: sg.side === 'against' ? sg.assists : undefined });
+      sheetCheck = { differs: goals.filter((g) => g.sheetState === 'differs').length, sheetOnly: mt.sheetOnly.length, markOnly: mt.markOnly.length };
+    }
+    // game order: by period, then video time (marks) or game clock (sheet), marks with a sheet match using the clock
+    const key = (g) => (g.sheet || g.fromSheet ? clockElapsed((g.sheet || g).time, len(g.n)) : null);
+    const marksInOrder = goals.filter((g) => !g.fromSheet);
+    goals.sort((x, y) => {
+      const nx = x.n == null ? 99 : x.n, ny = y.n == null ? 99 : y.n;
+      if (nx !== ny) return nx - ny;
+      const kx = key(x), ky = key(y);
+      if (kx != null && ky != null) return kx - ky;
+      if (!x.fromSheet && !y.fromSheet) return marksInOrder.indexOf(x) - marksInOrder.indexOf(y);
+      return x.fromSheet ? 1 : -1;
+    });
+    let f = 0, a = 0;
+    for (const g of goals) { if (g.side === 'for') f += 1; else a += 1; g.score = { for: f, against: a }; }
+    const sheetPens = sheet ? sheetOnlyPenalties(game, sheet).map((p) => Object.assign({}, p, { n: p.per, fromSheet: true, outcome: '' })) : [];
+    const penalties = m.penalties.map((p) => Object.assign({}, p, { n: periodAt(game, p.t), outcome: penaltyOutcome(game, p) })).concat(sheetPens)
+      .sort((x, y) => (x.n == null ? 99 : x.n) - (y.n == null ? 99 : y.n));
+    const typed = (sheet && sheet.score) || parseResult(game.result) || parseResult(officialResult);
+    const marked = goals.length > 0;
     const score = marked ? { for: f, against: a } : typed;
-    const source = marked ? 'marks' : typed ? 'result' : 'none';
+    const source = m.goals.length ? 'marks' : sheet ? 'sheet' : typed ? 'result' : 'none';
     const mismatch = !!(marked && typed && (typed.for !== f || typed.against !== a));
     const outcome = score ? (score.for > score.against ? 'W' : score.for < score.against ? 'L' : 'T') : '';
     // goals per period (plus any outside a marked period)
-    const nums = [...new Set(m.periods.map((p) => p.n).concat([1, 2, 3]))].sort((x, y) => x - y);
+    const nums = [...new Set(m.periods.map((p) => p.n).concat(Object.keys((sheet && sheet.periods) || {}).map(Number), [1, 2, 3]))].sort((x, y) => x - y);
     const byPeriod = nums.map((n) => ({ n, for: goals.filter((g) => g.n === n && g.side === 'for').length, against: goals.filter((g) => g.n === n && g.side === 'against').length }));
     const loose = goals.filter((g) => g.n == null);
     if (loose.length) byPeriod.push({ n: null, for: loose.filter((g) => g.side === 'for').length, against: loose.filter((g) => g.side === 'against').length });
@@ -1914,14 +1945,14 @@
       if (g.scorer) { P(g.scorer).g += 1; if (g.strength === 'pp') P(g.scorer).ppg += 1; if (g.strength === 'sh') P(g.scorer).shg += 1; }
       for (const x of g.assists || []) P(x).a += 1;
     }
-    for (const p of m.penalties) if (p.team === 'us' && p.player) P(p.player).pim += p.minutes;
+    for (const p of penalties) if (p.team === 'us' && p.player) P(p.player).pim += p.minutes;
     const names = new Map((roster || []).map((r) => [r.number, r.name]));
     const points = Object.values(pts).map((x) => Object.assign(x, { name: names.get(x.number) || '', pts: x.g + x.a }))
       .sort((x, y) => y.pts - x.pts || y.g - x.g || Number(x.number) - Number(y.number));
     const goalies = gameLineup(game, roster).filter((r) => !r.away && r.pos === 'G').map((r) => r.number);
-    return { score, source, mismatch, typed, outcome, goals, penalties, byPeriod, points, goalies,
-      pim: { us: m.penalties.filter((p) => p.team === 'us').reduce((s, p) => s + p.minutes, 0), them: m.penalties.filter((p) => p.team === 'them').reduce((s, p) => s + p.minutes, 0) },
-      marked, periodsMarked: m.periods.length };
+    return { score, source, mismatch, typed, outcome, goals, penalties, byPeriod, points, goalies, sheet, sheetCheck,
+      pim: { us: penalties.filter((p) => p.team === 'us').reduce((s, p) => s + p.minutes, 0), them: penalties.filter((p) => p.team === 'them').reduce((s, p) => s + p.minutes, 0) },
+      marked: m.goals.length > 0, periodsMarked: m.periods.length };
   }
 
   /** "W 2–1" from a summary ('' when there's no score). */
@@ -1980,6 +2011,235 @@
     return { wentWell: String(n.wentWell || '').slice(0, 4000), workOn: String(n.workOn || '').slice(0, 4000) };
   }
 
+  // ---------- official game sheets (GameSheet PDF), v2.1 ----------
+  // GameSheet infraction codes -> this app's penalty types
+  const SHEET_CODES = {
+    TR: 'tripping', HKG: 'hooking', HK: 'hooking', SL: 'slashing', SLA: 'slashing', HO: 'holding', HLD: 'holding', HS: 'high_sticking', HST: 'high_sticking',
+    HHS: 'holding_stick', INT: 'interference', RO: 'roughing', RGH: 'roughing', CC: 'cross_checking', XC: 'cross_checking', BC: 'body_checking',
+    CFB: 'checking_behind', CB: 'checking_behind', HC: 'head_contact', HD: 'head_contact', EL: 'elbowing', ELB: 'elbowing', KN: 'kneeing', KNE: 'kneeing',
+    BD: 'boarding', BRD: 'boarding', CH: 'charging', CHG: 'charging', SP: 'spearing', SPR: 'spearing', DG: 'delay_of_game', DOG: 'delay_of_game',
+    TM: 'too_many', TMM: 'too_many', USC: 'unsportsmanlike', UC: 'unsportsmanlike', FI: 'fighting', FT: 'fighting'
+  };
+
+  /** "BC-MIN" -> { type: 'body_checking', minutes: 2, code: 'BC-MIN' }. */
+  function sheetInfraction(text, mins) {
+    const code = String(text || '').trim().toUpperCase();
+    const base = code.split(/[-\s]/)[0];
+    const m = Number(mins);
+    const minutes = /MISC|GM|GMSC/.test(code) ? 10 : /MAJ/.test(code) ? 5 : /DBL|DM/.test(code) ? 4 : PENALTY_LENGTHS.some((x) => x[0] === m) ? m : 2;
+    return { type: SHEET_CODES[base] || 'other', minutes, code };
+  }
+
+  /**
+   * Read a GameSheet PDF's text (one page) into the game's facts. items: [{ s, x, y, w }] in page points, y measured
+   * down from the top (pdf.js text items; a multi-word item is split into words here). Returns
+   * { number, date, location, periods: { 1: 10, … }, home: { name, goals, penalties }, visitor: { … } }, where each goal is
+   * { per, time, g, a: [] } and each penalty { per, no, minutes, type, code, off, on } (jersey numbers only: no names).
+   * Throws when the page doesn't look like a GameSheet game sheet.
+   */
+  function parseGameSheet(items) {
+    const words = [];
+    for (const it of items || []) {
+      const str = String(it.s == null ? it.str : it.s);
+      const parts = str.split(/(\s+)/);
+      const per = str.length ? (Number(it.w) || 0) / str.length : 0;
+      let off = 0;
+      for (const p of parts) {
+        if (p.trim()) words.push({ t: p, x0: Number(it.x) + off * per, x1: Number(it.x) + (off + p.length) * per, y: Number(it.y) });
+        off += p.length;
+      }
+    }
+    const cx = (w) => (w.x0 + w.x1) / 2;
+    const near = (a, b, d) => Math.abs(a - b) <= (d || 2.5);
+    const infr = words.filter((w) => /^Infraction$/i.test(w.t)).sort((a, b) => a.x0 - b.x0);
+    if (infr.length < 2) throw new Error('This doesn’t look like a GameSheet game sheet (no penalty and scoring tables found).');
+    const headY = infr[0].y;
+    const head = words.filter((w) => near(w.y, headY)).sort((a, b) => a.x0 - b.x0);
+    const totalY = Math.min(...words.filter((w) => /^(Total|List)$/i.test(w.t) && w.y > headY).map((w) => w.y).concat([headY + 400]));
+    const COLS = ['per', 'no', 'min', 'code', 'infraction', 'off', 'start', 'on', 'gper', 'time', 'g', 'a1', 'a2'];
+    const sides = infr.slice(0, 2).map((inf) => {
+      // the 13 headers of this side: the 4 before "Infraction" and the 8 after it
+      const i = head.indexOf(inf);
+      const cols = head.slice(i - 4, i + 9);
+      if (cols.length !== 13 || !/^PER$/i.test(cols[0].t) || !/^TIME$/i.test(cols[9].t)) throw new Error('The game sheet’s tables aren’t in the usual layout.');
+      return { cols, lo: cols[0].x0 - 8, hi: cols[12].x1 + 10 };
+    });
+    const readSide = (side) => {
+      const data = words.filter((w) => w.y > headY + 4 && w.y < totalY - 2 && cx(w) >= side.lo && cx(w) <= side.hi);
+      const rows = [];
+      for (const w of data.sort((a, b) => a.y - b.y || a.x0 - b.x0)) {
+        const r = rows.find((x) => near(x.y, w.y));
+        if (r) r.words.push(w); else rows.push({ y: w.y, words: [w] });
+      }
+      const goals = [], penalties = [];
+      for (const r of rows) {
+        const cell = {};
+        for (const w of r.words) {
+          let best = 0, bd = Infinity;
+          side.cols.forEach((c, k) => { const d = Math.abs(cx(c) - cx(w)); if (d < bd) { bd = d; best = k; } });
+          let key = COLS[best];
+          if (key === 'code') key = 'infraction';
+          cell[key] = cell[key] ? cell[key] + ' ' + w.t : w.t;
+        }
+        if (/^\d$/.test(cell.per || '') && cell.min) {
+          const inf = sheetInfraction(cell.infraction, cell.min);
+          penalties.push({ per: Number(cell.per), no: /^\d{1,2}$/.test(cell.no || '') ? cell.no : '', minutes: inf.minutes, type: inf.type, code: inf.code, off: cell.off || '', on: cell.on || '' });
+        }
+        if (/^\d$/.test(cell.gper || '') && /^\d{1,2}:\d{2}$/.test(cell.time || '')) {
+          goals.push({ per: Number(cell.gper), time: cell.time, g: /^\d{1,2}$/.test(cell.g || '') ? cell.g : '', a: [cell.a1, cell.a2].filter((x) => /^\d{1,2}$/.test(x || '')) });
+        }
+      }
+      return { goals, penalties };
+    };
+    // team names: under the first "HOME" / "VISITOR" labels above the tables
+    const teamName = (label) => {
+      const lab = words.filter((w) => w.t.toUpperCase() === label && w.y < headY && w.y > headY - 25).sort((a, b) => a.x0 - b.x0)[0];
+      if (!lab) return '';
+      return words.filter((w) => w.y > lab.y + 3 && w.y < lab.y + 15 && w.x0 >= lab.x0 - 3 && w.x0 < lab.x0 + 170 && w.y < headY - 0.5)
+        .sort((a, b) => a.x0 - b.x0).map((w) => w.t).join(' ').trim();
+    };
+    const rowText = (pred) => words.filter(pred).sort((a, b) => a.x0 - b.x0).map((w) => w.t).join(' ');
+    const after = (label, stop) => {
+      const l = words.find((w) => w.t === label && w.y < headY);
+      if (!l) return '';
+      const t = rowText((w) => near(w.y, l.y, 3) && w.x0 > l.x1);
+      return (stop ? t.split(stop)[0] : t).trim();
+    };
+    const months = { Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6, Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12 };
+    const dm = /([A-Z][a-z]{2})[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})/.exec(after('Date', 'Division'));
+    const date = dm && months[dm[1]] ? dm[3] + '-' + String(months[dm[1]]).padStart(2, '0') + '-' + dm[2].padStart(2, '0') : '';
+    const periods = {};
+    for (const w of words.filter((x) => /^(1st|2nd|3rd)$/.test(x.t) && x.y < headY)) {
+      const n = words.find((x) => near(x.y, w.y, 2) && x.x0 > w.x1 && x.x0 < w.x1 + 30 && /^\d{1,2}$/.test(x.t));
+      if (n) periods[{ '1st': 1, '2nd': 2, '3rd': 3 }[w.t]] = Number(n.t);
+    }
+    const loc = words.find((w) => w.t === 'Location' && w.y < headY);
+    const location = loc ? rowText((w) => near(w.y, loc.y, 3) && w.x0 > loc.x1 + 30).split(' League')[0].trim() : '';
+    const home = Object.assign({ name: teamName('HOME') }, readSide(sides[0]));
+    const visitor = Object.assign({ name: teamName('VISITOR') }, readSide(sides[1]));
+    return { number: after('No:').split(' ')[0] || '', date, location, periods, home, visitor };
+  }
+
+  const nameWords = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter((w) => w && !/^(u\d+|jr|the|of|aa|a|b|bb|team)$/.test(w));
+  /** Which side of a parsed sheet is us: 'home', 'visitor' or null (can't tell). names: our names (team, league team). */
+  function sheetSide(sheet, names) {
+    const ours = new Set((names || []).flatMap(nameWords));
+    const score = (n) => nameWords(n).filter((w) => ours.has(w)).length / Math.max(1, nameWords(n).length);
+    const h = score(sheet.home.name), v = score(sheet.visitor.name);
+    if (h === v) return null;
+    return h > v ? 'home' : 'visitor';
+  }
+
+  /** "mm:ss" left on the clock -> seconds into a period of `len` minutes (sheet clocks count down). */
+  function clockElapsed(time, len) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(time || '');
+    if (!m) return 0;
+    return Math.max(0, (Number(len) || 0) * 60 - (Number(m[1]) * 60 + Number(m[2])));
+  }
+
+  /**
+   * What the app keeps from a sheet, from our side: { number, date, location, periods, side, us, them,
+   * score: { for, against }, goals: [{ side: 'for'|'against', per, time, scorer, assists }], penalties: [{ team: 'us'|'them', per, player, minutes, type, code }] },
+   * goals and penalties in game order. No player names are kept.
+   */
+  function sheetFacts(parsed, side) {
+    const us = side === 'home' ? parsed.home : parsed.visitor;
+    const them = side === 'home' ? parsed.visitor : parsed.home;
+    const len = (n) => parsed.periods[n] || 0;
+    const order = (a, b) => a.per - b.per || clockElapsed(a.time, len(a.per)) - clockElapsed(b.time, len(b.per));
+    const goals = us.goals.map((g) => ({ side: 'for', per: g.per, time: g.time, scorer: g.g, assists: g.a.slice(0, 2) }))
+      .concat(them.goals.map((g) => ({ side: 'against', per: g.per, time: g.time, scorer: g.g, assists: g.a.slice(0, 2) }))).sort(order);
+    const pOrder = (a, b) => a.per - b.per || clockElapsed(a.time, len(a.per)) - clockElapsed(b.time, len(b.per));
+    const penalties = us.penalties.map((p) => ({ team: 'us', per: p.per, time: p.off, player: p.no, minutes: p.minutes, type: p.type, code: p.code }))
+      .concat(them.penalties.map((p) => ({ team: 'them', per: p.per, time: p.off, player: p.no, minutes: p.minutes, type: p.type, code: p.code }))).sort(pOrder);
+    return { number: parsed.number, date: parsed.date, location: parsed.location, periods: parsed.periods, side, us: us.name, them: them.name,
+      score: { for: us.goals.length, against: them.goals.length }, goals, penalties, importedAt: Date.now() };
+  }
+
+  /**
+   * Pair the coach's marked goals with the sheet's: same side, in order (by period when the marks have periods).
+   * Returns { pairs: [{ mark, sheet }], sheetOnly: [sheet goal], markOnly: [mark] }.
+   */
+  function matchSheetGoals(game, sheet) {
+    const marks = gameMarks(game).goals.map((g) => Object.assign({}, g, { n: periodAt(game, g.t) }));
+    const pairs = [], sheetOnly = [], markOnly = [];
+    for (const side of ['for', 'against']) {
+      const M = marks.filter((g) => g.side === side);
+      const S = ((sheet && sheet.goals) || []).filter((g) => g.side === side);
+      const byPeriod = M.length && M.every((g) => g.n != null);
+      const groups = byPeriod ? [...new Set(M.map((g) => g.n).concat(S.map((g) => g.per)))].map((n) => [M.filter((g) => g.n === n), S.filter((g) => g.per === n)]) : [[M, S]];
+      for (const [m, s] of groups) {
+        const k = Math.min(m.length, s.length);
+        for (let i = 0; i < k; i++) pairs.push({ mark: m[i], sheet: s[i] });
+        markOnly.push(...m.slice(k));
+        sheetOnly.push(...s.slice(k));
+      }
+    }
+    return { pairs, sheetOnly, markOnly };
+  }
+
+  /** Same scorer and assists (order of assists doesn't matter)? Missing details on the mark count as "not set". */
+  function sheetGoalAgrees(mark, sg) {
+    const sc = mark.side === 'for' ? mark.scorer : mark.oppScorer;
+    const as = (mark.side === 'for' ? mark.assists : mark.oppAssists) || [];
+    if (!sc && !as.length) return 'unset';
+    return sc === sg.scorer && [...as].sort().join() === [...sg.assists].sort().join() ? 'same' : 'differs';
+  }
+
+  /** Goal details for addGoal/updateGoal from a sheet goal (keeping our on-ice players on theirs). */
+  function sheetGoalDetails(sg, mark) {
+    return sg.side === 'for' ? { scorer: sg.scorer, assists: sg.assists } : { oppScorer: sg.scorer, oppAssists: sg.assists, onIce: (mark && mark.onIce) || [] };
+  }
+
+  /**
+   * Fill in what the coach's marks are missing from a sheet: scorer and assists on goals without them, and the
+   * player on our penalties without one. Never changes a detail the coach set. Returns { marks, filled }.
+   */
+  function fillFromSheet(game, sheet) {
+    let m = gameMarks(game);
+    let filled = 0;
+    const g2 = Object.assign({}, game, { marks: m });
+    for (const p of matchSheetGoals(g2, sheet).pairs) {
+      if (sheetGoalAgrees(p.mark, p.sheet) !== 'unset' || !p.sheet.scorer) continue;
+      g2.marks = updateGoal(g2, p.mark.id, sheetGoalDetails(p.sheet, p.mark));
+      filled += 1;
+    }
+    m = gameMarks(g2);
+    // penalties: pair in order by team and period; fill the player (and a type left as "other")
+    const used = new Set();
+    m.penalties = m.penalties.map((p) => {
+      const n = periodAt(g2, p.t);
+      const sp = ((sheet && sheet.penalties) || []).find((x, i) => !used.has(i) && x.team === p.team && (n == null || x.per === n) && (!p.player || x.player === p.player) && (used.add(i) || true));
+      if (!sp) return p;
+      const out = Object.assign({}, p);
+      if (!out.player && sp.player) { out.player = sp.player; filled += 1; }
+      if (out.type === 'other' && sp.type !== 'other') { out.type = sp.type; filled += 1; }
+      return out;
+    });
+    return { marks: m, filled };
+  }
+
+  /** Sheet penalties with no matching marked penalty (shown in the summary as "from GameSheet"). */
+  function sheetOnlyPenalties(game, sheet) {
+    const marked = gameMarks(game).penalties.map((p) => ({ team: p.team, n: periodAt(game, p.t), player: p.player }));
+    const out = [];
+    for (const sp of (sheet && sheet.penalties) || []) {
+      const i = marked.findIndex((p) => p.team === sp.team && (p.n == null || p.n === sp.per) && (!p.player || !sp.player || p.player === sp.player));
+      if (i >= 0) marked.splice(i, 1); else out.push(sp);
+    }
+    return out;
+  }
+
+  /** A game with no video, made from a game sheet (summary only). */
+  function newSheetGame(sheet, fields) {
+    const f = fields || {};
+    return {
+      id: uid('game'), date: f.date || sheet.date || '', time: f.time || '', opponent: cleanText(f.opponent || sheet.them, 80), rink: cleanText(f.rink || sheet.location, 80),
+      result: f.result || '', gameType: f.gameType || '', homeAway: f.homeAway || (sheet.side === 'home' ? 'home' : 'away'), league: f.league || null,
+      parts: [], clips: [], marks: { periods: [], goals: [], penalties: [] }, noVideo: true, sheet, createdAt: Date.now()
+    };
+  }
+
   const WP = {
     APP_VERSION, APP_RELEASED, SCHEMA_VERSION, DEFAULT_BEFORE, DEFAULT_AFTER, MIN_CLIP, MAX_CLIP,
     uid, formatTime, parseTime, parseLiveBarnName, orderParts, guessGameDetails,
@@ -2005,7 +2265,8 @@
     clipCategoryIds, categoriesPatch, toggleClipCategory, clipCategoryLabel,
     applyEntryTags, folderName, teamFolderKeys, destLabel,
     DEFAULT_LEAGUE, divisionKey, normalizeLeague, guessLeagueTeam, leagueTeams, leagueLogo, cleanVenue, scoreResult, gamesheetUrl, teamSchedule, matchScheduleGame, scheduleFields, leagueLink, linkGame, formatClock,
-    shortTeamName, parseResult, periodAt, periodLabel, penaltyOutcome, OUTCOME_LABELS, gameSummary, summaryResult, seasonStats, updateGoal, summaryNotes
+    shortTeamName, parseResult, periodAt, periodLabel, penaltyOutcome, OUTCOME_LABELS, gameSummary, summaryResult, seasonStats, updateGoal, summaryNotes,
+    SHEET_CODES, sheetInfraction, parseGameSheet, sheetSide, clockElapsed, sheetFacts, matchSheetGoals, sheetGoalAgrees, sheetGoalDetails, fillFromSheet, sheetOnlyPenalties, newSheetGame
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = WP;

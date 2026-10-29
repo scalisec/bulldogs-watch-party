@@ -113,6 +113,8 @@ App.ready.then(() => {
     session.draftLeague = null;
     session.draftLeagueAuto = false;
     session.leagueDismissed = false;
+    session.draftSheet = null;
+    if (App.renderDraftSheet) App.renderDraftSheet();
     for (const id of Object.values(FIELDS)) $(id).value = '';
     renderParts();
     renderDraftLineup();
@@ -135,8 +137,16 @@ App.ready.then(() => {
       });
     } catch (e) { toast(e.message, { err: true }); return; }
     if (session.draftLineup) game.lineup = WP.normalizeLineup(session.draftLineup);
-    S.games.push(game);
+    // video for a game that was made from its game sheet (no video): that game gets the video, keeping its sheet and notes
+    const lgId = game.league && game.league.id;
+    const was = S.games.find((g) => g.noVideo && ((lgId && g.league && g.league.id === lgId) || (!lgId && g.date && g.date === game.date && String(g.opponent).toLowerCase() === String(game.opponent).toLowerCase())));
+    if (was) {
+      Object.assign(was, { parts: game.parts, noVideo: false, time: was.time || game.time, rink: was.rink || game.rink, gameType: was.gameType || game.gameType, homeAway: was.homeAway || game.homeAway, result: was.result || game.result, lineup: game.lineup || was.lineup });
+      game = was;
+      toast('Video added to ' + WP.gameTitle(game) + ' (it keeps its game sheet and notes)');
+    } else S.games.push(game);
     save();
+    if (session.draftSheet) await App.attachSheet(game, session.draftSheet);
     let listsChanged = false;
     for (const [key, val] of [['opponents', game.opponent], ['rinks', game.rink]]) {
       if (val && !S.settings[key].some((x) => x.toLowerCase() === val.toLowerCase())) { S.settings[key] = WP.addListItem(S.settings[key], val); listsChanged = true; }
@@ -162,8 +172,11 @@ App.ready.then(() => {
 
   function summaryPill(g) {
     const sum = WP.gameSummary(g, S.settings.roster, officialResult(g));
+    const n = WP.gameMarks(g).goals.length;
+    if (sum.sheetCheck && sum.sheetCheck.differs) return el('span', { class: 'pill work' }, sum.sheetCheck.differs + (sum.sheetCheck.differs === 1 ? ' goal differs' : ' goals differ') + ' from the game sheet');
     if (sum.mismatch) return el('span', { class: 'pill work' }, 'Goals don’t match the final score');
-    if (sum.marked) return el('span', { class: 'pill good' }, sum.goals.length + (sum.goals.length === 1 ? ' goal' : ' goals') + ' marked');
+    if (sum.source === 'sheet') return el('span', { class: 'pill do' }, 'From the game sheet');
+    if (sum.marked) return el('span', { class: 'pill good' }, n + (n === 1 ? ' goal' : ' goals') + ' marked' + (sum.sheet ? ' · game sheet' : ''));
     if (sum.score) return el('span', { class: 'pill plain' }, 'Score only');
     return el('span', { class: 'pill plain' }, 'No score yet');
   }
@@ -208,19 +221,22 @@ App.ready.then(() => {
     const played = !!g || !x || x.final || x.date <= todayIso();
     const exported = g ? g.clips.filter((c) => c.exported).length : 0;
     const title = (r.date ? WP.formatDate(r.date) : 'Undated') + ' ' + (opp ? (ha === 'away' ? 'at ' : 'vs ') + opp : '');
-    return el('tr', { class: (g ? 'gamerow click' : 'schedrow') + (played ? '' : ' upcoming'), onclick: g ? (e) => { if (!e.target.closest('a,button')) location.hash = 'tag/' + g.id; } : null },
+    const openHash = g ? (g.noVideo ? 'sum/' : 'tag/') + g.id : '';
+    return el('tr', { class: (g ? 'gamerow click' : 'schedrow') + (played ? '' : ' upcoming'), onclick: g ? (e) => { if (!e.target.closest('a,button')) location.hash = openHash; } : null },
       el('td', { style: 'white-space:nowrap' }, r.date ? WP.formatDate(r.date) : 'Undated', el('div', { class: 'small muted' }, WP.formatClock(r.time))),
       el('td', {}, el('div', { class: 'row', style: 'gap:10px;flex-wrap:nowrap' }, logoPath ? App.League.logo(logoPath, 32) : el('span', { class: 'lglogo none', style: 'width:32px;height:32px', 'aria-hidden': 'true' }),
         el('div', { class: 'stack', style: 'gap:0;min-width:0' },
           el('strong', {}, opp ? (ha === 'away' ? '@ ' : 'vs ') + opp : (g ? WP.gameTitle(g) : '')),
-          el('span', { class: 'small muted' }, [rink, ha === 'home' ? 'Home' : ha === 'away' ? 'Away' : '', type && type !== 'league' ? WP.label(WP.GAME_TYPES, type) : '', !x && g && !type ? 'Not on the league schedule' : ''].filter(Boolean).join(' · '))))),
+          el('span', { class: 'small muted' }, [rink, ha === 'home' ? 'Home' : ha === 'away' ? 'Away' : '', type && type !== 'league' ? WP.label(WP.GAME_TYPES, type) : '', !x && g && !type ? 'Not on the league schedule' : '', g && g.noVideo ? 'No video available' : ''].filter(Boolean).join(' · '))))),
       el('td', {}, res ? el('span', { class: 'res ' + outcome }, res) : el('span', { class: 'muted' }, played ? '—' : 'Upcoming')),
       el('td', {}, g ? el('a', { href: '#sum/' + g.id, style: 'text-decoration:none' }, summaryPill(g)) : played ? el('span', { class: 'small muted' }, 'No video yet') : ''),
-      el('td', { style: 'white-space:nowrap' }, g ? g.clips.length + (g.clips.length === 1 ? ' clip' : ' clips') + (exported ? ' · ' + exported + ' exported' : '') : ''),
+      el('td', { style: 'white-space:nowrap' }, g ? (g.noVideo ? el('span', { class: 'small muted' }, 'No video') : g.clips.length + (g.clips.length === 1 ? ' clip' : ' clips') + (exported ? ' · ' + exported + ' exported' : '')) : ''),
       el('td', {}, el('div', { class: 'row', style: 'gap:4px;flex-wrap:nowrap' }, linkBtn(live, 'LiveBarn ↗'), played ? linkBtn(gs, 'GameSheet ↗') : '')),
       el('td', { style: 'text-align:right' },
-        g ? el('a', { class: 'btn small primary', href: '#tag/' + g.id, style: 'text-decoration:none', 'aria-label': 'Open ' + WP.gameTitle(g) }, 'Open')
-          : played ? el('a', { class: 'btn small outline', href: '#new/' + encodeURIComponent(x.id), style: 'text-decoration:none', 'aria-label': 'Add video for ' + title }, 'Add video') : ''));
+        g ? el('a', { class: 'btn small primary', href: '#' + openHash, style: 'text-decoration:none', 'aria-label': 'Open ' + WP.gameTitle(g) }, 'Open')
+          : played ? el('div', { class: 'row', style: 'gap:4px;flex-wrap:nowrap;justify-content:flex-end' },
+            el('a', { class: 'btn small outline', href: '#new/' + encodeURIComponent(x.id), style: 'text-decoration:none', 'aria-label': 'Add video for ' + title }, 'Add video'),
+            el('button', { type: 'button', class: 'btn small', 'aria-label': 'Add game sheet for ' + title, title: 'No video? Make a summary from the game sheet PDF', onclick: () => App.importSheet({ sched: x }) }, 'Game sheet')) : ''));
   }
 
   function table(rows, id, caption) {
@@ -276,6 +292,7 @@ App.ready.then(() => {
     App.renderGameLists();
     if (schedId) session.newSched = schedId;
     applyNewSched();
+    if (App.renderDraftSheet) App.renderDraftSheet();
     renderDraftLeague();
   }
   function applyNewSched() {
@@ -325,6 +342,7 @@ App.ready.then(() => {
     } catch (err) { toast(err.message, { err: true }); }
   });
   $('g-find').addEventListener('input', () => renderGames());
+  $('g-import-sheet').addEventListener('click', () => App.importSheet());
   Object.assign(App, {
     renderDraftLineup, renderNew, deleteGame,
     renderGames

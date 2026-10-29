@@ -21,6 +21,7 @@ App.ready.then(() => {
     $('game-head').classList.toggle('hidden', !tab || !App.G);
     if (tab && App.G) {
       for (const a of document.querySelectorAll('[data-gtab]')) {
+        a.hidden = a.dataset.gtab === 'tag' && !!App.G.noVideo;
         a.href = '#' + a.dataset.gtab + '/' + App.G.id;
         if (a.dataset.gtab === tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
       }

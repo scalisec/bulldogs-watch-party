@@ -12,6 +12,7 @@ App.ready.then(() => {
   function openGame(id) {
     const game = S.games.find((g) => g.id === id);
     if (!game) { toast('That game isn’t on this computer', { err: true }); location.hash = 'games'; return false; }
+    if (game.noVideo) { location.replace('#sum/' + id); return false; }
     renderWho();
     if (App.G && App.G.id === id && App.player) { renderTagView(); return true; }
     if (App.player) { App.player.destroy(); App.player = null; }
@@ -176,7 +177,7 @@ App.ready.then(() => {
   function renderTagView() {
     $('t-title').textContent = WP.gameTitle(App.G);
     $('t-logo').replaceChildren(App.G.league ? App.League.logo(App.G.league.opponentLogo, 40) : '');
-    $('t-sub').textContent = [WP.formatClock(App.G.time), App.G.rink, App.G.result, App.G.parts.length + (App.G.parts.length === 1 ? ' part' : ' parts') + ' · ' + WP.formatTime(App.TL.total)].filter(Boolean).join(' · ');
+    $('t-sub').textContent = [WP.formatClock(App.G.time), App.G.rink, App.G.result, App.G.noVideo ? 'No video available' : App.G.parts.length + (App.G.parts.length === 1 ? ' part' : ' parts') + ' · ' + WP.formatTime(App.TL.total), App.G.sheet ? 'Game sheet ' + (App.G.sheet.number || '') : ''].filter(Boolean).join(' · ');
     renderTags();
     renderGameStatus(true);
     renderLeagueBar();

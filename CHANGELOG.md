@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.1.0 — 2026-10-29 (official game sheets)
+
+- **Import the official GameSheet game sheet (PDF).** It's the file a team official downloads from GameSheet.
+  - Add it on the **New game** screen ("Game sheet (optional)"), on a game's **Summary** ("Import game sheet (PDF)"), or with **Import game sheet** on the Games screen.
+  - The PDF is read on this computer and never uploaded.
+  - Only numbers are kept: goals (period, clock, scorer and assists by jersey), penalties (period, jersey, minutes, infraction), the final score and period lengths. No player or official names are stored.
+- **Your marks win; the sheet fills in what they're missing.** Goals are matched by period and order.
+  - A goal you marked without a scorer gets the sheet's scorer and assists, and its clip's players and note follow.
+  - When your scorer differs from the sheet, the goal is flagged **Differs** with **Keep mine** or **Use game sheet**.
+  - Goals and penalties only on the sheet appear in the summary and season stats, marked "From game sheet" (no video, so no ▶ button). Penalties stay summary-only: mark them with X yourself if you want clips.
+  - The summary warns when the goals don't add up to the sheet's final score.
+- **Games with no video.** Use **Game sheet** on a played league game (or Import game sheet) to make a summary-only game, marked "No video available".
+  - It opens on its Summary, with no Watch and tag tab.
+  - It counts in Summaries and Season stats.
+  - If you add video for that game later, the same game gets the video and keeps its sheet and notes.
+- **Fixed:** when the league schedule couldn't be reached (offline), the Games screen kept retrying and redrawing. It now waits a minute between tries (Refresh still tries straight away).
+- Bundles pdf.js 3.11.174 (Mozilla, Apache 2.0) in `vendor/` to read the PDF. It loads only when you import a sheet.
+
 ## 2.0.2 — 2026-10-29 (missing team folders: asks before creating)
 
 - **The app now finds team folders that were deleted in Google Drive** (or are in the trash), along with folders that were never made, such as one for a new player.

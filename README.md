@@ -22,6 +22,7 @@ Keep using the same browser on the same PC: that's where your games and clips ar
   - **Watch and tag:** the video, with a scoreboard (score, period, power play or penalty kill) built from your marks, one row of event buttons, the timeline and the clip buttons.
   - **Summary:** final score and goals by period, goals (with **Edit** to fix who scored), penalties and what they led to, clips, coach's notes, points this game, **Export all goal clips**, and **Print or save as PDF**.
   - **Game details:** date, opponent, rink, final score, game type, home/away, the list of marks, lineup, backup and delete.
+- **Game sheets (v2.1):** import the official GameSheet PDF on New game, a game's Summary or the Games screen. It's read on this computer (nothing uploaded, no names kept); your marks win and the sheet fills in scorers, assists and anything unmarked. A played game without video can get a summary-only game from its sheet.
 - **Summaries:** the season record, goals for/against, penalty minutes and next game, then a card per game. **Season stats** lists each player's GP, G, A, PTS, PIM, PP goals and clips, plus goalies.
 - Summaries are for coaches only and come from your own marks. GameSheet import comes later.
 
@@ -217,6 +218,7 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 ## Tests
 
 - `node --test tests/core.test.js` runs the core logic tests (82), including reading the audio track of a small generated MP4 (`tests/fixtures/media`).
+- `python3 tests/e2e_v21.py <screenshot-dir> <media-dir>` tests v2.1: reading a name-free test game sheet PDF with the bundled pdf.js, a summary-only game from it, season stats from the sheet, the sheet on New game, marks filled in from the sheet, Differs / Use game sheet, adding video to a summary-only game, and Remove.
 - `python3 tests/e2e_v202.py <screenshot-dir>` tests v2.0.2 against the simulated Google Drive: deleted or never-made team folders are found, the app asks before creating them, Cancel creates nothing, the team folder follows a moved team data file, and re-created folders reach the clip library.
 - `python3 tests/e2e_v20.py <screenshot-dir> <media-dir>` tests v2.0: Games home and the New game screen, a game's tabs, the scoreboard, Game details, the Summary (goal edits, notes), the Summaries tab, Season stats and phone widths.
 - `python3 tests/e2e_v18.py <screenshot-dir> <media-dir>` tests v1.8: the goal popup and goal clips (scorer, assists, on-ice players), and zoom while a clip plays setting its view (19 checks). Per-game Drive folders are checked in `e2e_library.py`.
@@ -260,6 +262,7 @@ GitHub runs the core tests, `e2e_drive.py`, `e2e_v07.py` and `e2e_v12.py` on eve
 | `app/team-sync.js` | Shared team data in Drive |
 | `app/library.js` | Shared and private clip libraries |
 | `app/review.js` | Review screen |
+| `app/gamesheet.js` | Reading GameSheet PDF game sheets (with `vendor/pdf.min.js`) and attaching them to games |
 | `app/summary.js` | Summaries tab, a game's Summary and Season stats |
 | `app/main.js` | Routing, keyboard, update banner, start-up |
 | `styles.css` | All page styles (Bench Boss Labs dark navy) |
