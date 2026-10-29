@@ -381,8 +381,8 @@ test('title lines and file names', () => {
   const c = WP.makeClip({ start: 244, end: 256, categoryId: 'cat_1', players: ['12', '7'], note: 'Stay wide', total: 600 });
   const cat = { name: 'Breakouts' };
   assert.deepEqual(WP.titleLines(c, cat, g), { top: 'Breakouts · Oct 18, 2026 vs Rangers', bottom: '#7 #12 — Stay wide' });
-  assert.equal(WP.exportFileName(c, cat, g), '2026-10-18 Breakouts 4m04s #7 #12.mp4');
-  assert.equal(WP.exportFileName(c, { name: 'A/B: "x"' }, g), '2026-10-18 A-B- -x- 4m04s #7 #12.mp4');
+  assert.equal(WP.exportFileName(c, cat, g), '2026-10-18 Breakouts 4m04s #7 #12 - Stay wide.mp4');
+  assert.equal(WP.exportFileName(c, { name: 'A/B: "x"' }, g), '2026-10-18 A-B- -x- 4m04s #7 #12 - Stay wide.mp4');
 });
 
 test('updateClip: title bar choice and speed list validation', () => {
@@ -1120,4 +1120,13 @@ test('goals with scorer and assists: players for the clip, label, window, catego
   assert.equal(WP.goalCategory([{ id: 'a', name: 'Breakouts' }, { id: 'b', name: 'Goals' }]).id, 'b');
   const c = WP.makeClip({ start: 90, end: 105, total: 3600, categoryId: 'b', method: 'goal' });
   assert.equal(c.method, 'goal');
+});
+
+test('export file name ends with the clip note', () => {
+  const g = { date: '2026-10-18' };
+  const c = { start: 244, players: ['7'], note: 'Great gap control: stay "inside" the dot / then step up.' };
+  assert.equal(WP.exportFileName(c, { name: 'Backcheck' }, g), '2026-10-18 Backcheck 4m04s #7 - Great gap control- stay -inside- the dot - then step up.mp4');
+  assert.equal(WP.exportFileName({ start: 1, note: '' }, { name: 'X' }, g), '2026-10-18 X 0m01s.mp4', 'no note: name as before');
+  const long = WP.exportFileName({ start: 1, note: 'word '.repeat(40) }, { name: 'X' }, g);
+  assert.ok(long.endsWith('word….mp4') && long.length < 120, 'a long note is cut at a word: ' + long);
 });

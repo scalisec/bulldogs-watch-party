@@ -2,8 +2,8 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '1.8.0';
-  const APP_RELEASED = '2026-10-28';
+  const APP_VERSION = '1.8.1';
+  const APP_RELEASED = '2026-10-29';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
   const DEFAULT_AFTER = 4;
@@ -578,8 +578,12 @@
     const d = game && game.date ? game.date : 'game';
     const t = formatTime(clip.start).replace(/:/g, 'm') + 's';
     const who = (clip.players || []).map((p) => '#' + p).join(' ');
-    const raw = [d, category ? category.name : 'Clip', t, who].filter(Boolean).join(' ');
-    return raw.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 120) + '.mp4';
+    const clean = (x) => String(x || '').replace(/[\\/:*?"<>|]+/g, '-').replace(/[\s.]+$/g, '').replace(/\s+/g, ' ').trim();
+    const base = clean([d, category ? category.name : 'Clip', t, who].filter(Boolean).join(' ')).slice(0, 120);
+    // the clip's note goes at the end (v1.8.1), cut at a word boundary so names stay readable
+    let note = clean(clip.note);
+    if (note.length > 80) note = note.slice(0, 80).replace(/\s+\S*$/, '') + '…';
+    return base + (note ? ' - ' + note : '') + '.mp4';
   }
 
   /** Output size: at most maxW wide, same shape as the source, even numbers (encoders need them). */

@@ -256,7 +256,7 @@ with sync_playwright() as p:
     out.save_as(mp4)
     le = page.evaluate('({name: window.__bwp.lastExport.name, size: window.__bwp.lastExport.size, codec: window.__bwp.lastExport.codec, frames: window.__bwp.lastExport.frames, duration: window.__bwp.lastExport.duration})')
     print('export:', le)
-    check(le['name'] == '2026-10-18 Breakouts 0m13s #7 #12.mp4', 'export file name: ' + le['name'])
+    check(le['name'] == '2026-10-18 Breakouts 0m13s #7 #12 - Stay wide on the wall.mp4', 'export file name: ' + le['name'])
     check(le['frames'] > 250, 'export encoded enough frames (%d)' % le['frames'])
     check(page.evaluate("window.__bwp.state.games[0].clips.some(c => c.exported && c.exported.name.endsWith('.mp4'))"), 'clip remembers it was exported')
     page.screenshot(path=SHOTS + '/8-editor-after-export.png')
@@ -348,7 +348,7 @@ with sync_playwright() as p:
     page.fill('#r-num', '7'); page.fill('#r-name', 'Sam'); page.select_option('#r-pri', 'C'); page.click('#roster-add button[type=submit]')
     page.screenshot(path=SHOTS + '/4-settings.png', full_page=True)
     check('only works on the web version' in page.text_content('#team-sync'), 'opened from a file, the team data card points to the web version')
-    check(page.text_content('#app-version') == 'v1.8.0' and 'v1.8.0' in page.text_content('#brand-version'), 'version shows in Settings and the header')
+    check(page.text_content('#app-version') == 'v1.8.1' and 'v1.8.1' in page.text_content('#brand-version'), 'version shows in Settings and the header')
     st = page.evaluate('window.__bwp.state.settings')
     fo = [c for c in st['categories'] if c['name'] == 'Faceoffs'][0]
     check(fo['before'] == 2 and fo['after'] == 6, 'faceoff window saved 2/6')

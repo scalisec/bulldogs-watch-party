@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.8.1 — 2026-10-29 (clip notes in file names)
+
+- **Exported file names end with the clip's note**, e.g. "2026-10-18 Breakouts 4m04s #7 #12 - Stay wide on the wall.mp4". This applies to Drive uploads and downloads alike.
+  - Clips with no note are named as before.
+  - Long notes are cut at a word, about 80 characters, with "…".
+  - Characters that file names can't hold (/ : * ? " < > |) become "-".
+  - Clips you've already exported keep their old names. Export one again to get the new name.
+
 ## 1.8.0 — 2026-10-28 (goal clips, view follows your zoom, folders per game)
 
 - **Goals make their own clip.** G and H (or the Goal buttons) pause the video and open a goal popup:
