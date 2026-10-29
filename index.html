@@ -16,7 +16,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=1.8.1">
+<link rel="stylesheet" href="styles.css?v=2.0.0">
 </head>
 <body>
 <header class="topbar">
@@ -27,6 +27,7 @@
   <button type="button" class="teampill teamswitch" id="team-switch" aria-haspopup="dialog"><span id="team-pill"></span><span class="caret" aria-hidden="true">▾</span></button>
   <nav class="nav" aria-label="Main">
     <a href="#games" data-nav="games">Games</a>
+    <a href="#summaries" data-nav="summaries">Summaries</a>
     <a href="#review" data-nav="review">Review</a>
     <a href="#team" data-nav="team">Team</a>
     <a href="#settings" data-nav="settings">Settings</a>
@@ -36,12 +37,37 @@
 <div id="update-banner" class="banner hidden" role="status"><span id="update-text"></span><button type="button" class="btn small primary" id="update-go">Reload now</button><button type="button" class="btn small" id="update-later">Later</button></div>
 
 <main id="view-games" class="hidden">
-  <div class="cols">
-    <section class="col-main card stack" aria-labelledby="new-game-h">
+  <div class="stack" style="gap:20px">
+    <div class="row spread" style="align-items:center">
+      <h1>Games</h1>
+      <div class="row">
+        <label class="findbox"><span class="muted">Find</span><input type="search" id="g-find" placeholder="Opponent, date…" autocomplete="off"></label>
+        <button type="button" class="btn" id="import-backup">Import backup</button>
+        <input type="file" id="backup-input" accept=".json,application/json" class="hidden">
+        <a class="btn primary" href="#new" id="new-game-btn" style="text-decoration:none">+ New game</a>
+      </div>
+    </div>
+    <section class="card stack" id="g-waiting-card" aria-labelledby="waiting-h" hidden>
+      <div class="row spread" style="align-items:baseline"><h2 id="waiting-h">Played, waiting for video</h2><span class="small muted">From the league schedule. Add the LiveBarn files to start tagging the game.</span></div>
+      <div class="waitgrid" id="g-waiting"></div>
+    </section>
+    <section class="stack" aria-labelledby="recent-h" style="gap:10px">
+      <div class="row spread" style="align-items:baseline"><h2 id="recent-h">Your games</h2><span class="small muted" id="g-where">Saved on this computer only. Each game’s video stays on this computer.</span></div>
+      <div id="games"></div>
+    </section>
+  </div>
+</main>
+
+<main id="view-new" class="hidden">
+  <section class="card stack newgame" aria-labelledby="new-game-h">
+    <div class="row spread" style="align-items:flex-start">
       <div>
         <h1 id="new-game-h">New game</h1>
         <p class="muted" style="margin:4px 0 0">Add the LiveBarn downloads for one game. They play as one timeline and never leave this computer.</p>
       </div>
+      <a class="btn" href="#games" style="text-decoration:none">← Games</a>
+    </div>
+    <ol class="steps" aria-label="Steps"><li>Video files</li><li>Which game</li><li>Details and lineup</li></ol>
       <div class="drop" id="drop">
         <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#078DFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
         <strong>Drag video files here</strong>
@@ -68,30 +94,27 @@
         <button type="button" class="btn" id="g-clear">Clear</button>
         <button type="button" class="btn primary" id="g-start" disabled>Start tagging</button>
       </div>
-    </section>
-    <aside class="col-side card stack" aria-labelledby="recent-h">
-      <div class="row spread"><h2 id="recent-h">Games</h2>
-        <div class="row">
-          <button type="button" class="btn small" id="import-backup">Import backup</button>
-          <input type="file" id="backup-input" accept=".json,application/json" class="hidden">
-        </div>
-      </div>
-      <div class="stack" id="games" style="gap:8px"></div>
-      <span class="small muted">Games and clips are saved in this browser on this computer. Use "Backup" to keep a copy until Google Drive is connected.</span>
-    </aside>
-  </div>
+  </section>
 </main>
+
+<div id="game-head" class="gamehead hidden">
+  <a class="btn" href="#games" id="gh-back" style="text-decoration:none">← Games</a>
+  <span id="t-logo"></span>
+  <div class="grow stack" style="gap:0;min-width:200px"><h1 id="t-title"></h1><span class="small muted" id="t-sub"></span></div>
+  <div class="row small" id="t-league"></div>
+  <nav class="gtabs" aria-label="This game">
+    <a href="#" data-gtab="tag" id="gt-tag">Watch and tag</a>
+    <a href="#" data-gtab="sum" id="gt-sum">Summary</a>
+    <a href="#" data-gtab="info" id="gt-info">Game details</a>
+  </nav>
+</div>
 
 <main id="view-tag" class="hidden">
   <div class="cols">
     <section class="col-main">
-      <div class="row spread" style="align-items:center">
-        <div class="row" style="align-items:center;gap:10px"><span id="t-logo"></span><h1 id="t-title"></h1></div>
-        <span class="small muted" id="t-sub"></span>
-      </div>
-      <div class="row small" id="t-league"></div>
       <div class="videobox" id="videobox">
         <div class="vframe" id="vframe"><video id="video" playsinline preload="auto"></video></div>
+        <div class="scoreboard hidden" id="sb" role="status" aria-live="polite"></div>
         <span class="overlay-tl" id="ov-time">Part 1 · 0:00</span>
         <span class="overlay-tr hidden" id="ov-tag"></span>
         <span class="overlay-bl hidden" id="ov-zoom">Drag to move · double-click to fit</span>
@@ -126,53 +149,28 @@
         <span class="clock" id="clock">0:00 / 0:00</span>
       </div>
       <div class="marks hidden" id="marks-banner" role="status"></div>
-      <div class="card gstatus" id="gstatus" aria-label="Game status">
-        <div class="row gs-top">
-          <span class="gs-score" id="gs-score"></span>
-          <span class="gs-str" id="gs-str"></span>
+      <div class="card gstatus" id="gstatus" aria-label="Game events">
+        <div class="row evrow">
+          <span class="small muted">Game events</span>
           <span class="grow"></span>
-          <div class="row gs-btns">
-            <button type="button" class="btn small" id="gs-gf" style="color:#86EFAC" title="Goal for (G)">Goal for <kbd>G</kbd></button>
-            <button type="button" class="btn small" id="gs-ga" style="color:#FCA5A5" title="Goal against (H)">Goal against <kbd>H</kbd></button>
-            <button type="button" class="btn small" id="gs-pen" style="color:#FCD34D" title="Penalty (X)">Penalty <kbd>X</kbd></button>
-            <button type="button" class="btn small" id="gs-tag" title="Custom tag (T)">Tag <kbd>T</kbd></button>
-          </div>
+          <button type="button" class="btn small" id="b-period" title="Period start / end (P)">Period start <kbd>P</kbd></button>
+          <button type="button" class="btn small" id="b-goal-for" title="Goal for (G)" style="color:#86EFAC">Goal for <kbd>G</kbd></button>
+          <button type="button" class="btn small" id="b-goal-against" title="Goal against (H)" style="color:#FCA5A5">Goal against <kbd>H</kbd></button>
+          <button type="button" class="btn small" id="b-penalty" title="Penalty: call one, or mark a player back (X)" style="color:#FCD34D">Penalty <kbd>X</kbd></button>
         </div>
-        <ul class="gs-box" id="gs-box" aria-label="Penalty box"></ul>
+        <ul class="gs-box" id="gs-box" aria-label="Penalty box" hidden></ul>
       </div>
       <div class="card stack" style="gap:8px">
         <div class="tl" id="tl" role="slider" tabindex="0" aria-label="Game timeline" aria-valuemin="0" aria-valuenow="0"></div>
         <div class="tl-labels" id="tl-labels"></div>
       </div>
-      <details class="card stack lineup" id="t-lineup-card">
-        <summary><h2 style="display:inline">Lineup for this game</h2> <span class="small muted" id="t-lineup-sum"></span></summary>
-        <div class="stack" id="t-lineup" style="margin-top:10px"></div>
-      </details>
-      <div class="card stack" id="marks-card" style="gap:10px">
-        <div class="row spread">
-          <h2>Periods, goals and penalties</h2>
-          <div class="row">
-            <button type="button" class="btn small" id="b-period" title="Period start / end (P)">Period start <kbd>P</kbd></button>
-            <button type="button" class="btn small" id="b-goal-for" title="Goal for (G)" style="color:#86EFAC">Goal for <kbd>G</kbd></button>
-            <button type="button" class="btn small" id="b-goal-against" title="Goal against (H)" style="color:#FCA5A5">Goal against <kbd>H</kbd></button>
-            <button type="button" class="btn small" id="b-penalty" title="Penalty: call one, or mark a player back (X)" style="color:#FCD34D">Penalty <kbd>X</kbd></button>
-          </div>
-        </div>
-        <div class="chips" id="marks-list"></div>
-        <div class="row small" style="gap:12px">
-          <span class="muted">Game type</span><select id="t-gtype" style="min-height:36px"></select>
-          <span class="muted">Home / away</span><select id="t-gha" style="min-height:36px"></select>
-          <span class="muted" style="flex:1 1 240px">Mark periods and goals once per game: every clip then knows its period and the score, and clips containing a goal are tagged with it.</span>
-        </div>
-      </div>
       <div class="card stack">
         <div class="row spread">
-          <h2>Tag this moment</h2>
+          <h2>Clip this moment</h2>
           <div class="row"><button type="button" class="btn small" id="b-qtag" title="New clip with a custom tag (T)">Custom tag <kbd>T</kbd></button><button type="button" class="btn small" id="b-manual">New clip from times…</button></div>
         </div>
-        <span class="small muted" id="tag-hint">Tap a category (or press <kbd>1</kbd>–<kbd>9</kbd>) to grab a clip using that category's window. For exact start and end, press <kbd>I</kbd> then <kbd>O</kbd>, then pick a category.</span>
+        <span class="small muted" id="tag-hint"><kbd>1</kbd>–<kbd>9</kbd> grab a clip with that category’s window · <kbd>I</kbd> / <kbd>O</kbd> exact start and end, then pick a category · <kbd>?</kbd> all shortcuts</span>
         <div class="tags" id="tags"></div>
-        <span class="small muted">Keys: <kbd>Space</kbd> play/pause · <kbd>←</kbd><kbd>→</kbd> 5 s · <kbd>Shift</kbd>+<kbd>←</kbd><kbd>→</kbd> 1 s · <kbd>+</kbd><kbd>−</kbd> zoom · <kbd>0</kbd> fit · <kbd>Esc</kbd> cancel marks. Scroll on the video to zoom where the pointer is; drag to move.</span>
       </div>
     </section>
     <aside class="col-side card stack">
@@ -185,13 +183,45 @@
       </label>
       <div class="cliplist" id="clips"></div>
       <div class="row">
-        <button type="button" class="btn small" id="b-backup">Backup this game</button>
         <a href="#games" class="btn small" style="text-decoration:none">All games</a>
       </div>
-      <span class="small muted">While a clip plays (▶ Play clip), zoom and drag the picture to set what the exported clip shows. Click Edit to trim, draw, add tags and export. Find clips from every game in Review.</span>
+      <span class="small muted">While a clip plays, zoom and drag the picture to set what its export shows. Press <kbd>?</kbd> for every shortcut.</span>
     </aside>
   </div>
 </main>
+
+<main id="view-ginfo" class="hidden">
+  <div class="stack" style="max-width:1040px;margin:0 auto;gap:16px">
+    <section class="card stack" aria-labelledby="gi-h">
+      <h2 id="gi-h">Game details</h2>
+      <div class="grid2">
+        <label class="field">Game date<input type="date" id="gi-date"></label>
+        <label class="field">Opponent<input type="text" id="gi-opp" autocomplete="off" list="dl-opp"></label>
+        <label class="field">Rink<input type="text" id="gi-rink" autocomplete="off" list="dl-rink"></label>
+        <label class="field">Final score (optional)<input type="text" id="gi-result" placeholder="e.g. W 4–2" autocomplete="off"></label>
+        <label class="field">Game type<select id="t-gtype"></select></label>
+        <label class="field">Home or away<select id="t-gha"></select></label>
+      </div>
+    </section>
+    <section class="card stack" id="marks-card" aria-labelledby="marks-h" style="gap:10px">
+      <div class="row spread" style="align-items:baseline"><h2 id="marks-h">Periods, goals and penalties</h2><span class="small muted">Marked on Watch and tag with <kbd>P</kbd> <kbd>G</kbd> <kbd>H</kbd> <kbd>X</kbd>. Click one to go to it.</span></div>
+      <div class="chips" id="marks-list"></div>
+    </section>
+    <details class="card stack lineup" id="t-lineup-card">
+        <summary><h2 style="display:inline">Lineup for this game</h2> <span class="small muted" id="t-lineup-sum"></span></summary>
+        <div class="stack" id="t-lineup" style="margin-top:10px"></div>
+      </details>
+    <section class="card row" style="align-items:center">
+      <span class="grow small muted">A backup file has this game’s clips and marks (not the video).</span>
+      <button type="button" class="btn small" id="b-backup">Backup this game</button>
+      <button type="button" class="btn small danger" id="b-delgame">Delete game</button>
+    </section>
+  </div>
+</main>
+
+<main id="view-gsum" class="hidden"><div id="gsum"></div></main>
+<main id="view-sums" class="hidden"><div id="sums"></div></main>
+<main id="view-stats" class="hidden"><div id="stats"></div></main>
 
 <main id="view-edit" class="hidden">
   <div class="row spread" style="margin-bottom:16px">
@@ -618,28 +648,29 @@
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
-<script src="config.js?v=1.8.1"></script>
-<script src="core.js?v=1.8.1"></script>
-<script src="storage.js?v=1.8.1"></script>
-<script src="vendor/mp4-muxer.js?v=1.8.1"></script>
-<script src="render.js?v=1.8.1"></script>
-<script src="audio.js?v=1.8.1"></script>
-<script src="drive.js?v=1.8.1"></script>
-<script src="app/base.js?v=1.8.1"></script>
-<script src="app/player.js?v=1.8.1"></script>
-<script src="app/lineup.js?v=1.8.1"></script>
-<script src="app/league.js?v=1.8.1"></script>
-<script src="app/games.js?v=1.8.1"></script>
-<script src="app/tag.js?v=1.8.1"></script>
-<script src="app/editor.js?v=1.8.1"></script>
-<script src="app/record.js?v=1.8.1"></script>
-<script src="app/export.js?v=1.8.1"></script>
-<script src="app/settings.js?v=1.8.1"></script>
-<script src="app/team.js?v=1.8.1"></script>
-<script src="app/team-sync.js?v=1.8.1"></script>
-<script src="app/library.js?v=1.8.1"></script>
-<script src="app/review.js?v=1.8.1"></script>
-<script src="app/teams.js?v=1.8.1"></script>
-<script src="app/main.js?v=1.8.1"></script>
+<script src="config.js?v=2.0.0"></script>
+<script src="core.js?v=2.0.0"></script>
+<script src="storage.js?v=2.0.0"></script>
+<script src="vendor/mp4-muxer.js?v=2.0.0"></script>
+<script src="render.js?v=2.0.0"></script>
+<script src="audio.js?v=2.0.0"></script>
+<script src="drive.js?v=2.0.0"></script>
+<script src="app/base.js?v=2.0.0"></script>
+<script src="app/player.js?v=2.0.0"></script>
+<script src="app/lineup.js?v=2.0.0"></script>
+<script src="app/league.js?v=2.0.0"></script>
+<script src="app/games.js?v=2.0.0"></script>
+<script src="app/tag.js?v=2.0.0"></script>
+<script src="app/editor.js?v=2.0.0"></script>
+<script src="app/record.js?v=2.0.0"></script>
+<script src="app/export.js?v=2.0.0"></script>
+<script src="app/settings.js?v=2.0.0"></script>
+<script src="app/team.js?v=2.0.0"></script>
+<script src="app/team-sync.js?v=2.0.0"></script>
+<script src="app/library.js?v=2.0.0"></script>
+<script src="app/review.js?v=2.0.0"></script>
+<script src="app/summary.js?v=2.0.0"></script>
+<script src="app/teams.js?v=2.0.0"></script>
+<script src="app/main.js?v=2.0.0"></script>
 </body>
 </html>

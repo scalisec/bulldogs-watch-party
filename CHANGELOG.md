@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.0.0 — 2026-10-29 (game summaries, new layout)
+
+- **Games home and New game are separate screens.**
+  - Games lists your games with result, clips and summary state, plus a Find box.
+  - League games already played but not added yet are listed under "Played, waiting for video". Each has an **Add video** button that opens New game with that game already picked.
+  - **+ New game** has its own screen with three steps.
+- **Each game has three tabs:** Watch and tag · Summary · Game details. A header shows the game, its league links and a back button.
+- **Scoreboard on the video.** It shows our score, the period and their score, plus Power play / Penalty kill when someone's in the box. It doesn't show a clock, because a game clock can't be worked out accurately from the video.
+- **Watch and tag is tidier.**
+  - The duplicate Goal and Penalty buttons were removed, leaving one row of game event buttons.
+  - The long keyboard tips are now under **?**.
+  - Game type, home/away, the list of marks and the lineup moved to Game details.
+- **Game details** can also change the date, opponent, rink and final score. Backup and Delete game are here too.
+- **Summary tab for each game:**
+  - Final score and goals by period.
+  - Goals, with power-play and short-handed goals marked. **Edit** fixes who scored, and the goal clip's players and note follow.
+  - Penalties, with what they led to (power-play goal, killed…).
+  - Clips, coach's notes (what went well / work on), and points this game.
+  - **Export all goal clips** and **Print or save as PDF**.
+  - A warning appears when the marked goals don't add up to the final score.
+- **Summaries tab:** record, goals for/against, penalty minutes, next game, and a card for every game. League games without video show their league score.
+- **Season stats:** each player's GP, G, A, PTS, PIM, PP goals and clips, filtered by League, Tournament, Exhibition, Playoff or all games. Goalies get GP, GA, GAA and a W–L–T record. Clicking a player's clips opens Review filtered to them.
+- Summaries work on a phone and are for coaches only.
+
 ## 1.8.1 — 2026-10-29 (clip notes in file names)
 
 - **Exported file names end with the clip's note**, e.g. "2026-10-18 Breakouts 4m04s #7 #12 - Stay wide on the wall.mp4". This applies to Drive uploads and downloads alike.

@@ -16,24 +16,26 @@ App.ready.then(() => {
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
 
-  async function exportCurrent() {
-    if (!App.E || edBusy() || edRecording()) return;
+  async function exportCurrent(opts) {
+    const batch = !!(opts && opts.batch === true);
+    if (!App.E || edBusy() || edRecording()) return false;
     stopPreview();
     exitDraw(true);
     const d = App.E.d;
     const cat = WP.clipCategoryLabel(d, S.settings.categories);
     const name = WP.exportFileName(d, cat, App.G);
     if (wantsDrive(d) && (S.sync || d.private)) {
-      try { await ensureDriveSession(true); } catch (e) { toast('Sign in to Google to save to Drive: ' + e.message, { err: true, ms: 8000 }); return; }
+      try { await ensureDriveSession(true); } catch (e) { toast('Sign in to Google to save to Drive: ' + e.message, { err: true, ms: 8000 }); return false; }
     }
     const dests = chosenDests(d);
-    if (!destPick.local && !dests.length) { toast('Choose where to save the MP4 (this computer or a Drive folder)', { err: true }); return; }
+    if (!destPick.local && !dests.length) { toast('Choose where to save the MP4 (this computer or a Drive folder)', { err: true }); return false; }
     let handle = null;
-    if (destPick.local && window.showSaveFilePicker && !navigator.webdriver) {
+    let ok = false;
+    if (destPick.local && window.showSaveFilePicker && !navigator.webdriver && !batch) {
       try {
         handle = await window.showSaveFilePicker({ suggestedName: name, types: [{ description: 'MP4 video', accept: { 'video/mp4': ['.mp4'] } }] });
       } catch (e) {
-        if (e.name === 'AbortError') return;
+        if (e.name === 'AbortError') return false;
         handle = null;
       }
     }
@@ -74,6 +76,7 @@ App.ready.then(() => {
       window.__bwp.lastExport = { dests, name: finalName, size: res.blob.size, codec: res.codec, h264: res.h264, audio: res.audio, frames: res.frames, duration: res.duration, blob: res.blob };
       App.E.mode = 'idle';
       commit({ exported: { at: Date.now(), name: finalName, size: res.blob.size, codec: res.codec } });
+      ok = true;
       const mb = (res.blob.size / 1e6).toFixed(1);
       if (destPick.local) toast('Saved “' + finalName + '” (' + mb + ' MB)' + (res.h264 ? '' : ' — this browser made VP9 video, which may not play on iPhones. Use Chrome or Edge on Windows for H.264.'), { ms: 8000 });
     } catch (e) {
@@ -88,8 +91,29 @@ App.ready.then(() => {
         App.E.player.seek(App.E.d.start);
       }
     }
+    return ok;
   }
-  $('e-export').addEventListener('click', exportCurrent);
+  $('e-export').addEventListener('click', () => exportCurrent());
+
+  /** Export every goal clip of a game in turn (from its summary), using the last "Save to" choices. */
+  async function exportGoalClips(game) {
+    const ids = WP.gameMarks(game).goals.map((g) => g.clipId).filter((id) => id && game.clips.some((c) => c.id === id));
+    if (!ids.length) { toast('This game has no goal clips'); return; }
+    if (!session.files.get(game.id)) { toast('Connect this game’s video files first (open Watch and tag).', { err: true }); App.watchAt(game.id, 0); return; }
+    if (!destPick.local && !destPick.team && !destPick.coaches && !destPick.players && !destPick.private) { toast('Export one clip first to choose where clips are saved', { err: true }); return; }
+    let done = 0;
+    for (let i = 0; i < ids.length; i++) {
+      location.hash = 'edit/' + game.id + '/' + ids[i];
+      const t0 = Date.now();
+      while (!(App.E && App.E.clipId === ids[i]) && Date.now() - t0 < 8000) await new Promise((r) => setTimeout(r, 100));
+      if (!(App.E && App.E.clipId === ids[i])) break;
+      toast('Exporting goal clip ' + (i + 1) + ' of ' + ids.length + '…', { ms: 3000 });
+      if (await exportCurrent({ batch: true })) done += 1; else break;
+    }
+    location.hash = 'sum/' + game.id;
+    toast('Exported ' + done + ' of ' + ids.length + ' goal clips', { ms: 6000, err: done < ids.length });
+  }
+  App.exportGoalClips = exportGoalClips;
   $('e-cancel').addEventListener('click', () => App.E && App.E.ctrl && App.E.ctrl.abort());
 
   function editorKey(e) {

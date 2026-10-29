@@ -1130,3 +1130,75 @@ test('export file name ends with the clip note', () => {
   const long = WP.exportFileName({ start: 1, note: 'word '.repeat(40) }, { name: 'X' }, g);
   assert.ok(long.endsWith('word….mp4') && long.length < 120, 'a long note is cut at a word: ' + long);
 });
+
+test('v2.0: short team names, results and periods', () => {
+  assert.equal(WP.shortTeamName('Bulldogs U10 Blue'), 'Bulldogs');
+  assert.equal(WP.shortTeamName('Burlington Barracudas U13 B'), 'Barracudas');
+  assert.equal(WP.shortTeamName('Burlington Raiders'), 'Raiders');
+  assert.equal(WP.shortTeamName(''), '');
+  assert.deepEqual(WP.parseResult('W 2–1'), { for: 2, against: 1 });
+  assert.deepEqual(WP.parseResult('3-3'), { for: 3, against: 3 });
+  assert.equal(WP.parseResult('won'), null);
+  const g = { marks: { periods: [{ n: 1, start: 10, end: 100 }, { n: 2, start: 120, end: null }], goals: [], penalties: [] } };
+  assert.equal(WP.periodAt(g, 50), 1);
+  assert.equal(WP.periodAt(g, 110), null);
+  assert.equal(WP.periodAt(g, 500), 2);
+  assert.equal(WP.periodLabel(2), '2nd');
+  assert.equal(WP.periodLabel(4), 'OT');
+});
+
+test('v2.0: game summary from marks', () => {
+  const roster = [{ number: '7', name: 'Sam' }, { number: '12', name: 'Ava' }, { number: '4', name: 'Leo' }, { number: '30', name: 'Max', primary: 'G' }];
+  let g = { result: 'W 2–1', lineup: null, clips: [{ players: ['7'] }], marks: { periods: [{ n: 1, start: 0, end: 600 }, { n: 2, start: 700, end: 1300 }, { n: 3, start: 1400, end: null }], goals: [], penalties: [] } };
+  g.marks = WP.addPenalty(g, 750, { team: 'them', player: '9', type: 'tripping', minutes: 2 }).marks;
+  g.marks = WP.addGoal(g, 300, 'for', { scorer: '7', assists: ['12', '4'] });
+  g.marks = WP.addGoal(g, 800, 'for', { scorer: '12', assists: ['7'] }); // on the power play
+  g.marks = WP.addGoal(g, 1500, 'against', { oppScorer: '15' });
+  g.marks = WP.addPenalty(g, 1450, { team: 'us', player: '4', type: 'hooking', minutes: 2 }).marks;
+  const s = WP.gameSummary(g, roster);
+  assert.deepEqual(s.score, { for: 2, against: 1 });
+  assert.equal(s.source, 'marks');
+  assert.equal(s.outcome, 'W');
+  assert.equal(WP.summaryResult(s), 'W 2–1');
+  assert.equal(s.mismatch, false);
+  assert.deepEqual(s.byPeriod.map((p) => [p.n, p.for, p.against]), [[1, 1, 0], [2, 1, 0], [3, 0, 1]]);
+  assert.equal(s.goals[1].strength, 'pp');
+  assert.equal(s.goals[2].strength, 'pp', 'their goal while we were short is a power-play goal for them');
+  assert.deepEqual(s.penalties.map((p) => p.outcome), ['pp-goal', 'pk-goal']);
+  const seven = s.points.find((p) => p.number === '7');
+  assert.deepEqual([seven.g, seven.a, seven.pts, seven.name], [1, 1, 2, 'Sam']);
+  assert.equal(s.points.find((p) => p.number === '12').ppg, 1);
+  assert.equal(s.points.find((p) => p.number === '4').pim, 2);
+  // marked goals that don't match the final score typed in
+  assert.equal(WP.gameSummary(Object.assign({}, g, { result: 'W 3–1' }), roster).mismatch, true);
+  // no goals marked: the result text (or the league's) is the score
+  const bare = { result: '', clips: [], marks: { periods: [], goals: [], penalties: [] } };
+  assert.equal(WP.gameSummary(bare, roster).source, 'none');
+  const fromLeague = WP.gameSummary(bare, roster, 'L 1–4');
+  assert.deepEqual([fromLeague.source, fromLeague.outcome], ['result', 'L']);
+});
+
+test('v2.0: season stats, goal edits and notes', () => {
+  const roster = [{ number: '7', name: 'Sam' }, { number: '30', name: 'Max', primary: 'G' }];
+  const mk = (type, result, goals) => {
+    const g = { gameType: type, result, lineup: null, clips: [{ players: ['7'] }, { players: ['30'] }], marks: { periods: [], goals: [], penalties: [] } };
+    for (const [t, side, d] of goals) g.marks = WP.addGoal(g, t, side, d);
+    return g;
+  };
+  const games = [mk('league', 'W 2–0', [[10, 'for', { scorer: '7' }], [20, 'for', { scorer: '7' }]]), mk('league', 'L 0–1', [[30, 'against', {}]]), mk('tournament', 'T 1–1', [])];
+  const all = WP.seasonStats(games, roster, '');
+  assert.deepEqual([all.record.w, all.record.l, all.record.t, all.record.gf, all.record.ga], [1, 1, 1, 3, 2]);
+  const sam = all.players.find((p) => p.number === '7');
+  assert.deepEqual([sam.gp, sam.g, sam.pts, sam.clips], [3, 2, 2, 3]);
+  const max = all.players.find((p) => p.number === '30');
+  assert.deepEqual([max.goalie, max.gGp, max.ga, max.gw, max.gl, max.gt], [true, 3, 2, 1, 1, 1]);
+  assert.equal(WP.seasonStats(games, roster, 'league').record.games, 2);
+  const g = games[0];
+  const id = WP.gameMarks(g).goals[0].id;
+  const m = WP.updateGoal(g, id, { scorer: '12', assists: ['7'] });
+  const up = m.goals.find((x) => x.id === id);
+  assert.deepEqual([up.scorer, up.assists, up.t, up.side], ['12', ['7'], 10, 'for']);
+  assert.throws(() => WP.updateGoal(g, 'nope', {}));
+  assert.deepEqual(WP.summaryNotes({}), { wentWell: '', workOn: '' });
+  assert.equal(WP.summaryNotes({ summaryNotes: { wentWell: 'Breakouts' } }).wentWell, 'Breakouts');
+});

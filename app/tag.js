@@ -29,7 +29,32 @@ App.ready.then(() => {
   function startPlayer(files) {
     $('relink').classList.add('hidden');
     App.player = createPlayer($('video'), files, App.TL, App.G.id, onTick);
-    App.player.seek(0);
+    const at = App.seekOnOpen && App.seekOnOpen.gameId === App.G.id ? App.seekOnOpen.t : 0;
+    App.seekOnOpen = null;
+    App.player.seek(at);
+  }
+
+  /** Make a game the current one without starting its video (Summary and Game details tabs). */
+  function selectGame(id) {
+    const game = S.games.find((g) => g.id === id);
+    if (!game) { toast('That game isn’t on this computer', { err: true }); location.hash = 'games'; return false; }
+    renderWho();
+    if (!App.G || App.G.id !== id) {
+      if (App.player) { App.player.destroy(); App.player = null; }
+      App.G = game;
+      App.TL = WP.gameTimeline(App.G);
+      App.selectedClipId = null; App.openEditorId = null; App.pendingStart = null; App.awaiting = null; App.filterCat = 'all';
+      applyZoom(WP.FIT);
+    }
+    renderTagView();
+    return true;
+  }
+
+  /** Open a game's Watch and tag screen at a moment (from the summary). */
+  function watchAt(id, t) {
+    App.seekOnOpen = { gameId: id, t: Math.max(0, t) };
+    if (App.G && App.G.id === id && App.player) { App.player.seek(App.seekOnOpen.t); App.seekOnOpen = null; }
+    location.hash = 'tag/' + id;
   }
 
   // ---- zoom ----
@@ -269,18 +294,34 @@ App.ready.then(() => {
     const st = WP.strengthAt(App.G, t);
     const box = WP.unendedPenalties(App.G, t);
     const m = WP.gameMarks(App.G);
-    const key = [a.period, a.score.for, a.score.against, st.us, st.them, ...box.map((x) => x.p.id + (x.over ? '!' : '') + Math.round(x.left / 5))].join('|');
+    const key = [m.periods.length, m.goals.length, m.penalties.length, a.period, a.score.for, a.score.against, st.us, st.them, ...box.map((x) => x.p.id + (x.over ? '!' : '') + Math.round(x.left / 5))].join('|');
     if (!force && key === gsKey) return;
     gsKey = key;
-    $('gs-score').textContent = (a.period ? WP.periodName(a.period) + ' · ' : m.periods.length ? 'Between periods · ' : '') + (m.goals.length ? 'Score ' + a.score.for + '–' + a.score.against : 'No goals marked');
-    const strText = st.situation === 'pp' ? 'Power play ' + st.us + '-on-' + st.them : st.situation === 'pk' ? 'Penalty kill ' + st.us + '-on-' + st.them : st.us < 5 ? 'Even ' + st.us + '-on-' + st.them : 'Even strength';
-    $('gs-str').textContent = strText;
-    $('gs-str').className = 'gs-str ' + st.situation;
+    renderScoreboard(a, st, m);
     $('gs-box').replaceChildren(...box.map((x) => el('li', { class: 'gs-pen ' + x.p.team + (x.over ? ' over' : '') },
       el('span', { class: 'grow' }, el('strong', {}, x.p.team === 'us' ? 'Us ' : 'Them '), WP.penaltyLabel(x.p).replace(/^(Us|Them) ?(· )?/, '')),
       el('span', { class: 'small muted' }, 'since ' + WP.formatTime(x.p.t) + ' · ' + (x.p.minutes === 10 ? 'misconduct' : x.over ? 'past its estimated end' : '~' + WP.formatTime(x.left) + ' left (est.)')),
       el('button', { type: 'button', class: 'btn small primary', 'aria-label': 'End penalty: ' + WP.penaltyLabel(x.p), onclick: () => endPenaltyAt(x.p, App.player ? App.player.time() : t) }, 'End penalty'))));
     $('gs-box').hidden = !box.length;
+  }
+
+  /** The scoreboard on the video: us, period, them, and a power play or penalty kill. */
+  function renderScoreboard(a, st, m) {
+    const sb = $('sb');
+    const any = m.goals.length || m.periods.length || m.penalties.length;
+    sb.classList.toggle('hidden', !any);
+    if (!any) return;
+    const us = WP.shortTeamName(S.settings.team.name) || 'Us';
+    const them = WP.shortTeamName(App.G.opponent) || 'Them';
+    const per = a.period ? WP.periodLabel(a.period) : m.periods.length ? (m.periods.some((p) => p.end == null) ? '' : 'Break') : '';
+    const kids = [
+      el('span', { class: 'sb-us' }, el('span', { class: 'sb-name' }, us), el('span', { class: 'sb-n' }, String(a.score.for))),
+      per ? el('span', { class: 'sb-per' }, per) : el('span', { class: 'sb-per' }, '–'),
+      el('span', { class: 'sb-them' }, el('span', { class: 'sb-n' }, String(a.score.against)), el('span', { class: 'sb-name' }, them))
+    ];
+    if (st.situation !== 'even' || st.us < 5) kids.push(el('span', { class: 'sb-str ' + st.situation }, (st.situation === 'pp' ? 'Power play ' : st.situation === 'pk' ? 'Penalty kill ' : 'Even ') + st.us + ' on ' + st.them));
+    sb.replaceChildren(...kids);
+    sb.setAttribute('aria-label', us + ' ' + a.score.for + ', ' + them + ' ' + a.score.against + (per && per !== '–' ? ', ' + per + ' period' : '') + (st.situation === 'pp' ? ', power play' : st.situation === 'pk' ? ', penalty kill' : ''));
   }
 
   function endPenaltyAt(p, t) {
@@ -559,14 +600,14 @@ App.ready.then(() => {
     for (const g of m.goals) {
       if (g.side === 'for') f += 1; else a += 1;
       items.push(el('span', { class: 'mark ' + (g.side === 'for' ? 'gf' : 'ga') },
-        el('button', { type: 'button', style: 'width:auto;padding:0 4px;background:none', title: 'Go to this goal', onclick: () => App.player && App.player.seek(Math.max(0, g.t - 3)) }, WP.goalLabel(g) + ' · ' + WP.formatTime(g.t) + ' (' + f + '–' + a + ')'),
+        el('button', { type: 'button', style: 'width:auto;padding:0 4px;background:none', title: 'Go to this goal', onclick: () => watchAt(App.G.id, g.t - 3) }, WP.goalLabel(g) + ' · ' + WP.formatTime(g.t) + ' (' + f + '–' + a + ')'),
         el('button', { type: 'button', 'aria-label': 'Delete goal at ' + WP.formatTime(g.t), onclick: () => { App.G.marks = WP.removeGoal(App.G, g.id); marksChanged(); } }, '✕')));
     }
     for (const p of m.penalties) {
       const end = WP.penaltyEnd(App.G, p);
       const endText = end.why === 'marked' ? 'back ' + WP.formatTime(end.t) : end.why === 'goal' ? 'ended by goal ' + WP.formatTime(end.t) : 'end not marked';
       items.push(el('span', { class: 'mark ' + (p.team === 'us' ? 'pk' : 'pp') },
-        el('button', { type: 'button', style: 'width:auto;padding:0 4px;background:none', title: 'Go to this penalty', onclick: () => App.player && App.player.seek(Math.max(0, p.t - 3)) }, WP.penaltyLabel(p) + ' · ' + WP.formatTime(p.t) + ' (' + endText + ')'),
+        el('button', { type: 'button', style: 'width:auto;padding:0 4px;background:none', title: 'Go to this penalty', onclick: () => watchAt(App.G.id, p.t - 3) }, WP.penaltyLabel(p) + ' · ' + WP.formatTime(p.t) + ' (' + endText + ')'),
         el('button', { type: 'button', 'aria-label': 'Delete penalty ' + WP.penaltyLabel(p), onclick: () => { App.G.marks = WP.removePenalty(App.G, p.id); marksChanged(); } }, '✕')));
     }
     $('marks-list').replaceChildren(...(items.length ? items : [el('span', { class: 'small muted' }, 'No periods, goals or penalties marked yet.')]));
@@ -594,7 +635,7 @@ App.ready.then(() => {
   }
 
   // ---- goals (G / H): who scored, then a goal clip tagged with those players ----
-  const GL = { side: 'for', t: 0, wasPlaying: false, scorer: '', assists: [], onIce: [] };
+  const GL = { side: 'for', t: 0, wasPlaying: false, scorer: '', assists: [], onIce: [], editId: null, onDone: null };
 
   function markGoal(side) {
     if (!App.player) return;
@@ -602,7 +643,8 @@ App.ready.then(() => {
     GL.t = App.player.time();
     GL.wasPlaying = App.player.isPlaying();
     if (GL.wasPlaying) App.player.pause();
-    GL.scorer = ''; GL.assists = []; GL.onIce = [];
+    GL.scorer = ''; GL.assists = []; GL.onIce = []; GL.editId = null; GL.onDone = null;
+    $('gl-cat').closest('label').hidden = false;
     for (const id of ['gl-oscorer', 'gl-oa1', 'gl-oa2']) $(id).value = '';
     const cats = S.settings.categories.filter((c) => !c.hidden);
     selectOpts($('gl-cat'), cats.map((c) => [c.id, c.name]), (WP.goalCategory(S.settings.categories) || {}).id, null);
@@ -632,14 +674,52 @@ App.ready.then(() => {
   }
 
   function closeGoal() {
+    GL.editId = null; GL.onDone = null;
     if ($('dlg-goal').open) $('dlg-goal').close();
     if (GL.wasPlaying && App.player) App.player.resume();
     GL.wasPlaying = false;
   }
 
+  /** Change who scored on a goal already marked (from the summary). Its clip's players and note follow. */
+  function editGoal(goalId, onDone) {
+    if (!App.G) return;
+    const g = WP.gameMarks(App.G).goals.find((x) => x.id === goalId);
+    if (!g) return;
+    GL.side = g.side; GL.t = g.t; GL.wasPlaying = false; GL.editId = g.id; GL.onDone = onDone || null;
+    GL.scorer = g.scorer || ''; GL.assists = (g.assists || []).slice(); GL.onIce = (g.onIce || []).slice();
+    $('gl-oscorer').value = g.oppScorer || '';
+    $('gl-oa1').value = (g.oppAssists || [])[0] || '';
+    $('gl-oa2').value = (g.oppAssists || [])[1] || '';
+    $('gl-cat').closest('label').hidden = true;
+    $('gl-h').textContent = g.side === 'for' ? 'Edit goal' : 'Edit goal against';
+    $('gl-at').textContent = 'At ' + WP.formatTime(g.t) + ' in the video' + (WP.periodAt(App.G, g.t) ? ' · ' + WP.periodLabel(WP.periodAt(App.G, g.t)) + ' period' : '');
+    renderGoalForm();
+    $('dlg-goal').showModal();
+    $('gl-ok').focus();
+  }
+
+  function saveEditedGoal(details) {
+    const before = WP.gameMarks(App.G).goals.find((x) => x.id === GL.editId);
+    App.G.marks = WP.updateGoal(App.G, GL.editId, details);
+    const goal = WP.gameMarks(App.G).goals.find((x) => x.id === GL.editId);
+    const clip = before && before.clipId ? App.G.clips.find((c) => c.id === before.clipId) : null;
+    if (clip) {
+      clip.players = WP.goalPlayers(goal);
+      if (!clip.note || clip.note === WP.goalLabel(before)) clip.note = WP.goalLabel(goal);
+    }
+    const done = GL.onDone;
+    GL.editId = null; GL.onDone = null;
+    if ($('dlg-goal').open) $('dlg-goal').close();
+    save();
+    if (App.player) marksChanged();
+    toast('Goal updated: ' + WP.goalLabel(goal));
+    if (done) done();
+  }
+
   function saveGoal() {
     const side = GL.side;
     const details = side === 'for' ? { scorer: GL.scorer, assists: GL.assists } : { oppScorer: $('gl-oscorer').value, oppAssists: [$('gl-oa1').value, $('gl-oa2').value], onIce: GL.onIce };
+    if (GL.editId) { saveEditedGoal(details); return; }
     App.G.marks = WP.addGoal(App.G, GL.t, side, details);
     const m = WP.gameMarks(App.G);
     const goal = m.goals.filter((g) => g.side === side && Math.abs(g.t - Math.round(GL.t * 10) / 10) < 0.01).pop();
@@ -716,10 +796,6 @@ App.ready.then(() => {
   $('qt-cancel').addEventListener('click', closeQuickTag);
   $('dlg-qtag').addEventListener('cancel', (e) => { e.preventDefault(); closeQuickTag(); });
   $('b-qtag').addEventListener('click', openQuickTag);
-  $('gs-tag').addEventListener('click', openQuickTag);
-  $('gs-pen').addEventListener('click', () => openPenalty());
-  $('gs-gf').addEventListener('click', () => markGoal('for'));
-  $('gs-ga').addEventListener('click', () => markGoal('against'));
 
   // ---- penalties (X): call a penalty, or mark a player back ----
   const PEN = { team: 'us', player: '', type: 'tripping', minutes: 2, t: 0, wasPlaying: false };
@@ -795,6 +871,24 @@ App.ready.then(() => {
   $('t-gtype').addEventListener('change', (e) => { App.G.gameType = e.target.value; save(); renderTagView(); });
   $('t-gha').addEventListener('change', (e) => { App.G.homeAway = e.target.value; save(); renderTagView(); });
 
+  // ---- Game details tab: date, opponent, rink, final score, type, marks, lineup, backup, delete ----
+  const GI = { 'gi-date': 'date', 'gi-opp': 'opponent', 'gi-rink': 'rink', 'gi-result': 'result' };
+  function renderDetails() {
+    if (!App.G) return;
+    for (const [id, k] of Object.entries(GI)) if (document.activeElement !== $(id)) $(id).value = App.G[k] || '';
+    renderMarks();
+    renderTagLineup();
+  }
+  for (const [id, k] of Object.entries(GI)) {
+    $(id).addEventListener('change', (e) => {
+      if (!App.G) return;
+      App.G[k] = String(e.target.value || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+      save();
+      renderTagView();
+    });
+  }
+  $('b-delgame').addEventListener('click', () => App.G && App.deleteGame(App.G));
+
   function evBadges(game, clip, events) {
     const evs = events || WP.clipEvents(game, clip);
     return evs.map((id) => { const ev = WP.EVENTS.find((x) => x.id === id) || {}; return el('span', { class: 'evb' + (ev.kind ? ' ' + ev.kind : '') }, WP.eventLabel(id)); });
@@ -810,6 +904,6 @@ App.ready.then(() => {
   Object.assign(App, {
     renderTagLineup,
     applyZoom, userZoom, autoLine, cancelMarks, evBadges, markGoal, markIn, markOut, markPeriod, onCategory, openPenalty, openQuickTag,
-    openGame, removeClip, renderClips, renderTags, sameJ, selectOpts, zoomLabel
+    openGame, selectGame, watchAt, renderDetails, editGoal, renderTagView, removeClip, renderClips, renderTags, sameJ, selectOpts, zoomLabel
   });
 }).catch((e) => setTimeout(() => { throw e; }));

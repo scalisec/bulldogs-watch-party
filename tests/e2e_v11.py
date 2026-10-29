@@ -49,7 +49,7 @@ with sync_playwright() as p:
     page.screenshot(path=SHOTS + '/v11-team-league.png', full_page=True)
 
     # ---- New game: dropping the LiveBarn files picks the Oct 18 game
-    page.goto(APP + '#games'); page.wait_for_selector('#view-games:not(.hidden)')
+    page.goto(APP + '#new'); page.wait_for_selector('#view-new:not(.hidden)')
     page.wait_for_selector('#gs-list', timeout=10000)
     check(page.locator('#gs-list button.lgpick').count() >= 1, 'New game form lists the team’s schedule')
     page.set_input_files('#file-input', [P1, P2])
@@ -95,6 +95,7 @@ with sync_playwright() as p:
     # ---- an existing game that isn't linked: Link to league schedule
     page.goto(APP + '#games'); page.wait_for_selector('#view-games:not(.hidden)')
     check(page.locator('#games .gamerow img.lglogo').count() == 1, 'Games list shows the opponent logo')
+    page.goto(APP + '#new'); page.wait_for_selector('#view-new:not(.hidden)')
     page.set_input_files('#file-input', [P1, P2])
     page.wait_for_function("!document.getElementById('g-start').disabled", timeout=20000)
     page.wait_for_selector('#gs-chosen')
@@ -116,7 +117,7 @@ with sync_playwright() as p:
     # ---- offline: the saved copy is used
     online['on'] = False
     page.reload(); page.wait_for_function('window.__bwp')
-    page.goto(APP + '#games'); page.wait_for_selector('#view-games:not(.hidden)')
+    page.goto(APP + '#new'); page.wait_for_selector('#view-new:not(.hidden)')
     page.wait_for_selector('#gs-list')
     page.click('#g-league button:has-text("Refresh")')
     page.wait_for_function("document.getElementById('g-league').textContent.includes('Couldn’t reach')", timeout=10000)
@@ -128,13 +129,13 @@ with sync_playwright() as p:
     page.select_option('#lg-team', '2712:burlington-raiders')
     lg = page.evaluate('window.__bwp.state.settings.league')
     check(lg['teamId'] == '2712:burlington-raiders' and lg['divisionId'] == 2712, 'league team can be changed')
-    page.goto(APP + '#games'); page.wait_for_selector('#gs-list')
+    page.goto(APP + '#new'); page.wait_for_selector('#gs-list')
     check('vs Burlington Bulldogs Blue' in page.text_content('#gs-list') or 'at Burlington Bulldogs Blue' in page.text_content('#gs-list'), 'schedule follows the new league team')
     # OWHA club team (Barracudas) from clubs.json
     page.goto(APP + '#team/info'); page.wait_for_selector('#lg-team')
     check(page.locator('#lg-team optgroup[label="OWHA · U13 B"] option').count() == 1, 'league team list includes OWHA club teams (Barracudas)')
     page.select_option('#lg-team', 'bghc-2066:burlington-barracudas')
-    page.goto(APP + '#games'); page.wait_for_selector('#gs-list', timeout=10000)
+    page.goto(APP + '#new'); page.wait_for_selector('#gs-list', timeout=10000)
     txt = page.text_content('#gs-list')
     check('vs North Halton Twisters' in txt and 'at North Halton Twisters' in txt and 'W 5–2' in txt, 'Barracudas schedule loads from the club data (home, away, our score)')
     page.click('#gs-list button[aria-label*="Sep 24"]')
@@ -142,7 +143,7 @@ with sync_playwright() as p:
     page.click('#g-clear')
     page.goto(APP + '#team/info'); page.wait_for_selector('#lg-team')
     page.select_option('#lg-team', '')
-    page.goto(APP + '#games'); page.wait_for_selector('#view-games:not(.hidden)')
+    page.goto(APP + '#new'); page.wait_for_selector('#view-new:not(.hidden)')
     check('Pick your league team' in page.text_content('#g-league'), 'with no league team, the form points to the Team page')
     page.goto(APP + '#team/info'); page.wait_for_selector('#lg-team')
     page.select_option('#lg-team', '2712:burlington-bulldogs-blue')
@@ -167,7 +168,7 @@ with sync_playwright() as p:
 
     # ---- phone width
     page.set_viewport_size({'width': 412, 'height': 900})
-    page.goto(APP + '#games'); page.wait_for_selector('#gs-list')
+    page.goto(APP + '#new'); page.wait_for_selector('#gs-list')
     w = page.evaluate('document.documentElement.scrollWidth')
     check(w <= 412, 'phone: New game form with the schedule fits (%d)' % w)
     page.screenshot(path=SHOTS + '/v11-phone.png', full_page=True)

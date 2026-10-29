@@ -81,7 +81,7 @@ with sync_playwright() as p:
     clips = page.evaluate('window.__bwp.state.games.reduce((s, g) => s + g.clips.length, 0)')
     check(page.evaluate('window.__bwp.state.games.length') == 61 and clips == 1201, 'after reload all 61 games and 1201 clips are there')
     gid = page.evaluate('window.__bwp.state.games[5].id')
-    page.goto(APP + '#tag/' + gid); page.wait_for_selector('#view-tag:not(.hidden)')
+    page.goto(APP + '#info/' + gid); page.wait_for_selector('#view-ginfo:not(.hidden)')
     page.select_option('#t-gtype', 'playoff'); page.wait_for_timeout(300)
     check(page.evaluate('window.__bwp.lastSaveCount') <= 2, 'changing one game writes %d records, not the whole season' % page.evaluate('window.__bwp.lastSaveCount'))
     page.reload(); page.wait_for_function('window.__bwp')
@@ -123,7 +123,7 @@ with sync_playwright() as p:
     page.screenshot(path=SHOTS + '/v07-shortcuts.png')
     page.click('#keys-close')
     sc = ctx.new_page(); sc.goto('http://127.0.0.1:%d/shortcuts.html' % PORT)
-    check(sc.locator('tr').count() >= 20 and 'v1.8.1' in sc.text_content('#ver'), 'printable shortcuts page lists %d shortcuts' % sc.locator('tr').count())
+    check(sc.locator('tr').count() >= 20 and 'v2.0.0' in sc.text_content('#ver'), 'printable shortcuts page lists %d shortcuts' % sc.locator('tr').count())
     sc.close()
 
     # ---- 5. a newer version on the site shows the banner

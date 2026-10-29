@@ -46,7 +46,7 @@ with sync_playwright() as p:
     check(page.locator('#lg-suggest-team').count() == 0, 'no suggestion when the name doesn’t contain a league team’s full name')
     # rename to something that matches: suggestion appears
     page.fill('#t-name', 'Burlington Barracudas'); page.press('#t-name', 'Tab'); page.wait_for_timeout(300)
-    page.goto(APP + '#games'); page.wait_for_selector('#gs-suggest', timeout=8000)
+    page.goto(APP + '#new'); page.wait_for_selector('#gs-suggest', timeout=8000)
     check('Burlington Barracudas' in page.text_content('#gs-suggest') and 'U13 B (OWHA)' in page.text_content('#gs-suggest'), 'New game form suggests Burlington Barracudas · U13 B (OWHA)')
     page.screenshot(path=SHOTS + '/v161-suggest.png')
     page.click('#gs-suggest button:has-text("Use its schedule")')
@@ -69,7 +69,7 @@ with sync_playwright() as p:
     with page.expect_navigation(): page.click('#teams-add button[type=submit]')
     reloaded(page)
     check(page.evaluate('window.__bwp.state.settings.league.teamId') == 'bghc-2066:burlington-barracudas', 'adding "Burlington Barracudas U13 B" picks its league team automatically')
-    page.goto(APP + '#games'); page.wait_for_selector('#gs-list', timeout=8000)
+    page.goto(APP + '#new'); page.wait_for_selector('#gs-list', timeout=8000)
     check('Flamborough Falcons' in page.text_content('#gs-list') or 'North Halton' in page.text_content('#gs-list'), 'and its schedule shows straight away')
     check(not errors, 'no page errors: ' + '; '.join(errors[:3]))
     b.close()

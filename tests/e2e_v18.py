@@ -31,7 +31,7 @@ with sync_playwright() as p:
     page.wait_for_selector('section[data-tsec="roster"]:not(.hidden)')
     for n, f, l in [('7', 'Sam', 'Smith'), ('12', 'Leo', 'Lane'), ('4', 'Maya', 'Moss'), ('3', 'Ava', 'Ash')]:
         page.fill('#r-num', n); page.fill('#r-name', f); page.fill('#r-last', l); page.click('#roster-add button[type=submit]')
-    page.goto(APP + '#games'); page.wait_for_selector('#view-games:not(.hidden)')
+    page.goto(APP + '#new'); page.wait_for_selector('#view-new:not(.hidden)')
     page.set_input_files('#file-input', [P1, P2])
     page.wait_for_function("!document.getElementById('g-start').disabled", timeout=20000)
     page.fill('#g-opp', 'Raiders'); page.fill('#g-date', '2026-10-18'); page.click('#g-start')
@@ -75,7 +75,7 @@ with sync_playwright() as p:
     check(ga['oppScorer'] == '19' and ga['oppAssists'] == ['8'] and ga['onIce'] == ['3', '4'], 'goal against saved with #19, assist #8, on ice #3 #4')
     gclips = [c for c in g['clips'] if c['method'] == 'goal']
     check(len(gclips) == 2 and sorted(gclips[1]['players']) == ['3', '4'], 'its clip is tagged with our players on the ice')
-    check('Score 1–1' in page.text_content('#gs-score'), 'score updates to 1–1')
+    check(page.text_content('#sb .sb-us .sb-n') == '1' and page.text_content('#sb .sb-them .sb-n') == '1', 'scoreboard updates to 1–1')
 
     # ---- Cancel: no goal, no clip
     page.keyboard.press('g'); page.wait_for_selector('#dlg-goal[open]'); page.keyboard.press('Escape')

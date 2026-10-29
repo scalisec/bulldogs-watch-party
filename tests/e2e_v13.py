@@ -28,7 +28,7 @@ with sync_playwright() as p:
     (c1, n1), (c2, n2), (c3, n3) = cats[0], cats[1], cats[2]
 
     # a game and one clip tagged with key 1
-    page.goto(APP + '#games'); page.wait_for_selector('#view-games:not(.hidden)')
+    page.goto(APP + '#new'); page.wait_for_selector('#view-new:not(.hidden)')
     page.set_input_files('#file-input', [P1, P2])
     page.wait_for_function("!document.getElementById('g-start').disabled", timeout=20000)
     page.fill('#g-opp', 'Raiders'); page.fill('#g-date', '2026-10-18')

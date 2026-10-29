@@ -26,7 +26,7 @@ with sync_playwright() as p:
     page = ctx.new_page()
     errors = []
     page.on('pageerror', lambda e: errors.append(str(e)))
-    page.goto(APP + '#games'); page.wait_for_function('window.__bwp')
+    page.goto(APP + '#new'); page.wait_for_function('window.__bwp')
     page.set_input_files('#file-input', [P1, P2])
     page.wait_for_function("!document.getElementById('g-start').disabled", timeout=20000)
     page.fill('#g-opp', 'Raiders'); page.fill('#g-date', '2026-10-18')

@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '1.8.1';
+  const APP_VERSION = '2.0.0';
   const APP_RELEASED = '2026-10-29';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
@@ -580,7 +580,7 @@
     const who = (clip.players || []).map((p) => '#' + p).join(' ');
     const clean = (x) => String(x || '').replace(/[\\/:*?"<>|]+/g, '-').replace(/[\s.]+$/g, '').replace(/\s+/g, ' ').trim();
     const base = clean([d, category ? category.name : 'Clip', t, who].filter(Boolean).join(' ')).slice(0, 120);
-    // the clip's note goes at the end (v1.8.1), cut at a word boundary so names stay readable
+    // the clip's note goes at the end (v2.0.0), cut at a word boundary so names stay readable
     let note = clean(clip.note);
     if (note.length > 80) note = note.slice(0, 80).replace(/\s+\S*$/, '') + '…';
     return base + (note ? ' - ' + note : '') + '.mp4';
@@ -1837,6 +1837,142 @@
     return { state: next, count: added };
   }
 
+  // ---------- game summaries and season stats (v2.0) ----------
+
+  /** "Bulldogs U10 Blue" -> "Bulldogs", "Burlington Raiders" -> "Raiders": the name to show on a scoreboard. */
+  function shortTeamName(name) {
+    const words = String(name || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+    const cut = words.findIndex((w) => /^(U\d{1,2}|\d{1,2}U|AAA|AA|A|BB|B|C|CC|DD|MD|HL|LL|Jr\.?|Sr\.?)$/i.test(w));
+    const keep = cut > 0 ? words.slice(0, cut) : cut === 0 ? words.slice(1) : words;
+    return keep.length ? keep[keep.length - 1] : '';
+  }
+
+  /** "W 2–1" / "L 1-3" / "2-2" -> { for, against } (null when there's no score in the text). */
+  function parseResult(text) {
+    const m = /(\d{1,2})\s*[–\-:]\s*(\d{1,2})/.exec(String(text || ''));
+    return m ? { for: Number(m[1]), against: Number(m[2]) } : null;
+  }
+
+  /** The period a moment of video falls in (its number), or null between periods / before any are marked. */
+  function periodAt(game, t) {
+    const p = gameMarks(game).periods.filter((x) => t >= x.start - 0.01 && (x.end == null || t <= x.end + 0.01)).pop();
+    return p ? p.n : null;
+  }
+
+  function periodLabel(n) { return n == null ? '' : n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : n === 4 ? 'OT' : 'OT' + (n - 3); }
+
+  /** What the penalty led to: 'pp-goal' / 'no-goal' (theirs) or 'pk-goal' / 'killed' (ours); '' for a misconduct. */
+  function penaltyOutcome(game, p) {
+    if (p.minutes === 10) return '';
+    const end = penaltyEnd(game, p).t;
+    const side = p.team === 'us' ? 'against' : 'for';
+    const scored = gameMarks(game).goals.some((g) => g.side === side && g.t > p.t && g.t <= end + 0.01);
+    return p.team === 'us' ? (scored ? 'pk-goal' : 'killed') : (scored ? 'pp-goal' : 'no-goal');
+  }
+  const OUTCOME_LABELS = { 'pp-goal': 'Power-play goal', 'no-goal': 'No goal on the power play', 'pk-goal': 'Goal against on the kill', killed: 'Killed' };
+
+  /**
+   * A game's summary from the coach's marks: final score (marks first, then the result text), goals by
+   * period, goals and penalties in order with their period, each player's points, and whether the marked
+   * goals agree with the final score that was entered or came from the league.
+   *   officialResult: the league schedule's result text, when known
+   */
+  function gameSummary(game, roster, officialResult) {
+    const m = gameMarks(game);
+    const goals = [];
+    let f = 0, a = 0;
+    for (const g of m.goals) {
+      if (g.side === 'for') f += 1; else a += 1;
+      const st = strengthAt(game, g.t - 0.05);
+      const strength = g.side === 'for' ? (st.situation === 'pp' ? 'pp' : st.situation === 'pk' ? 'sh' : '') : (st.situation === 'pk' ? 'pp' : st.situation === 'pp' ? 'sh' : '');
+      goals.push(Object.assign({}, g, { n: periodAt(game, g.t), score: { for: f, against: a }, strength }));
+    }
+    const penalties = m.penalties.map((p) => Object.assign({}, p, { n: periodAt(game, p.t), outcome: penaltyOutcome(game, p) }));
+    const typed = parseResult(game.result) || parseResult(officialResult);
+    const marked = m.goals.length > 0;
+    const score = marked ? { for: f, against: a } : typed;
+    const source = marked ? 'marks' : typed ? 'result' : 'none';
+    const mismatch = !!(marked && typed && (typed.for !== f || typed.against !== a));
+    const outcome = score ? (score.for > score.against ? 'W' : score.for < score.against ? 'L' : 'T') : '';
+    // goals per period (plus any outside a marked period)
+    const nums = [...new Set(m.periods.map((p) => p.n).concat([1, 2, 3]))].sort((x, y) => x - y);
+    const byPeriod = nums.map((n) => ({ n, for: goals.filter((g) => g.n === n && g.side === 'for').length, against: goals.filter((g) => g.n === n && g.side === 'against').length }));
+    const loose = goals.filter((g) => g.n == null);
+    if (loose.length) byPeriod.push({ n: null, for: loose.filter((g) => g.side === 'for').length, against: loose.filter((g) => g.side === 'against').length });
+    // points this game
+    const pts = {};
+    const P = (n) => (pts[n] = pts[n] || { number: n, g: 0, a: 0, pim: 0, ppg: 0, shg: 0 });
+    for (const g of goals) {
+      if (g.side !== 'for') continue;
+      if (g.scorer) { P(g.scorer).g += 1; if (g.strength === 'pp') P(g.scorer).ppg += 1; if (g.strength === 'sh') P(g.scorer).shg += 1; }
+      for (const x of g.assists || []) P(x).a += 1;
+    }
+    for (const p of m.penalties) if (p.team === 'us' && p.player) P(p.player).pim += p.minutes;
+    const names = new Map((roster || []).map((r) => [r.number, r.name]));
+    const points = Object.values(pts).map((x) => Object.assign(x, { name: names.get(x.number) || '', pts: x.g + x.a }))
+      .sort((x, y) => y.pts - x.pts || y.g - x.g || Number(x.number) - Number(y.number));
+    const goalies = gameLineup(game, roster).filter((r) => !r.away && r.pos === 'G').map((r) => r.number);
+    return { score, source, mismatch, typed, outcome, goals, penalties, byPeriod, points, goalies,
+      pim: { us: m.penalties.filter((p) => p.team === 'us').reduce((s, p) => s + p.minutes, 0), them: m.penalties.filter((p) => p.team === 'them').reduce((s, p) => s + p.minutes, 0) },
+      marked, periodsMarked: m.periods.length };
+  }
+
+  /** "W 2–1" from a summary ('' when there's no score). */
+  function summaryResult(sum) { return sum && sum.score ? sum.outcome + ' ' + sum.score.for + '–' + sum.score.against : ''; }
+
+  /**
+   * Season numbers across games: record, goals for/against, PIM, and each player's GP, G, A, PTS, PIM,
+   * PP goals and clips. gameType '' = every game. official(game) gives the league result text, when known.
+   */
+  function seasonStats(games, roster, gameType, official) {
+    const list = (games || []).filter((g) => !gameType || g.gameType === gameType);
+    const rec = { w: 0, l: 0, t: 0, gf: 0, ga: 0, pim: 0, games: 0 };
+    const players = new Map();
+    const row = (n) => {
+      if (!players.has(n)) players.set(n, { number: n, name: '', gp: 0, g: 0, a: 0, pts: 0, pim: 0, ppg: 0, clips: 0, goalie: false, gGp: 0, ga: 0, gw: 0, gl: 0, gt: 0 });
+      return players.get(n);
+    };
+    for (const r of roster || []) { const x = row(r.number); x.name = r.name || ''; }
+    for (const game of list) {
+      const sum = gameSummary(game, roster, official ? official(game) : '');
+      if (sum.score) {
+        rec.games += 1; rec.gf += sum.score.for; rec.ga += sum.score.against;
+        if (sum.outcome === 'W') rec.w += 1; else if (sum.outcome === 'L') rec.l += 1; else rec.t += 1;
+      }
+      rec.pim += sum.pim.us;
+      for (const n of playersForGame(game, roster)) row(n).gp += 1;
+      for (const p of sum.points) { const x = row(p.number); x.g += p.g; x.a += p.a; x.pim += p.pim; x.ppg += p.ppg; }
+      for (const c of game.clips || []) for (const n of c.players || []) row(n).clips += 1;
+      if (sum.score && sum.goalies.length === 1) {
+        const x = row(sum.goalies[0]);
+        x.goalie = true; x.gGp += 1; x.ga += sum.score.against;
+        if (sum.outcome === 'W') x.gw += 1; else if (sum.outcome === 'L') x.gl += 1; else x.gt += 1;
+      }
+    }
+    const rows = [...players.values()].map((x) => Object.assign(x, { pts: x.g + x.a }))
+      .filter((x) => x.gp || x.pts || x.pim || x.clips || x.goalie)
+      .sort((x, y) => y.pts - x.pts || y.g - x.g || Number(x.number) - Number(y.number));
+    return { record: rec, players: rows };
+  }
+
+  /** Change a goal's details (scorer/assists or their numbers/on ice). Returns new marks. */
+  function updateGoal(game, id, details) {
+    const m = gameMarks(game);
+    const old = m.goals.find((g) => g.id === id);
+    if (!old) throw new Error('That goal is gone');
+    const fresh = addGoal({ marks: { goals: [], periods: [], penalties: [] } }, old.t, old.side, details).goals[0];
+    const next = Object.assign({}, old, fresh, { id: old.id, t: old.t });
+    if (next.side === 'for') { delete next.oppScorer; delete next.oppAssists; delete next.onIce; } else { delete next.scorer; delete next.assists; }
+    m.goals = m.goals.map((g) => (g.id === id ? next : g));
+    return m;
+  }
+
+  /** Coach's notes on a game summary: { wentWell, workOn } (plain text, capped). */
+  function summaryNotes(game) {
+    const n = (game && game.summaryNotes) || {};
+    return { wentWell: String(n.wentWell || '').slice(0, 4000), workOn: String(n.workOn || '').slice(0, 4000) };
+  }
+
   const WP = {
     APP_VERSION, APP_RELEASED, SCHEMA_VERSION, DEFAULT_BEFORE, DEFAULT_AFTER, MIN_CLIP, MAX_CLIP,
     uid, formatTime, parseTime, parseLiveBarnName, orderParts, guessGameDetails,
@@ -1861,7 +1997,8 @@
     PENALTY_TYPES, PENALTY_LENGTHS, PENALTY_VIDEO_FACTOR, penaltyLabel, addPenalty, endPenalty, removePenalty, penaltyEnd, openPenalties, unendedPenalties, strengthAt, situationAt, strengthBands, clipSituation, penaltyPlayers,
     clipCategoryIds, categoriesPatch, toggleClipCategory, clipCategoryLabel,
     applyEntryTags, folderName, teamFolderKeys, destLabel,
-    DEFAULT_LEAGUE, divisionKey, normalizeLeague, guessLeagueTeam, leagueTeams, leagueLogo, cleanVenue, scoreResult, gamesheetUrl, teamSchedule, matchScheduleGame, scheduleFields, leagueLink, linkGame, formatClock
+    DEFAULT_LEAGUE, divisionKey, normalizeLeague, guessLeagueTeam, leagueTeams, leagueLogo, cleanVenue, scoreResult, gamesheetUrl, teamSchedule, matchScheduleGame, scheduleFields, leagueLink, linkGame, formatClock,
+    shortTeamName, parseResult, periodAt, periodLabel, penaltyOutcome, OUTCOME_LABELS, gameSummary, summaryResult, seasonStats, updateGoal, summaryNotes
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = WP;

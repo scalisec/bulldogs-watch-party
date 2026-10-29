@@ -65,7 +65,7 @@ with sync_playwright() as p:
     check(len(by_name('My private clip library.json')) == 1, 'A: private library file created')
 
     # ---- A: new game with type and home/away
-    A.goto(APP + '#games')
+    A.goto(APP + '#new')
     A.set_input_files('#file-input', [P1, P2])
     A.wait_for_function("!document.getElementById('g-start').disabled", timeout=20000)
     A.fill('#g-opp', 'Rangers'); A.select_option('#g-type', 'league'); A.select_option('#g-ha', 'home')
@@ -224,7 +224,7 @@ with sync_playwright() as p:
     B.wait_for_timeout(3200); idle(B)
     check(list(lib_json()['entries'].values())[0]['note'] == 'Quick up the wall, then drive the net', 'B’s tag edit reaches the library file')
     # ---- B saves its own clip into the admin's Team folder (the coach path)
-    B.goto(APP + '#games')
+    B.goto(APP + '#new')
     B.set_input_files('#file-input', [P1, P2])
     B.wait_for_function("!document.getElementById('g-start').disabled", timeout=20000)
     B.fill('#g-opp', 'Kings'); B.click('#g-start')

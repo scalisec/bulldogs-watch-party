@@ -14,6 +14,17 @@ There's no sign-in and no server. Video files stay on your computer, and games a
 
 Keep using the same browser on the same PC: that's where your games and clips are saved.
 
+## Screens (v2.0)
+
+- **Games:** your games, with result, clips and summary state. League games already played but not added yet are listed under "Played, waiting for video" with an **Add video** button.
+  - **+ New game** opens its own screen: video files, which league game, then details and lineup.
+- **A game** has three tabs:
+  - **Watch and tag:** the video, with a scoreboard (score, period, power play or penalty kill) built from your marks, one row of event buttons, the timeline and the clip buttons.
+  - **Summary:** final score and goals by period, goals (with **Edit** to fix who scored), penalties and what they led to, clips, coach's notes, points this game, **Export all goal clips**, and **Print or save as PDF**.
+  - **Game details:** date, opponent, rink, final score, game type, home/away, the list of marks, lineup, backup and delete.
+- **Summaries:** the season record, goals for/against, penalty minutes and next game, then a card per game. **Season stats** lists each player's GP, G, A, PTS, PIM, PP goals and clips, plus goalies.
+- Summaries are for coaches only and come from your own marks. GameSheet import comes later.
+
 ## Watch and tag (milestone 1)
 
 - **New game:** drag in the LiveBarn downloads. They're put in play order automatically, and the date and rink are read from the file names.
@@ -206,6 +217,7 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 ## Tests
 
 - `node --test tests/core.test.js` runs the core logic tests (82), including reading the audio track of a small generated MP4 (`tests/fixtures/media`).
+- `python3 tests/e2e_v20.py <screenshot-dir> <media-dir>` tests v2.0: Games home and the New game screen, a game's tabs, the scoreboard, Game details, the Summary (goal edits, notes), the Summaries tab, Season stats and phone widths.
 - `python3 tests/e2e_v18.py <screenshot-dir> <media-dir>` tests v1.8: the goal popup and goal clips (scorer, assists, on-ice players), and zoom while a clip plays setting its view (19 checks). Per-game Drive folders are checked in `e2e_library.py`.
 - `python3 tests/e2e_v17.py <screenshot-dir> <media-dir>` tests v1.7: rink sound in exports (sound in normal-speed parts, quiet in slow motion, in sync, the on/off box, a clip across two parts). It needs MP4 copies of the test game with VP9 + Opus in `<media-dir>/opusmp4/`, because the test browser can't decode AAC (11 checks).
 - `python3 tests/e2e_v161.py <screenshot-dir>` tests v1.6.1: finding a club team's schedule (suggestion, automatic pick on Add team, Find box, club teams first, old saved list ignored) (11 checks).
@@ -233,8 +245,8 @@ GitHub runs the core tests, `e2e_drive.py`, `e2e_v07.py` and `e2e_v12.py` on eve
 | `drive.js` | Google sign-in and Drive calls, including the shared sync routine |
 | `app/base.js` | Shared helpers, saving, error reporting; loads the data and creates `App` |
 | `app/player.js` | Plays a game's parts as one video |
-| `app/games.js` | Games screen |
-| `app/tag.js` | Game screen: watch, zoom, tag, periods and goals |
+| `app/games.js` | Games home and the New game screen |
+| `app/tag.js` | A game: Watch and tag (scoreboard, zoom, tagging, periods, goals, penalties) and Game details |
 | `app/editor.js` | Clip editor: trim, freeze and draw, slow motion, details |
 | `app/record.js` | Record a breakdown |
 | `app/export.js` | Export and save to this computer or Drive |
@@ -247,6 +259,7 @@ GitHub runs the core tests, `e2e_drive.py`, `e2e_v07.py` and `e2e_v12.py` on eve
 | `app/team-sync.js` | Shared team data in Drive |
 | `app/library.js` | Shared and private clip libraries |
 | `app/review.js` | Review screen |
+| `app/summary.js` | Summaries tab, a game's Summary and Season stats |
 | `app/main.js` | Routing, keyboard, update banner, start-up |
 | `styles.css` | All page styles (Bench Boss Labs dark navy) |
 | `icons/` | App icons redrawn from the Bench Boss Labs symbol (`icon.svg` full, `favicon.svg` simplified for tabs) |

@@ -31,7 +31,7 @@ with sync_playwright() as p:
     page.wait_for_selector('section[data-tsec="roster"]:not(.hidden)')
     for n, f, l in [('7', 'Sam', 'Smith'), ('12', 'Leo', 'Lane')]:
         page.fill('#r-num', n); page.fill('#r-name', f); page.fill('#r-last', l); page.click('#roster-add button[type=submit]')
-    page.goto(APP + '#games'); page.wait_for_selector('#view-games:not(.hidden)')
+    page.goto(APP + '#new'); page.wait_for_selector('#view-new:not(.hidden)')
     page.set_input_files('#file-input', [P1, P2])
     page.wait_for_function("!document.getElementById('g-start').disabled", timeout=20000)
     page.fill('#g-opp', 'Raiders'); page.fill('#g-date', '2026-10-18')

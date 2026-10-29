@@ -77,7 +77,10 @@ App.ready.then(() => {
   function refreshAfterSync() {
     if (!$('view-settings').classList.contains('hidden') || !$('view-team').classList.contains('hidden')) renderSettings();
     else if (!$('view-tag').classList.contains('hidden') && App.G) { renderTags(); renderClips(); App.renderTagLineup(); }
-    else if (!$('view-games').classList.contains('hidden')) { renderGameLists(); App.renderDraftLineup(); }
+    else if (!$('view-new').classList.contains('hidden')) { renderGameLists(); App.renderDraftLineup(); }
+    else if (!$('view-games').classList.contains('hidden')) App.renderGames();
+    else if (!$('view-gsum').classList.contains('hidden') && App.G) App.renderGameSummary();
+    else if (!$('view-stats').classList.contains('hidden')) App.renderStats();
     if (App.E) renderEditor();
   }
 

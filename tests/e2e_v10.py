@@ -20,7 +20,7 @@ def team(page, sec):
     page.goto(APP + '#team/' + sec); page.wait_for_selector('section[data-tsec="%s"]:not(.hidden)' % sec)
 
 def new_game(page, opp, date):
-    page.goto(APP + '#games'); page.wait_for_selector('#view-games:not(.hidden)')
+    page.goto(APP + '#new'); page.wait_for_selector('#view-new:not(.hidden)')
     page.set_input_files('#file-input', [P1, P2])
     page.wait_for_function("!document.getElementById('g-start').disabled", timeout=20000)
     page.fill('#g-opp', opp); page.fill('#g-date', date)
@@ -91,6 +91,7 @@ with sync_playwright() as p:
 
     # ---- game screen: mark Maya back in, then a second game copies the lineup
     page.click('#e-back'); page.wait_for_selector('#view-tag:not(.hidden)')
+    page.click('#gt-info'); page.wait_for_selector('#view-ginfo:not(.hidden)')
     page.click('#t-lineup-card summary')
     page.click('#t-lineup button[aria-label^="#4 M. Moss is away"]')
     check(page.evaluate('window.__bwp.state.games[0].lineup.away') == [], 'game screen: marking a player back in saves')

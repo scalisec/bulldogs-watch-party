@@ -10,11 +10,20 @@ App.ready.then(() => {
 
   // ---------- routing ----------
   function show(view) {
-    for (const v of ['games', 'tag', 'edit', 'review', 'team', 'settings']) $('view-' + v).classList.toggle('hidden', v !== view);
+    for (const v of ['games', 'new', 'tag', 'edit', 'ginfo', 'gsum', 'sums', 'stats', 'review', 'team', 'settings']) $('view-' + v).classList.toggle('hidden', v !== view);
     if (view !== 'edit') closeEditor();
+    const navOf = { tag: 'games', edit: 'games', new: 'games', ginfo: 'games', gsum: 'games', sums: 'summaries', stats: 'summaries' };
     for (const a of document.querySelectorAll('[data-nav]')) {
-      const on = a.dataset.nav === view || ((view === 'tag' || view === 'edit') && a.dataset.nav === 'games');
-      if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+      if (a.dataset.nav === (navOf[view] || view)) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    }
+    // the game header (title, league links, Watch and tag / Summary / Game details) on a game's screens
+    const tab = { tag: 'tag', ginfo: 'info', gsum: 'sum' }[view];
+    $('game-head').classList.toggle('hidden', !tab || !App.G);
+    if (tab && App.G) {
+      for (const a of document.querySelectorAll('[data-gtab]')) {
+        a.href = '#' + a.dataset.gtab + '/' + App.G.id;
+        if (a.dataset.gtab === tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+      }
     }
     if (view !== 'tag' && App.player) App.player.pause();
     if (view !== 'review' && R.idx >= 0) stopReviewPlayer();
@@ -25,11 +34,17 @@ App.ready.then(() => {
     const [view, id, sub] = (location.hash.replace('#', '') || 'games').split('/');
     if (view === 'tag' && id) { if (openGame(id)) show('tag'); }
     else if (view === 'edit' && id && sub) { show('edit'); if (!openEditor(id, sub)) return; }
+    else if (view === 'sum' && id) { if (App.selectGame(id)) { show('gsum'); App.renderGameSummary(); } }
+    else if (view === 'info' && id) { if (App.selectGame(id)) { show('ginfo'); App.renderDetails(); } }
+    else if (view === 'new') { App.renderNew(id ? decodeURIComponent(id) : ''); show('new'); }
+    else if (view === 'summaries') { show('sums'); App.renderSummaries(); }
+    else if (view === 'stats') { show('stats'); App.renderStats(); }
     else if (view === 'settings') { renderSettings(); show('settings'); }
     else if (view === 'team') { renderSettings(); App.renderTeam(id); show('team'); }
     else if (view === 'review') { show('review'); renderReview(); libSyncIfStale(20000); }
     else { renderGames(); show('games'); }
   }
+  App.route = route;
 
   // ---- shortcuts overlay (? key) ----
   function keyCells(k) { return k.split(/( \/ | or | \+ | \u00b7 )/).map((bit) => (/^ (\/|or|\+|\u00b7) $/.test(bit) ? bit : el('kbd', {}, bit))); }

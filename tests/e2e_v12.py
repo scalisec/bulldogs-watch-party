@@ -70,6 +70,7 @@ with sync_playwright() as p:
     team(A, 'roster'); A.fill('#r-num', '11'); A.fill('#r-name', 'Ava'); A.fill('#r-last', 'Scali'); A.click('#roster-add button[type=submit]')
     A.goto(APP + '#games'); A.wait_for_selector('#view-games:not(.hidden)')
     check('No games yet' in A.text_content('#games'), 'Games list is the new team’s own (empty)')
+    A.goto(APP + '#new'); A.wait_for_selector('#view-new:not(.hidden)')
     check('Pick your league team' in A.text_content('#g-league'), 'New game form points to the Team page for a league team')
 
     # ---- its own Drive folder and private folder

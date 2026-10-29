@@ -77,7 +77,9 @@ App.ready.then(() => {
   }
 
   App.League.onChange(() => {
-    if ($('view-games').classList.contains('hidden')) return;
+    if (!$('view-games').classList.contains('hidden')) { renderGames(); return; }
+    if ($('view-new').classList.contains('hidden')) return;
+    applyNewSched();
     if (!autoMatch()) renderDraftLeague();
     App.renderGameLists();
   });
@@ -146,41 +148,97 @@ App.ready.then(() => {
     location.hash = 'tag/' + game.id;
   }
 
+  // ---- the Games home: waiting league games, then your games ----
+  function officialResult(g) {
+    if (!g.league || !g.league.id) return '';
+    const sched = App.League.schedule();
+    const s = sched && sched.find((x) => x.id === g.league.id);
+    return s ? s.result : '';
+  }
+  App.officialResult = officialResult;
+
+  /** League games already played that have no game here yet (newest first, a few). */
+  function waitingGames() {
+    const sched = App.League.schedule();
+    if (!sched) return [];
+    const today = new Date().toISOString().slice(0, 10);
+    const have = new Set(S.games.map((g) => g.league && g.league.id).filter(Boolean));
+    return sched.filter((x) => (x.final || x.date < today) && !have.has(x.id)).slice(-4).reverse();
+  }
+
+  function summaryPill(g) {
+    const sum = WP.gameSummary(g, S.settings.roster, officialResult(g));
+    if (sum.mismatch) return el('span', { class: 'pill work' }, 'Goals don’t match the final score');
+    if (sum.marked) return el('span', { class: 'pill good' }, sum.goals.length + (sum.goals.length === 1 ? ' goal' : ' goals') + ' marked');
+    if (sum.score) return el('span', { class: 'pill plain' }, 'Score only');
+    return el('span', { class: 'pill plain' }, 'No score yet');
+  }
+
   function renderGames() {
-    renderDraftLineup();
-    renderDraftLeague();
     App.League.load();
     renderWho();
     App.renderGameLists();
-    const games = S.games.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.createdAt - a.createdAt);
+    // league games waiting for their video
+    const wait = waitingGames();
+    $('g-waiting-card').hidden = !wait.length;
+    $('g-waiting').replaceChildren(...wait.map((x) => el('div', { class: 'waitcard' },
+      App.League.logo(x.opponentLogo, 32),
+      el('div', { class: 'grow stack', style: 'gap:0' }, el('strong', {}, App.League.whenText(x) + ' · ' + App.League.vsText(x)),
+        el('span', { class: 'small muted' }, [x.result ? 'Final ' + x.result : 'Played', x.gamesheet ? 'GameSheet available' : ''].filter(Boolean).join(' · '))),
+      el('a', { class: 'btn small outline', href: '#new/' + encodeURIComponent(x.id), style: 'text-decoration:none', 'aria-label': 'Add video for ' + App.League.whenText(x) + ' ' + App.League.vsText(x) }, 'Add video'))));
+    // your games
+    const q = String($('g-find').value || '').trim().toLowerCase();
+    const games = S.games.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.createdAt - a.createdAt)
+      .filter((g) => !q || [WP.gameTitle(g), g.opponent, g.rink, g.date, g.result].join(' ').toLowerCase().includes(q));
     if (!games.length) {
-      $('games').replaceChildren(el('div', { class: 'empty' }, 'No games yet. Add your first LiveBarn download on the left.'));
+      $('games').replaceChildren(el('div', { class: 'card empty' }, S.games.length ? 'No games match “' + q + '”.' : 'No games yet. Press + New game and add your first LiveBarn download.'));
       return;
     }
-    $('games').replaceChildren(...games.map((g) => {
-      const total = WP.gameTimeline(g).total;
-      return el('div', { class: 'gamerow' },
-        g.league ? App.League.logo(g.league.opponentLogo, 36) : '',
-        el('div', { class: 'grow stack', style: 'gap:2px' },
-          el('strong', {}, WP.gameTitle(g)),
-          el('span', { class: 'small muted' }, [WP.formatClock(g.time), g.rink, g.result, g.parts.length + (g.parts.length === 1 ? ' part' : ' parts'), WP.formatTime(total), g.clips.length + (g.clips.length === 1 ? ' clip' : ' clips')].filter(Boolean).join(' · '))
-        ),
-        el('div', { class: 'row' },
-          el('a', { class: 'btn small primary', href: '#tag/' + g.id, style: 'text-decoration:none' }, 'Open'),
-          el('button', { type: 'button', class: 'btn small', onclick: () => download('watch-party-' + slug(WP.gameTitle(g)) + '.json', WP.exportBackup(S, g.id)) }, 'Backup'),
-          el('button', {
-            type: 'button', class: 'btn small danger', 'aria-label': 'Delete ' + WP.gameTitle(g),
-            onclick: async () => {
-              if (!(await askYes('Delete ' + WP.gameTitle(g) + '?', 'Its ' + g.clips.length + ' clips are removed from this computer. The video files and anything already in Drive are not touched.', 'Delete game'))) return;
-              S.games = S.games.filter((x) => x.id !== g.id);
-              save(); idb.del(g.id); session.files.delete(g.id);
-              if (App.player && App.player.gameId === g.id) { App.player.destroy(); App.player = null; App.G = null; }
-              renderGames();
-            }
-          }, 'Delete')
-        )
-      );
-    }));
+    $('games').replaceChildren(el('div', { class: 'tablewrap' }, el('table', { class: 'dtable' },
+      el('thead', {}, el('tr', {}, el('th', {}, 'Date'), el('th', {}, 'Game'), el('th', {}, 'Result'), el('th', {}, 'Clips'), el('th', {}, 'Summary'), el('th', {}, el('span', { class: 'sr' }, 'Open')))),
+      el('tbody', {}, ...games.map((g) => {
+        const sum = WP.gameSummary(g, S.settings.roster, officialResult(g));
+        const res = WP.summaryResult(sum) || g.result || '';
+        const exported = g.clips.filter((c) => c.exported).length;
+        return el('tr', { class: 'gamerow click', onclick: (e) => { if (!e.target.closest('a,button')) location.hash = 'tag/' + g.id; } },
+          el('td', { style: 'white-space:nowrap' }, g.date ? WP.formatDate(g.date) : 'Undated', el('div', { class: 'small muted' }, WP.formatClock(g.time))),
+          el('td', {}, el('div', { class: 'row', style: 'gap:10px;flex-wrap:nowrap' }, g.league ? App.League.logo(g.league.opponentLogo, 32) : '',
+            el('div', { class: 'stack', style: 'gap:0' }, el('strong', {}, g.opponent ? (g.homeAway === 'away' ? '@ ' : 'vs ') + g.opponent : WP.gameTitle(g)),
+              el('span', { class: 'small muted' }, [g.rink, g.parts.length + (g.parts.length === 1 ? ' part' : ' parts') + ' · ' + WP.formatTime(WP.gameTimeline(g).total), 'video on this computer'].filter(Boolean).join(' · '))))),
+          el('td', {}, res ? el('span', { class: 'res ' + (sum.outcome || '') }, res) : el('span', { class: 'muted' }, '—')),
+          el('td', { style: 'white-space:nowrap' }, g.clips.length + (g.clips.length === 1 ? ' clip' : ' clips') + (exported ? ' · ' + exported + ' exported' : '')),
+          el('td', {}, el('a', { href: '#sum/' + g.id, style: 'text-decoration:none' }, summaryPill(g))),
+          el('td', { style: 'text-align:right' }, el('a', { class: 'btn small primary', href: '#tag/' + g.id, style: 'text-decoration:none', 'aria-label': 'Open ' + WP.gameTitle(g) }, 'Open')));
+      })))));
+  }
+
+  async function deleteGame(g) {
+    if (!(await askYes('Delete ' + WP.gameTitle(g) + '?', 'Its ' + g.clips.length + ' clips, marks and summary are removed from this computer. The video files and anything already in Drive are not touched.', 'Delete game'))) return;
+    S.games = S.games.filter((x) => x.id !== g.id);
+    save(); idb.del(g.id); session.files.delete(g.id);
+    if (App.player && App.player.gameId === g.id) { App.player.destroy(); App.player = null; }
+    if (App.G && App.G.id === g.id) App.G = null;
+    toast(WP.gameTitle(g) + ' deleted');
+    location.hash = 'games';
+  }
+
+  // ---- New game screen (#new, or #new/<league game id> from "Add video") ----
+  function renderNew(schedId) {
+    renderDraftLineup();
+    App.League.load();
+    renderWho();
+    App.renderGameLists();
+    if (schedId) session.newSched = schedId;
+    applyNewSched();
+    renderDraftLeague();
+  }
+  function applyNewSched() {
+    if (!session.newSched) return;
+    const sched = App.League.schedule();
+    if (!sched) return;
+    const s = sched.find((x) => x.id === session.newSched);
+    session.newSched = null;
+    if (s) { session.leagueDismissed = false; pickLeague(s, false); }
   }
 
   // pick / drop
@@ -220,8 +278,9 @@ App.ready.then(() => {
       toast('Imported ' + count + (count === 1 ? ' game' : ' games'));
     } catch (err) { toast(err.message, { err: true }); }
   });
+  $('g-find').addEventListener('input', () => renderGames());
   Object.assign(App, {
-    renderDraftLineup,
+    renderDraftLineup, renderNew, deleteGame,
     renderGames
   });
 }).catch((e) => setTimeout(() => { throw e; }));

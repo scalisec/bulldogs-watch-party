@@ -28,6 +28,7 @@ with sync_playwright() as p:
     check(page.is_visible('#view-games'), 'games view shows first')
 
     # add parts out of order
+    page.goto(APP + '#new'); page.wait_for_selector('#view-new:not(.hidden)')
     page.set_input_files('#file-input', [P2, P1])
     page.wait_for_function("document.querySelectorAll('#parts .partrow').length === 2 && !document.getElementById('g-start').disabled", timeout=20000)
     names = page.eval_on_selector_all('#parts .partrow .name', 'els => els.map(e => e.textContent)')
@@ -348,7 +349,7 @@ with sync_playwright() as p:
     page.fill('#r-num', '7'); page.fill('#r-name', 'Sam'); page.select_option('#r-pri', 'C'); page.click('#roster-add button[type=submit]')
     page.screenshot(path=SHOTS + '/4-settings.png', full_page=True)
     check('only works on the web version' in page.text_content('#team-sync'), 'opened from a file, the team data card points to the web version')
-    check(page.text_content('#app-version') == 'v1.8.1' and 'v1.8.1' in page.text_content('#brand-version'), 'version shows in Settings and the header')
+    check(page.text_content('#app-version') == 'v2.0.0' and 'v2.0.0' in page.text_content('#brand-version'), 'version shows in Settings and the header')
     st = page.evaluate('window.__bwp.state.settings')
     fo = [c for c in st['categories'] if c['name'] == 'Faceoffs'][0]
     check(fo['before'] == 2 and fo['after'] == 6, 'faceoff window saved 2/6')
@@ -375,6 +376,7 @@ with sync_playwright() as p:
     page.screenshot(path=SHOTS + '/5-after-reload.png')
 
     # backup round trip
+    page.click('#gt-info'); page.wait_for_selector('#view-ginfo:not(.hidden)')
     with page.expect_download() as dl:
         page.click('#b-backup')
     path = dl.value.path()
