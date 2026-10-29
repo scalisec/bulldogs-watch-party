@@ -176,6 +176,8 @@ def setup(ctx, user):
     ctx.route('https://www.googleapis.com/**', handle)
     ctx.route('https://fonts.googleapis.com/**', lambda r: r.abort())
     ctx.route('https://fonts.gstatic.com/**', lambda r: r.abort())
+    # the real league schedule (Alliance Tracker) stays out, so the tests run the same everywhere (GitHub can reach it, this machine can't)
+    ctx.route('https://scalisec.github.io/**', lambda r: r.abort())
     ctx.add_init_script('window.__fakeUser = %s;' % json.dumps(user))
     page = ctx.new_page()
     errs = []
