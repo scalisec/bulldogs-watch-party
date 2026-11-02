@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '2.2.0';
+  const APP_VERSION = '2.3.0';
   const APP_RELEASED = '2026-11-01';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
@@ -580,7 +580,7 @@
     const who = (clip.players || []).map((p) => '#' + p).join(' ');
     const clean = (x) => String(x || '').replace(/[\\/:*?"<>|]+/g, '-').replace(/[\s.]+$/g, '').replace(/\s+/g, ' ').trim();
     const base = clean([d, category ? category.name : 'Clip', t, who].filter(Boolean).join(' ')).slice(0, 120);
-    // the clip's note goes at the end (v2.2.0), cut at a word boundary so names stay readable
+    // the clip's note goes at the end (v2.3.0), cut at a word boundary so names stay readable
     let note = clean(clip.note);
     if (note.length > 80) note = note.slice(0, 80).replace(/\s+\S*$/, '') + '…';
     return base + (note ? ' - ' + note : '') + '.mp4';
@@ -1723,6 +1723,7 @@
       ['H', 'Goal against'],
       ['X', 'Penalty: call one, or mark a player back'],
       ['T', 'New clip with a custom tag you type'],
+      ['V', 'Video size: small / medium / large'],
       ['+ / \u2212', 'Zoom in / out'],
       ['0', 'Back to the whole rink'],
       ['Scroll \u00b7 drag \u00b7 double-click', 'Zoom \u00b7 move \u00b7 zoom in or back out']

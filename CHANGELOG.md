@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.3.0 — 2026-11-02 (video size: small, medium, large)
+
+- **S / M / L next to Speed on Watch and tag**, or press **V** to cycle.
+  - **Large** (the default) is as big as the screen allows.
+  - **Medium** is about half the screen height.
+  - **Small** is about a third, which brings the timeline and the category clip buttons into view.
+  - The choice is remembered on this computer.
+- The video sits centred and the box around it fits the picture, so a smaller video leaves no dark bars.
+- V is listed in the Game events bar and the shortcuts list.
+
 ## 2.2.0 — 2026-11-01 (performance log, to find what causes the freezes)
 
 - **A performance log, always on and light.** It records:

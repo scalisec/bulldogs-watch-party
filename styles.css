@@ -435,3 +435,7 @@ body.wide-game #view-tag .cliplist { max-height: calc(100vh - 230px); }
 
 /* v2.2.0: performance log */
 .diagnote { padding: 8px 12px; border-radius: 8px; background: var(--surface-2); font-size: 13px; line-height: 1.5; }
+
+/* v2.3: video size S / M / L — the video box hugs the picture and sits centred, so a smaller video leaves no dark bars */
+#view-tag .videobox { align-self: center; max-width: 100%; }
+.vsize .chip { min-width: 36px; }

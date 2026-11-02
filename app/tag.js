@@ -95,14 +95,31 @@ App.ready.then(() => {
     }, 350);
   }
 
+  // video size on Watch and tag (v2.3): S / M / L, remembered on this computer; V cycles through them
+  const VSIZE_KEY = 'bwp-video-size';
+  const VSIZES = { S: '34vh', M: '52vh', L: 'max(40vh, 100vh - 300px)' };
+  let vsize = 'L';
+  try { const s = localStorage.getItem(VSIZE_KEY); if (VSIZES[s]) vsize = s; } catch (e) { /* ignore */ }
   function sizeFrame() {
+    for (const b of document.querySelectorAll('[data-vsize]')) b.setAttribute('aria-pressed', String(b.dataset.vsize === vsize));
     const v = $('video');
     if (!v.videoWidth || !v.videoHeight) return;
     const aspect = v.videoWidth / v.videoHeight;
     const f = $('vframe');
     f.style.aspectRatio = String(aspect);
-    f.style.width = 'min(100%, calc(max(40vh, 100vh - 300px) * ' + aspect.toFixed(4) + '))';
+    f.style.width = '100%';
+    // the box around the video takes the picture's size (centred), so a smaller video leaves no dark bars
+    $('videobox').style.width = 'min(100%, calc(' + VSIZES[vsize] + ' * ' + aspect.toFixed(4) + '))';
   }
+  function setVideoSize(sz) {
+    const order = ['S', 'M', 'L'];
+    vsize = VSIZES[sz] ? sz : order[(order.indexOf(vsize) + 1) % order.length];
+    try { localStorage.setItem(VSIZE_KEY, vsize); } catch (e) { /* ignore */ }
+    sizeFrame();
+    toast('Video size: ' + { S: 'small', M: 'medium', L: 'large' }[vsize], { ms: 1500 });
+  }
+  for (const b of document.querySelectorAll('[data-vsize]')) b.addEventListener('click', () => setVideoSize(b.dataset.vsize));
+  sizeFrame();
   $('video').addEventListener('loadedmetadata', sizeFrame);
 
   function frameFrac(e) {
@@ -905,6 +922,6 @@ App.ready.then(() => {
   Object.assign(App, {
     renderTagLineup,
     applyZoom, userZoom, autoLine, cancelMarks, evBadges, markGoal, markIn, markOut, markPeriod, onCategory, openPenalty, openQuickTag,
-    openGame, selectGame, watchAt, renderDetails, editGoal, renderTagView, removeClip, renderClips, renderTags, sameJ, selectOpts, zoomLabel
+    openGame, selectGame, watchAt, setVideoSize, renderDetails, editGoal, renderTagView, removeClip, renderClips, renderTags, sameJ, selectOpts, zoomLabel
   });
 }).catch((e) => setTimeout(() => { throw e; }));

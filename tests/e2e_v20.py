@@ -75,6 +75,15 @@ with sync_playwright() as p:
     check('Bulldogs' in sbt and 'Raiders' in sbt and page.text_content('#sb .sb-per') == '2nd' and page.text_content('#sb .sb-us .sb-n') == '2' and page.text_content('#sb .sb-them .sb-n') == '1', 'scoreboard: Bulldogs 2, 2nd, 1 Raiders: ' + sbt)
     check(not any(ch.isdigit() and ':' in sbt for ch in sbt) and ':' not in sbt, 'scoreboard shows no clock')
     shot(page, 'v20-watch-and-tag.png', False)
+    # video size S / M / L (v2.3), V cycles, remembered
+    w = {}
+    for sz in ['S', 'M', 'L']:
+        page.click('[data-vsize="%s"]' % sz); page.wait_for_timeout(200)
+        w[sz] = page.evaluate("document.getElementById('vframe').getBoundingClientRect().width")
+    check(w['S'] < w['M'] <= w['L'] and page.get_attribute('[data-vsize="L"]', 'aria-pressed') == 'true', 'video sizes: small < medium <= large (%s)' % w)
+    page.keyboard.press('v'); page.wait_for_timeout(200)
+    check(page.get_attribute('[data-vsize="S"]', 'aria-pressed') == 'true' and page.evaluate("localStorage.getItem('bwp-video-size')") == 'S', 'V cycles to small and it’s remembered')
+    page.click('[data-vsize="L"]'); page.wait_for_timeout(200)
 
     # ---- Game details tab
     page.click('#gt-info'); view(page, 'ginfo')

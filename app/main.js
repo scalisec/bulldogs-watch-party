@@ -84,6 +84,7 @@ App.ready.then(() => {
     else if (k === 'h' || k === 'H') { e.preventDefault(); markGoal('against'); }
     else if (k === 'x' || k === 'X') { e.preventDefault(); openPenalty(); }
     else if (k === 't' || k === 'T') { e.preventDefault(); openQuickTag(); }
+    else if (k === 'v' || k === 'V') { e.preventDefault(); App.setVideoSize(); }
     else if (/^[1-9]$/.test(k)) {
       const cat = WP.categoryForKey(S.settings.categories, k);
       if (cat) { e.preventDefault(); onCategory(cat); }
