@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.2 — 2026-11-01 (common shortcuts on the game screen)
+
+- **The Game events bar lists the most-used keys:** Space play/pause, ← → 5 s, Shift+← → 1 s, I / O start and end, 1–9 category clip, T custom tag, + − 0 zoom and fit, and **? all** (opens the full list). P, G, H and X are already on the buttons.
+- The event buttons stay on one line; the hints wrap beside them. On narrower screens the 1-second and zoom hints are left out, and phones don't show the hints.
+
 ## 2.1.1 — 2026-11-01 (bigger video on Watch and tag)
 
 - **Watch and tag uses the whole width of the screen**, instead of being capped at 1440 pixels and centred. The clip list keeps a fixed 360-pixel column on the right.

@@ -56,6 +56,7 @@ App.ready.then(() => {
     $('dlg-keys').showModal();
   }
   $('keys-open').addEventListener('click', openKeys);
+  $('key-hints-all').addEventListener('click', openKeys);
   App.openKeys = openKeys;
   $('keys-close').addEventListener('click', () => $('dlg-keys').close());
 

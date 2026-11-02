@@ -16,7 +16,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=2.1.1">
+<link rel="stylesheet" href="styles.css?v=2.1.2">
 </head>
 <body>
 <header class="topbar">
@@ -150,7 +150,16 @@
       <div class="card gstatus" id="gstatus" aria-label="Game events">
         <div class="row evrow">
           <span class="small muted">Game events</span>
-          <span class="grow"></span>
+          <span class="keyhints grow" id="key-hints" aria-label="Common keyboard shortcuts">
+            <span><kbd>Space</kbd> play / pause</span>
+            <span><kbd>←</kbd><kbd>→</kbd> 5 s</span>
+            <span class="kh-opt"><kbd>Shift</kbd>+<kbd>←</kbd><kbd>→</kbd> 1 s</span>
+            <span><kbd>I</kbd> <kbd>O</kbd> start / end</span>
+            <span><kbd>1</kbd>–<kbd>9</kbd> category clip</span>
+            <span><kbd>T</kbd> custom tag</span>
+            <span class="kh-opt"><kbd>+</kbd><kbd>−</kbd> <kbd>0</kbd> zoom / fit</span>
+            <button type="button" class="linkbtn" id="key-hints-all" title="All keyboard shortcuts (?)"><kbd>?</kbd> all</button>
+          </span>
           <button type="button" class="btn small" id="b-period" title="Period start / end (P)">Period start <kbd>P</kbd></button>
           <button type="button" class="btn small" id="b-goal-for" title="Goal for (G)" style="color:#86EFAC">Goal for <kbd>G</kbd></button>
           <button type="button" class="btn small" id="b-goal-against" title="Goal against (H)" style="color:#FCA5A5">Goal against <kbd>H</kbd></button>
@@ -646,30 +655,30 @@
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
-<script src="config.js?v=2.1.1"></script>
-<script src="core.js?v=2.1.1"></script>
-<script src="storage.js?v=2.1.1"></script>
-<script src="vendor/mp4-muxer.js?v=2.1.1"></script>
-<script src="render.js?v=2.1.1"></script>
-<script src="audio.js?v=2.1.1"></script>
-<script src="drive.js?v=2.1.1"></script>
-<script src="app/base.js?v=2.1.1"></script>
-<script src="app/player.js?v=2.1.1"></script>
-<script src="app/lineup.js?v=2.1.1"></script>
-<script src="app/league.js?v=2.1.1"></script>
-<script src="app/games.js?v=2.1.1"></script>
-<script src="app/tag.js?v=2.1.1"></script>
-<script src="app/editor.js?v=2.1.1"></script>
-<script src="app/record.js?v=2.1.1"></script>
-<script src="app/export.js?v=2.1.1"></script>
-<script src="app/settings.js?v=2.1.1"></script>
-<script src="app/team.js?v=2.1.1"></script>
-<script src="app/team-sync.js?v=2.1.1"></script>
-<script src="app/library.js?v=2.1.1"></script>
-<script src="app/review.js?v=2.1.1"></script>
-<script src="app/summary.js?v=2.1.1"></script>
-<script src="app/gamesheet.js?v=2.1.1"></script>
-<script src="app/teams.js?v=2.1.1"></script>
-<script src="app/main.js?v=2.1.1"></script>
+<script src="config.js?v=2.1.2"></script>
+<script src="core.js?v=2.1.2"></script>
+<script src="storage.js?v=2.1.2"></script>
+<script src="vendor/mp4-muxer.js?v=2.1.2"></script>
+<script src="render.js?v=2.1.2"></script>
+<script src="audio.js?v=2.1.2"></script>
+<script src="drive.js?v=2.1.2"></script>
+<script src="app/base.js?v=2.1.2"></script>
+<script src="app/player.js?v=2.1.2"></script>
+<script src="app/lineup.js?v=2.1.2"></script>
+<script src="app/league.js?v=2.1.2"></script>
+<script src="app/games.js?v=2.1.2"></script>
+<script src="app/tag.js?v=2.1.2"></script>
+<script src="app/editor.js?v=2.1.2"></script>
+<script src="app/record.js?v=2.1.2"></script>
+<script src="app/export.js?v=2.1.2"></script>
+<script src="app/settings.js?v=2.1.2"></script>
+<script src="app/team.js?v=2.1.2"></script>
+<script src="app/team-sync.js?v=2.1.2"></script>
+<script src="app/library.js?v=2.1.2"></script>
+<script src="app/review.js?v=2.1.2"></script>
+<script src="app/summary.js?v=2.1.2"></script>
+<script src="app/gamesheet.js?v=2.1.2"></script>
+<script src="app/teams.js?v=2.1.2"></script>
+<script src="app/main.js?v=2.1.2"></script>
 </body>
 </html>
