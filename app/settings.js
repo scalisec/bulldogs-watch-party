@@ -47,6 +47,7 @@ App.ready.then(() => {
   function renderSettings() {
     renderWho();
     App.renderTeamSettings();
+    if (App.diag) App.diag.renderDiag();
     $('app-version').textContent = 'v' + WP.APP_VERSION;
     $('app-released').textContent = 'Released ' + WP.formatDate(WP.APP_RELEASED);
     $('app-schema').textContent = String(WP.SCHEMA_VERSION);

@@ -16,7 +16,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=2.1.2">
+<link rel="stylesheet" href="styles.css?v=2.2.0">
 </head>
 <body>
 <header class="topbar">
@@ -504,6 +504,10 @@
       <h2 id="keys2-h">Keyboard shortcuts</h2>
       <div class="row"><button type="button" class="btn outline" id="s-keys">Show shortcuts</button><a class="btn outline" href="shortcuts.html" target="_blank" rel="noopener">Printable page</a></div>
     </section>
+    <section class="card stack" aria-labelledby="diag-h" id="diag-card">
+      <div class="row spread" style="align-items:baseline"><h2 id="diag-h">Troubleshooting: performance log</h2><span class="small muted">Press <kbd>F8</kbd> when the app freezes</span></div>
+      <div class="stack" id="diag-body" style="gap:10px"></div>
+    </section>
     <section class="card stack" aria-labelledby="about-h">
       <h2 id="about-h">About</h2>
       <div class="row" style="gap:16px">
@@ -655,30 +659,31 @@
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
-<script src="config.js?v=2.1.2"></script>
-<script src="core.js?v=2.1.2"></script>
-<script src="storage.js?v=2.1.2"></script>
-<script src="vendor/mp4-muxer.js?v=2.1.2"></script>
-<script src="render.js?v=2.1.2"></script>
-<script src="audio.js?v=2.1.2"></script>
-<script src="drive.js?v=2.1.2"></script>
-<script src="app/base.js?v=2.1.2"></script>
-<script src="app/player.js?v=2.1.2"></script>
-<script src="app/lineup.js?v=2.1.2"></script>
-<script src="app/league.js?v=2.1.2"></script>
-<script src="app/games.js?v=2.1.2"></script>
-<script src="app/tag.js?v=2.1.2"></script>
-<script src="app/editor.js?v=2.1.2"></script>
-<script src="app/record.js?v=2.1.2"></script>
-<script src="app/export.js?v=2.1.2"></script>
-<script src="app/settings.js?v=2.1.2"></script>
-<script src="app/team.js?v=2.1.2"></script>
-<script src="app/team-sync.js?v=2.1.2"></script>
-<script src="app/library.js?v=2.1.2"></script>
-<script src="app/review.js?v=2.1.2"></script>
-<script src="app/summary.js?v=2.1.2"></script>
-<script src="app/gamesheet.js?v=2.1.2"></script>
-<script src="app/teams.js?v=2.1.2"></script>
-<script src="app/main.js?v=2.1.2"></script>
+<script src="config.js?v=2.2.0"></script>
+<script src="core.js?v=2.2.0"></script>
+<script src="storage.js?v=2.2.0"></script>
+<script src="vendor/mp4-muxer.js?v=2.2.0"></script>
+<script src="render.js?v=2.2.0"></script>
+<script src="audio.js?v=2.2.0"></script>
+<script src="drive.js?v=2.2.0"></script>
+<script src="app/base.js?v=2.2.0"></script>
+<script src="app/diag.js?v=2.2.0"></script>
+<script src="app/player.js?v=2.2.0"></script>
+<script src="app/lineup.js?v=2.2.0"></script>
+<script src="app/league.js?v=2.2.0"></script>
+<script src="app/games.js?v=2.2.0"></script>
+<script src="app/tag.js?v=2.2.0"></script>
+<script src="app/editor.js?v=2.2.0"></script>
+<script src="app/record.js?v=2.2.0"></script>
+<script src="app/export.js?v=2.2.0"></script>
+<script src="app/settings.js?v=2.2.0"></script>
+<script src="app/team.js?v=2.2.0"></script>
+<script src="app/team-sync.js?v=2.2.0"></script>
+<script src="app/library.js?v=2.2.0"></script>
+<script src="app/review.js?v=2.2.0"></script>
+<script src="app/summary.js?v=2.2.0"></script>
+<script src="app/gamesheet.js?v=2.2.0"></script>
+<script src="app/teams.js?v=2.2.0"></script>
+<script src="app/main.js?v=2.2.0"></script>
 </body>
 </html>

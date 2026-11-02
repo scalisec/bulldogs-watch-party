@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.2.0 — 2026-11-01 (performance log, to find what causes the freezes)
+
+- **A performance log, always on and light.** It records:
+  - **the video picture stuck while playing** (the app keeps running; sound and keys keep working) → points to video decoding or the graphics card
+  - **the whole screen stopping** for 1.5 s or more
+  - **the app's own work** taking a long time (with the code involved, in Chrome)
+  - slow key/click handling, slow jumps in the video, video loading errors, memory use (Chrome), and when an export starts and finishes
+  - with each one: the screen, whether the video was playing, its speed, size, zoom and position
+- **Press F8 when it freezes** (keys keep working during a freeze) to mark the moment.
+- **Settings › Troubleshooting** shows the recent freezes and what they point to, with what to try. For example: turn graphics acceleration off and on; update the graphics driver; play files from the computer's drive rather than a cloud-synced folder. It also shows the graphics card, and warns when hardware acceleration is off.
+- **Download log** saves it as a file to send. It stays in this browser and is kept across a reload. It has screen names, times and video positions, nothing about players. **Clear log** empties it.
+
 ## 2.1.2 — 2026-11-01 (common shortcuts on the game screen)
 
 - **The Game events bar lists the most-used keys:** Space play/pause, ← → 5 s, Shift+← → 1 s, I / O start and end, 1–9 category clip, T custom tag, + − 0 zoom and fit, and **? all** (opens the full list). P, G, H and X are already on the buttons.

@@ -219,6 +219,7 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 
 - `node --test tests/core.test.js` runs the core logic tests (82), including reading the audio track of a small generated MP4 (`tests/fixtures/media`).
 - `python3 tests/e2e_v21.py <screenshot-dir> <media-dir>` tests v2.1: reading a name-free test game sheet PDF with the bundled pdf.js, a summary-only game from it, season stats from the sheet, the sheet on New game, marks filled in from the sheet, Differs / Use game sheet, adding video to a summary-only game, and Remove.
+- `python3 tests/e2e_v22.py <screenshot-dir> <media-dir>` tests v2.2: the performance log catches the app being busy and the video picture getting stuck (and tells them apart), F8, the Troubleshooting summary, Download log, keeping it across a reload, and Clear log.
 - `python3 tests/e2e_v202.py <screenshot-dir>` tests v2.0.2 against the simulated Google Drive: deleted or never-made team folders are found, the app asks before creating them, Cancel creates nothing, the team folder follows a moved team data file, and re-created folders reach the clip library.
 - `python3 tests/e2e_v20.py <screenshot-dir> <media-dir>` tests v2.0: Games home and the New game screen, a game's tabs, the scoreboard, Game details, the Summary (goal edits, notes), the Summaries tab, Season stats and phone widths.
 - `python3 tests/e2e_v18.py <screenshot-dir> <media-dir>` tests v1.8: the goal popup and goal clips (scorer, assists, on-ice players), and zoom while a clip plays setting its view (19 checks). Per-game Drive folders are checked in `e2e_library.py`.
@@ -263,6 +264,7 @@ GitHub runs the core tests, `e2e_drive.py`, `e2e_v07.py` and `e2e_v12.py` on eve
 | `app/library.js` | Shared and private clip libraries |
 | `app/review.js` | Review screen |
 | `app/gamesheet.js` | Reading GameSheet PDF game sheets (with `vendor/pdf.min.js`) and attaching them to games |
+| `app/diag.js` | Performance log: freezes, slow work, stuck video (Settings › Troubleshooting, F8 to mark) |
 | `app/summary.js` | Summaries tab, a game's Summary and Season stats |
 | `app/main.js` | Routing, keyboard, update banner, start-up |
 | `styles.css` | All page styles (Bench Boss Labs dark navy) |

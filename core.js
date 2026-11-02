@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '2.1.2';
+  const APP_VERSION = '2.2.0';
   const APP_RELEASED = '2026-11-01';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
@@ -580,7 +580,7 @@
     const who = (clip.players || []).map((p) => '#' + p).join(' ');
     const clean = (x) => String(x || '').replace(/[\\/:*?"<>|]+/g, '-').replace(/[\s.]+$/g, '').replace(/\s+/g, ' ').trim();
     const base = clean([d, category ? category.name : 'Clip', t, who].filter(Boolean).join(' ')).slice(0, 120);
-    // the clip's note goes at the end (v2.1.2), cut at a word boundary so names stay readable
+    // the clip's note goes at the end (v2.2.0), cut at a word boundary so names stay readable
     let note = clean(clip.note);
     if (note.length > 80) note = note.slice(0, 80).replace(/\s+\S*$/, '') + '…';
     return base + (note ? ' - ' + note : '') + '.mp4';
@@ -1741,7 +1741,8 @@
       ['+ / \u2212 / 0', 'Zoom in / out / whole rink']
     ] },
     { title: 'Anywhere', keys: [
-      ['?', 'Show these shortcuts']
+      ['?', 'Show these shortcuts'],
+      ['F8', 'The app froze: mark it in the performance log (Settings \u203a Troubleshooting)']
     ] }
   ];
 

@@ -41,6 +41,8 @@ App.ready.then(() => {
     }
     App.E.ctrl = new AbortController();
     App.E.mode = 'export';
+    const t0 = performance.now();
+    if (App.diag) App.diag.log('export-start', { len: Math.round(d.end - d.start) });
     $('e-exporting').classList.remove('hidden');
     renderEditor();
     const setPct = (p) => { $('e-pct').textContent = Math.round(p * 100) + '%'; $('e-bar').style.width = (p * 100) + '%'; };
@@ -77,6 +79,7 @@ App.ready.then(() => {
       App.E.mode = 'idle';
       commit({ exported: { at: Date.now(), name: finalName, size: res.blob.size, codec: res.codec } });
       ok = true;
+      if (App.diag) App.diag.log('export-done', { ms: Math.round(performance.now() - t0), MB: Math.round(res.blob.size / 1e5) / 10, codec: res.codec });
       const mb = (res.blob.size / 1e6).toFixed(1);
       if (destPick.local) toast('Saved “' + finalName + '” (' + mb + ' MB)' + (res.h264 ? '' : ' — this browser made VP9 video, which may not play on iPhones. Use Chrome or Edge on Windows for H.264.'), { ms: 8000 });
     } catch (e) {

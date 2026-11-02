@@ -432,3 +432,6 @@ body.wide-game #view-tag .cliplist { max-height: calc(100vh - 230px); }
 #gstatus .keyhints { flex: 1 1 0; }
 @media (max-width: 1400px) { .keyhints .kh-opt { display: none; } }
 @media (max-width: 900px) { #gstatus .evrow { flex-wrap: wrap; } }
+
+/* v2.2.0: performance log */
+.diagnote { padding: 8px 12px; border-radius: 8px; background: var(--surface-2); font-size: 13px; line-height: 1.5; }
