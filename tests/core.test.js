@@ -1203,7 +1203,7 @@ test('v2.0: season stats, goal edits and notes', () => {
   assert.equal(WP.summaryNotes({ summaryNotes: { wentWell: 'Breakouts' } }).wentWell, 'Breakouts');
 });
 
-test('v2.1.0: a folder re-created on this device wins the library merge', () => {
+test('v2.0.2: a folder re-created on this device wins the library merge', () => {
   const lib = (folders) => ({ entries: {}, views: [], folders });
   const base = lib({ team: 'T1', 'player:7': 'old7' });
   const mine = lib({ team: 'T1', 'player:7': 'new7' });

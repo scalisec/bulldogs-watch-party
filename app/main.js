@@ -17,6 +17,7 @@ App.ready.then(() => {
       if (a.dataset.nav === (navOf[view] || view)) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     }
     // the game header (title, league links, Watch and tag / Summary / Game details) on a game's screens
+    document.body.classList.toggle('wide-game', view === 'tag');
     const tab = { tag: 'tag', ginfo: 'info', gsum: 'sum' }[view];
     $('game-head').classList.toggle('hidden', !tab || !App.G);
     if (tab && App.G) {

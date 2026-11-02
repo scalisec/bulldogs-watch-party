@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.1 — 2026-11-01 (bigger video on Watch and tag)
+
+- **Watch and tag uses the whole width of the screen**, instead of being capped at 1440 pixels and centred. The clip list keeps a fixed 360-pixel column on the right.
+- **The video is as tall as the screen allows** while keeping the play controls and game event buttons in view (it used to stop at about half the screen height). On a 1920 × 1080 screen it's about 60% bigger.
+- Other screens (Games, Summary, Review…) keep their narrower width so text stays easy to read. Phones are unchanged.
+
 ## 2.1.0 — 2026-10-29 (official game sheets)
 
 - **Import the official GameSheet game sheet (PDF).** It's the file a team official downloads from GameSheet.

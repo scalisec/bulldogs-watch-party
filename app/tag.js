@@ -101,7 +101,7 @@ App.ready.then(() => {
     const aspect = v.videoWidth / v.videoHeight;
     const f = $('vframe');
     f.style.aspectRatio = String(aspect);
-    f.style.width = 'min(100%, calc(52vh * ' + aspect.toFixed(4) + '))';
+    f.style.width = 'min(100%, calc(max(40vh, 100vh - 300px) * ' + aspect.toFixed(4) + '))';
   }
   $('video').addEventListener('loadedmetadata', sizeFrame);
 
