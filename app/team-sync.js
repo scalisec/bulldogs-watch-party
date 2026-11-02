@@ -8,7 +8,7 @@ App.ready.then(() => {
   // =====================================================================
   // SHARED TEAM DATA IN GOOGLE DRIVE (milestone 3a)
   // =====================================================================
-  const Team = { busy: false, again: false, lastErr: null, account: null };
+  const Team = { busy: false, again: false, lastErr: null, account: null, connectNote: '' };
   let pushTimer = 0;
 
   function teamChanged() {
@@ -22,7 +22,13 @@ App.ready.then(() => {
   function renderSyncBadge() {
     const b = $('sync-badge');
     if (!b) return;
-    if (!S.sync) { b.textContent = ''; b.className = 'syncbadge'; return; }
+    b.title = S.sync && S.sync.account ? 'This device is connected to the team\u2019s Google Drive as ' + S.sync.account : '';
+    if (!S.sync) {
+      const off = WPDrive.configured() && WPDrive.webOrigin();
+      b.textContent = off ? 'This device: not connected' : '';
+      b.className = off ? 'syncbadge warn clickable' : 'syncbadge';
+      return;
+    }
     if (Team.busy) { b.textContent = 'Syncing team data…'; b.className = 'syncbadge'; return; }
     if (!WPDrive.hasToken() && WPDrive.configured() && WPDrive.webOrigin()) { b.textContent = 'Signed out of Google \u2014 tap to sign in'; b.className = 'syncbadge warn clickable'; return; }
     if (Team.lastErr) { b.textContent = 'Team data: sync problem'; b.className = 'syncbadge warn'; return; }
@@ -81,6 +87,7 @@ App.ready.then(() => {
     else if (!$('view-games').classList.contains('hidden')) App.renderGames();
     else if (!$('view-gsum').classList.contains('hidden') && App.G) App.renderGameSummary();
     else if (!$('view-stats').classList.contains('hidden')) App.renderStats();
+    else if (!$('view-review').classList.contains('hidden') && App.renderReview) App.renderReview();
     if (App.E) renderEditor();
   }
 
@@ -96,7 +103,7 @@ App.ready.then(() => {
         await syncNow(true);
       } else renderTeamCard();
       App.libSyncAll(true);
-    } catch (e) { toast(e.message, { err: true }); renderTeamCard(); }
+    } catch (e) { Team.connectNote = e.message; toast(e.message, { err: true }); renderTeamCard(); }
   }
 
   async function createTeamData() {
@@ -146,7 +153,7 @@ App.ready.then(() => {
       try {
         await WPDrive.share(S.sync.folderId, c.email, 'You’ve been added to the ' + S.settings.team.name + ' coaching staff in Watch Party by Bench Boss Labs. Open the app, go to Settings, sign in with Google and choose “Open shared team data”.');
         done.push(c.email);
-      } catch (e) { failed.push(c.email + ' (' + e.message + ')'); }
+      } catch (e) { failed.push(c.email + ' (' + (e.raw || e.message) + ')'); }
     }
     S.sync.sharedWith = (S.sync.sharedWith || []).concat(done);
     save();
@@ -180,6 +187,7 @@ App.ready.then(() => {
       await ensureSignedIn();
       const who = Team.account ? { email: Team.account } : await WPDrive.whoAmI();
       Team.account = who.email;
+      if (!S.settings.coachName && who.name) { S.settings.coachName = who.name.slice(0, 40); save(); renderWho(); }
       let id = null;
       let libId = null;
       // this Google account already connected (e.g. on another device): the app can see the files without picking
@@ -194,7 +202,7 @@ App.ready.then(() => {
         // a coach joining: open the shared team folder in Google's picker and select everything in it.
         // Picking is how Google lets this app use files and folders another account created.
         const picked = await WPDrive.pickFile({ multi: true, folders: true, title: 'Open the team\u2019s Watch Party folder (shared with you), select everything inside it, then click Select' });
-        if (!picked || !picked.length) return;
+        if (!picked || !picked.length) { Team.connectNote = PICK_HELP; return; }
         const t = picked.find((x) => /team data/i.test(x.name || ''));
         if (!t) throw new Error('\u201cWatch Party team data\u201d wasn\u2019t selected. Open the team\u2019s Watch Party folder and select everything inside it.');
         const l = picked.find((x) => /clip library/i.test(x.name || ''));
@@ -210,25 +218,74 @@ App.ready.then(() => {
       if (libId) S.lib.teamSync = { fileId: libId, version: null, base: null };
       S.sync = { fileId: id, folderId: rootId, appFolderId: rootId, version: meta.version, base: data, dirty: false, account: who.email, owner, lastSyncAt: Date.now(), lastBy: meta.lastModifyingUser ? (meta.lastModifyingUser.displayName || meta.lastModifyingUser.emailAddress) : '' };
       Team.lastErr = null;
+      Team.connectNote = '';
       App.folderAccessReset();
       save();
       toast(owner ? 'Found your team data in Google Drive' : 'Connected to the team\u2019s Drive folder: roster, categories' + (libId ? ', clip library' : '') + ' and clip folders');
       App.libSyncAll(true);
-    } catch (e) { toast('Couldn’t open team data: ' + e.message, { err: true, ms: 8000 }); }
+    } catch (e) { Team.connectNote = e.message; toast('Couldn’t open team data: ' + e.message, { err: true, ms: 8000 }); }
     finally { Team.busy = false; renderTeamCard(); renderSyncBadge(); refreshAfterSync(); }
   }
+
+  const PICK_HELP = 'Google\u2019s file picker closed without anything selected. In the picker, open the \u201cBulldogs Watch Party\u201d folder (look under \u201cShared with me\u201d if another coach owns it), select everything inside it, then tap Select. If the picker showed an error such as \u201cThe API developer key is invalid\u201d, the admin needs to fix the key in Google Cloud: its website restriction must be https://scalisec.github.io/* .';
 
   async function openSharedLibrary() {
     try {
       await ensureSignedIn();
       const picked = await WPDrive.pickFile({ query: 'Watch Party clip library', title: 'Pick \u201cWatch Party clip library\u201d in the team\u2019s Watch Party folder' });
-      if (!picked) return;
+      if (!picked) { Team.connectNote = PICK_HELP; return; }
+      Team.connectNote = '';
       S.lib.teamSync = { fileId: picked, version: null, base: null };
       save();
       await App.libSyncAll(true);
       toast('Connected to the team clip library');
-    } catch (e) { toast('Couldn\u2019t open the clip library: ' + e.message, { err: true }); }
+    } catch (e) { Team.connectNote = e.message; toast('Couldn\u2019t open the clip library: ' + e.message, { err: true }); }
     renderTeamCard();
+  }
+
+  // ---- this device's connection: one line everywhere, and one button that does the next step ----
+  function deviceState() {
+    return WP.deviceConnection({
+      configured: WPDrive.configured(), web: WPDrive.webOrigin(), signedIn: WPDrive.hasToken(),
+      account: (S.sync && S.sync.account) || Team.account, team: !!S.sync, owner: !!(S.sync && S.sync.owner), library: !!S.lib.teamSync,
+      problem: Team.lastErr || (App.LIB && App.LIB.err) || '', clips: Object.keys(S.lib.team.entries).length
+    });
+  }
+
+  /** Must run from a tap: signs in (Google's window), then finds or picks the team data, then syncs the clip library. */
+  async function connectDevice() {
+    const st = deviceState();
+    Team.connectNote = '';
+    Team.connecting = true;
+    refreshConnect();
+    try {
+      if (st.action === 'connect') await openSharedTeamData();
+      else if (st.action === 'signin') await connectGoogle();
+      else if (st.action === 'library') await openSharedLibrary();
+      else if (st.action === 'retry') { Team.lastErr = null; if (App.LIB) App.LIB.err = null; await syncNow(true); await App.libSyncAll(true); }
+    } catch (e) { Team.connectNote = e.message; }
+    finally { Team.connecting = false; refreshConnect(); }
+  }
+
+  /** The status line and button, for Review and Settings. big: the larger panel shown when Review has nothing to show yet. */
+  function connectPanel(big) {
+    const st = deviceState();
+    const busy = Team.busy || Team.connecting;
+    const kids = [el('div', { class: 'row', style: 'gap:8px' }, el('span', { class: 'cdot', 'aria-hidden': 'true' }), el('strong', { class: 'ctext' }, st.text))];
+    if (big && st.action === 'connect') {
+      kids.push(el('span', { class: 'small' }, 'Connect to see the clips the coaches saved to Google Drive. It signs in with Google, then finds the team\u2019s data. The first time on a Google account, Google\u2019s file picker opens: open the \u201cBulldogs Watch Party\u201d folder, select everything inside it, and tap Select. After that, any device signed in with the same account connects on its own.'));
+    } else if (big && st.action === 'signin') {
+      kids.push(el('span', { class: 'small' }, 'Google sign-ins last about an hour. The clip list is still here; sign in again to play clips saved in Drive and get new ones.'));
+    }
+    if (Team.connectNote) kids.push(el('span', { class: 'small cnote', role: 'alert' }, Team.connectNote));
+    if (st.action) kids.push(el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn ' + (big ? '' : 'small ') + 'primary', 'data-connect': st.action, disabled: busy, onclick: connectDevice }, busy ? 'Connecting\u2026' : st.button)));
+    return el('div', { class: 'connect ' + st.state + (big ? ' big' : ''), id: big ? 'rv-connect-panel' : null, role: 'status' }, ...kids);
+  }
+
+  function refreshConnect() {
+    renderSyncBadge();
+    renderTeamCard();
+    if (!$('view-review').classList.contains('hidden') && App.renderReview) App.renderReview();
   }
 
   async function disconnectTeam() {
@@ -293,7 +350,11 @@ App.ready.then(() => {
       }
       actions.push(btn('Stop syncing on this device', disconnectTeam, 'danger'));
     }
-    box.replaceChildren(...lines, actions.length ? el('div', { class: 'row' }, ...actions) : '');
+    const st = deviceState();
+    const head = st.state === 'local' ? '' : el('div', { class: 'connect ' + st.state, id: 'device-status', role: 'status' },
+      el('div', { class: 'row', style: 'gap:8px' }, el('span', { class: 'cdot', 'aria-hidden': 'true' }), el('strong', { class: 'ctext' }, st.text)),
+      Team.connectNote ? el('span', { class: 'small cnote', role: 'alert' }, Team.connectNote) : '');
+    box.replaceChildren(head, ...lines, actions.length ? el('div', { class: 'row' }, ...actions) : '');
   }
 
   function renderTeamSettings() {
@@ -352,7 +413,7 @@ App.ready.then(() => {
     if (Date.now() - last > ms) App.libSyncAll(false);
   }
   Object.assign(App, {
-    Team, connectTeamFolders, shareWithCoaches, libSyncIfStale, renderGameLists, renderSyncBadge, renderTeamCard, renderTeamSettings,
+    Team, connectDevice, connectPanel, deviceState, connectTeamFolders, shareWithCoaches, libSyncIfStale, renderGameLists, renderSyncBadge, renderTeamCard, renderTeamSettings,
     syncNow, teamChanged, ensureSignedIn
   });
 }).catch((e) => setTimeout(() => { throw e; }));

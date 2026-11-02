@@ -39,6 +39,14 @@
   }
   restoreToken();
 
+  /** An error whose message says, in plain words, what went wrong and how to fix it (Google's own text kept as .raw). */
+  function gErr(code, raw, type) {
+    const help = root.WP && root.WP.googleHelp ? root.WP.googleHelp({ code, message: raw, type }) : raw;
+    const e = new Error(help);
+    e.code = code; e.raw = raw; e.type = type || '';
+    return e;
+  }
+
   function hasToken() { return !!token && tokenExp > Date.now() + 30000; }
   /** Seconds until the Google sign-in runs out (0 when signed out). Sign-ins last about an hour. */
   function expiresIn() { return token ? Math.max(0, Math.round((tokenExp - Date.now()) / 1000)) : 0; }
@@ -53,13 +61,13 @@
         client_id: cfg().googleClientId,
         scope: SCOPE,
         callback: (r) => {
-          if (r.error) { reject(new Error(r.error_description || r.error)); return; }
+          if (r.error) { reject(gErr(undefined, r.error + (r.error_description ? ': ' + r.error_description : ''))); return; }
           token = r.access_token;
           tokenExp = Date.now() + (Number(r.expires_in) || 3600) * 1000;
           try { sessionStorage.setItem(TOKEN_KEY, JSON.stringify({ token, exp: tokenExp })); } catch (e) { /* ignore */ }
           resolve(token);
         },
-        error_callback: (e) => reject(new Error(e && e.type === 'popup_closed' ? 'Sign-in window was closed' : 'Google sign-in failed'))
+        error_callback: (e) => reject(gErr(undefined, (e && e.message) || 'Google sign-in failed', e && e.type))
       });
       const req = hint ? { login_hint: hint } : {};
       if (quiet) req.prompt = ''; // already agreed before: no consent screen, just a quick refresh
@@ -76,20 +84,18 @@
   }
 
   async function call(method, url, body, headers, as) {
-    if (!hasToken()) { const e = new Error('Signed out of Google'); e.code = 401; throw e; }
+    if (!hasToken()) throw gErr(401, 'Signed out of Google');
     let res;
     try {
       res = await fetch(url, { method, body, headers: Object.assign({ Authorization: 'Bearer ' + token }, headers || {}) });
     } catch (e) {
-      const err = new Error('No connection to Google Drive');
-      err.code = 0;
-      throw err;
+      throw gErr(0, 'No connection to Google Drive');
     }
-    if (res.status === 401) { token = null; tokenExp = 0; const e = new Error('Signed out of Google'); e.code = 401; throw e; }
+    if (res.status === 401) { token = null; tokenExp = 0; throw gErr(401, 'Signed out of Google'); }
     if (!res.ok) {
       let msg = 'Google Drive error ' + res.status;
       try { const j = await res.json(); if (j.error && j.error.message) msg = j.error.message; } catch (e) { /* ignore */ }
-      const e = new Error(msg); e.code = res.status; throw e;
+      throw gErr(res.status, msg);
     }
     if (as === 'text') return res.text();
     if (as === 'blob') return res.blob();
@@ -134,20 +140,20 @@
 
   /** Send bytes with XMLHttpRequest so we can show upload progress (fetch can't). */
   function sendWithProgress(method, url, blob, contentType, onProgress) {
-    if (!hasToken()) { const e = new Error('Signed out of Google'); e.code = 401; return Promise.reject(e); }
+    if (!hasToken()) return Promise.reject(gErr(401, 'Signed out of Google'));
     return new Promise((resolve, reject) => {
       const x = new XMLHttpRequest();
       x.open(method, url);
       x.setRequestHeader('Authorization', 'Bearer ' + token);
       x.setRequestHeader('Content-Type', contentType);
       if (onProgress && x.upload) x.upload.onprogress = (ev) => { if (ev.lengthComputable) onProgress(ev.loaded / ev.total); };
-      x.onerror = () => { const e = new Error('No connection to Google Drive'); e.code = 0; reject(e); };
+      x.onerror = () => reject(gErr(0, 'No connection to Google Drive'));
       x.onload = () => {
-        if (x.status === 401) { token = null; tokenExp = 0; const e = new Error('Signed out of Google'); e.code = 401; reject(e); return; }
+        if (x.status === 401) { token = null; tokenExp = 0; reject(gErr(401, 'Signed out of Google')); return; }
         if (x.status < 200 || x.status >= 300) {
           let msg = 'Google Drive error ' + x.status;
           try { const j = JSON.parse(x.responseText); if (j.error && j.error.message) msg = j.error.message; } catch (e) { /* ignore */ }
-          const e = new Error(msg); e.code = x.status; reject(e); return;
+          reject(gErr(x.status, msg)); return;
         }
         try { resolve(JSON.parse(x.responseText || 'null')); } catch (e) { resolve(null); }
       };
@@ -216,7 +222,7 @@
     await loadScript('https://apis.google.com/js/api.js');
     await new Promise((res, rej) => root.gapi.load('picker', { callback: res, onerror: () => rej(new Error('Couldn’t open the Google file picker')) }));
     const P = root.google.picker;
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       // folders: true -> pick folders and files inside the team folder (o.parentId), or browse "Shared with me" to find it
       const view = o.folders
         ? (o.parentId ? new P.DocsView(P.ViewId.DOCS).setIncludeFolders(true).setSelectFolderEnabled(true).setParent(o.parentId)
@@ -233,6 +239,7 @@
         .setCallback((d) => {
           if (d.action === P.Action.PICKED) resolve(o.multi ? (d.docs || []).map((x) => ({ id: x.id, name: x.name, mimeType: x.mimeType })) : (d.docs && d.docs[0] ? d.docs[0].id : null));
           else if (d.action === P.Action.CANCEL) resolve(null);
+          else if (d.action === 'error' || (P.Action.ERROR && d.action === P.Action.ERROR)) reject(gErr(undefined, (d.message || d.error || 'The Google file picker reported an error') + ''));
         })
         .build();
       picker.setVisible(true);

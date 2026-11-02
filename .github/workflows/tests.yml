@@ -29,4 +29,6 @@ jobs:
         run: python tests/e2e_v12.py shots
       - name: Missing or deleted team folders, created only after asking (simulated Google Drive)
         run: python tests/e2e_v202.py shots
+      - name: Connecting another device from Review, plain-language Google errors (simulated Google Drive)
+        run: python tests/e2e_v24.py shots
       # e2e.py and e2e_library.py need game video, which stays off GitHub (it shows the players). Run them locally.

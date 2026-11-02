@@ -439,3 +439,17 @@ body.wide-game #view-tag .cliplist { max-height: calc(100vh - 230px); }
 /* v2.3: video size S / M / L — the video box hugs the picture and sits centred, so a smaller video leaves no dark bars */
 #view-tag .videobox { align-self: center; max-width: 100%; }
 .vsize .chip { min-width: 36px; }
+/* v2.4: this device's connection to the team's Google Drive */
+.connect { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.connect .cdot { width: 10px; height: 10px; border-radius: 5px; flex: none; background: var(--muted); }
+.connect.ok .cdot { background: #4ADE80; }
+.connect.off .cdot, .connect.signed-out .cdot, .connect.partial .cdot { background: var(--warn); }
+.connect.problem .cdot { background: #F87171; }
+.connect.off, .connect.signed-out { border-color: var(--warn); }
+.connect.big { padding: 16px; margin-bottom: 14px; gap: 10px; }
+.connect.big .ctext { font-size: 16px; }
+.connect .cnote { color: var(--work); }
+#rv-connect:empty { display: none; }
+@media (max-width: 640px) { .syncbadge { max-width: 140px; line-height: 1.2; } }
+#rv-connect .connect { margin-bottom: 14px; }
+#rv-connect .connect { max-width: 820px; }

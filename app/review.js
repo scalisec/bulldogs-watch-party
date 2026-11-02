@@ -125,6 +125,7 @@ App.ready.then(() => {
     $('rv-active').replaceChildren(...pills, pills.length ? el('button', { type: 'button', class: 'btn small', onclick: () => { R.filters = WP.emptyFilters(); R.viewId = null; renderReview(); } }, 'Clear all') : el('span', { class: 'small muted' }, 'No filters — showing everything.'), sortSel);
     $('rv-play').disabled = !list.length;
     R.list = list;
+    const dev = App.deviceState ? App.deviceState() : null;
     const key = JSON.stringify([R.filters, S.lib.scope, R.sort]);
     if (key !== R.listKey) { R.listKey = key; R.shown = PAGE; }
     const nowId = R.idx >= 0 && R.queue[R.idx] ? R.queue[R.idx].id : null;
@@ -143,9 +144,10 @@ App.ready.then(() => {
         el('div', { class: 'row small', style: 'gap:6px' }, el('strong', {}, e.players.length ? e.players.map((p) => '#' + p).join(' ') : 'No players'), el('span', { class: 'pill ' + e.flag }, e.flag === 'work' ? 'Work on this' : 'Do this'), ...feats.map((f) => el('span', { class: 'pill zoompill' }, f))),
         e.note ? el('span', { class: 'small' }, e.note) : '',
         el('span', { class: 'where' }, el('span', { class: 'wdot', style: 'background:' + w.color }), w.text, el('span', { style: 'margin-left:auto' }, 'by ' + (e.by || '?'))));
-    }) : [el('div', { class: 'empty', style: 'grid-column:1/-1' }, all.length ? 'No clips match these filters.' : S.lib.scope === 'private' ? 'No private clips yet. Tick “Private (only me)” in the clip editor.' : 'No clips yet. Tag some on the game screen.')]));
-    const lib = S.lib.teamSync ? 'Team library ' + (LIB.err ? 'has a sync problem: ' + LIB.err : 'synced with Drive') : S.sync ? 'Team library not connected yet — see Settings.' : 'Sign in and set up team data in Settings to share clips with the other coaches.';
-    $('rv-lib-status').textContent = lib;
+    }) : [el('div', { class: 'empty', style: 'grid-column:1/-1' }, all.length ? 'No clips match these filters.' : dev && dev.state === 'off' ? 'No clips on this device yet. Connect this device (above) to see the clips the coaches saved to Google Drive.' : S.lib.scope === 'private' ? 'No private clips yet. Tick “Private (only me)” in the clip editor.' : 'No clips yet. Tag some on the game screen.')]));
+    // this device's connection to the team's Drive: a status line, and a panel with the one button to fix it
+    $('rv-lib-status').textContent = dev ? dev.text : '';
+    $('rv-connect').replaceChildren(dev && dev.action ? App.connectPanel(!all.length || dev.state === 'off') : '');
     if (R.idx >= 0) renderReviewTags();
   }
 
@@ -260,7 +262,11 @@ App.ready.then(() => {
       await p.playRange(loc.clip.start, loc.clip.end);
       return;
     }
-    if (file) { msg('Sign in with Google (Settings) to play clips from Drive.'); return; }
+    if (file) {
+      if (App.connectDevice && WPDrive.configured() && WPDrive.webOrigin()) msg('This clip is saved in Google Drive. Sign in to play it.', el('button', { type: 'button', class: 'btn small primary', onclick: async () => { await App.connectDevice(); if (WPDrive.hasToken() && R.queue[i] === e) playAt(i); } }, 'Sign in with Google'));
+      else msg('This clip is saved in Google Drive. Open the web version of the app and sign in to play it.');
+      return;
+    }
     msg('Only on ' + (e.owner || 'another coach') + '’s PC — not saved to Drive yet.');
   }
 

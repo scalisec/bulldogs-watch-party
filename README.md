@@ -122,7 +122,7 @@ The roster, categories, coaches, opponents, rinks, and team name and season are 
   4. It shares the folder with the coaches.
   5. When a player is added later, the admin's app creates their family folder the next time it opens.
 - **Coaches (once per Google account):**
-  1. Open Settings, **Sign in with Google**, then **Open shared team data**.
+  1. On the device, open **Review** and tap **Connect this device** (v2.4). Or, in Settings, **Sign in with Google**, then **Open shared team data**.
   2. In Google's picker, open **Bulldogs Watch Party**, select everything inside it, and click **Select**.
   3. Picking is how Google lets this app use folders another account created; it's needed once, not per device.
   4. Later, if a new family folder appears, **Settings › Connect team folders** does the same for it. Settings shows how many team folders are connected.
@@ -135,6 +135,11 @@ The roster, categories, coaches, opponents, rinks, and team name and season are 
   - Share **Team clips** with all families, and each **Family – …** folder with that family only. Never share the top **Bulldogs Watch Party** folder with families: it holds the roster, notes and Coaches only clips.
   - Clips a coach saves are owned by that coach's account, inside the admin's folders.
 - **New coaches** must also be added as test users in Google Cloud (Google Auth Platform › Audience).
+- **Another device (a phone) (v2.4):**
+  - Review and Settings show where the device stands: not connected, connected as an account (with the number of team clips), signed out, a sync problem, or the clip library not open yet. The header says "This device: not connected" until it is.
+  - Each state has one button for the next step. A Google sign-in lasts about an hour; signed out, the clip list stays and **Sign in with Google** plays Drive clips again.
+  - Google errors are shown in plain words with the fix (blocked sign-in window, API key restriction, access denied, not shared, offline, Drive full).
+  - Only exported clips (saved to Drive) play on other devices. Marks, summaries and clips not yet exported stay on the computer with the video.
 
 Each coach's own name (shown on their clips) stays on their device.
 
@@ -217,7 +222,8 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 
 ## Tests
 
-- `node --test tests/core.test.js` runs the core logic tests (82), including reading the audio track of a small generated MP4 (`tests/fixtures/media`).
+- `node --test tests/core.test.js` runs the core logic tests (91), including reading the audio track of a small generated MP4 (`tests/fixtures/media`).
+- `python3 tests/e2e_v24.py <screenshot-dir>` tests v2.4 on a phone-sized screen against the simulated Google Drive: the not-connected status and Connect this device in Review, the picker closing with nothing selected, connecting in one tap, the status line, playing a Drive clip, signing back in after the hour, plain-language errors (not found, blocked sign-in window), and a second device on the same account connecting without the picker.
 - `python3 tests/e2e_v21.py <screenshot-dir> <media-dir>` tests v2.1: reading a name-free test game sheet PDF with the bundled pdf.js, a summary-only game from it, season stats from the sheet, the sheet on New game, marks filled in from the sheet, Differs / Use game sheet, adding video to a summary-only game, and Remove.
 - `python3 tests/e2e_v22.py <screenshot-dir> <media-dir>` tests v2.2: the performance log catches the app being busy and the video picture getting stuck (and tells them apart), F8, the Troubleshooting summary, Download log, keeping it across a reload, and Clear log.
 - `python3 tests/e2e_v202.py <screenshot-dir>` tests v2.0.2 against the simulated Google Drive: deleted or never-made team folders are found, the app asks before creating them, Cancel creates nothing, the team folder follows a moved team data file, and re-created folders reach the clip library.
@@ -237,7 +243,7 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 - `python3 tests/e2e_drive.py <screenshot-dir>` tests shared team data with two coaches against a simulated Google Drive (23 checks).
 - `python3 tests/e2e.py <screenshot-dir> <media-dir>` runs the browser test (75 checks). It covers tagging, zoom, the editor, drawing, slow motion, preview, MP4 export, and recording a breakdown with a simulated microphone.
 
-GitHub runs the core tests, `e2e_drive.py`, `e2e_v07.py` and `e2e_v12.py` on every push (`.github/workflows/tests.yml`). The two tests that need game video run locally only, so team footage never goes on GitHub.
+GitHub runs the core tests, `e2e_drive.py`, `e2e_v07.py`, `e2e_v12.py`, `e2e_v202.py` and `e2e_v24.py` on every push (`.github/workflows/tests.yml`). The two tests that need game video run locally only, so team footage never goes on GitHub.
 
 ## How the code is organised
 

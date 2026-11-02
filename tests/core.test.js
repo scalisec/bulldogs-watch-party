@@ -1281,3 +1281,41 @@ test('v2.1: game sheet in the summary: fills, conflicts, sheet-only goals and pe
   const st = WP.seasonStats([ng], [{ number: '7', name: 'S' }], '');
   assert.equal(st.players.find((p) => p.number === '7').pts, 2, '#7: a goal and an assist from the sheet');
 });
+
+test('v2.4.0 googleHelp: Google failures in plain words, with the fix', () => {
+  const h = (o) => WP.googleHelp(o);
+  assert.match(h({ message: 'The API developer key is invalid.' }), /API key.*https:\/\/scalisec\.github\.io\/\*/);
+  assert.match(h({ type: 'popup_failed_to_open', message: 'Failed to open popup window' }), /blocked .*sign-in window.*Pop-ups/);
+  assert.match(h({ type: 'popup_closed' }), /closed before you finished/);
+  assert.match(h({ message: 'access_denied' }), /test user/);
+  assert.match(h({ code: 0, message: 'No connection to Google Drive' }), /Wi-Fi or mobile data/);
+  assert.match(h({ code: 401, message: 'Signed out of Google' }), /about an hour/);
+  assert.match(h({ code: 403, message: 'Request had insufficient authentication scopes.' }), /allow Google Drive access/);
+  assert.match(h({ code: 403, message: 'User rate limit exceeded.' }), /busy/);
+  assert.match(h({ code: 403, message: 'The user\'s Drive storage quota has been exceeded.' }), /full/);
+  assert.match(h({ code: 403, message: 'The user does not have sufficient permissions for this file.' }), /shared with this email/);
+  assert.match(h({ code: 404, message: 'File not found: abc.' }), /can’t find that file/);
+  assert.match(h({ code: 503, message: 'Backend Error' }), /temporary problem/);
+  assert.equal(h({ code: 400, message: 'Something unusual' }), 'Something unusual', 'unknown errors keep Google’s words');
+  assert.ok(h({}).length > 10);
+});
+
+test('v2.4.0 deviceConnection: one line for where this device stands, and the next step', () => {
+  const base = { configured: true, web: true, signedIn: true, account: 'coach@x.com', team: true, owner: false, library: true, problem: '', clips: 12 };
+  const d = (o) => WP.deviceConnection(Object.assign({}, base, o));
+  assert.equal(d({ configured: false }).state, 'local');
+  assert.equal(d({ web: false }).action, null);
+  const off = d({ team: false, signedIn: false });
+  assert.deepEqual([off.state, off.action, off.button], ['off', 'connect', 'Connect this device']);
+  assert.match(off.text, /not connected/);
+  const so = d({ signedIn: false });
+  assert.deepEqual([so.state, so.action], ['signed-out', 'signin']);
+  assert.match(so.text, /coach@x\.com/);
+  assert.deepEqual([d({ problem: 'Can’t reach Google.' }).state, d({ problem: 'x' }).action], ['problem', 'retry']);
+  assert.deepEqual([d({ library: false }).state, d({ library: false }).action], ['partial', 'library']);
+  assert.equal(d({ library: false, owner: true }).state, 'ok', 'the owner’s library is created on the next sync');
+  const ok = d({});
+  assert.deepEqual([ok.state, ok.action], ['ok', null]);
+  assert.equal(ok.text, 'This device: connected as coach@x.com · 12 team clips');
+  assert.match(d({ clips: 1 }).text, /1 team clip$/);
+});

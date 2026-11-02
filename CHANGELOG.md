@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.4.0 — 2026-11-02 (connect a phone or another device from Review)
+
+- **"Connect this device" right in Review.** On a device that has never been connected, Review says so and has one button. It signs in with Google, then finds the team's data. The first time on a Google account, Google's file picker opens: open **Bulldogs Watch Party**, select everything inside it, and tap Select. After that, any other device signed in with the same account connects without the picker. The coach's name is filled in from Google.
+- **This device's status, in one line:**
+  - "This device: not connected" in the header when it isn't connected.
+  - "This device: connected as you@gmail.com · 12 team clips" (or signed out, a sync problem, or the clip library not open yet) at the top of Settings and under the Review filters, with the one button that fixes it: **Connect this device**, **Sign in with Google**, **Try again** or **Open clip library**.
+- **Signed out (Google sign-ins last about an hour):** the clip list stays; Review and a Drive clip both offer **Sign in with Google**, and the clip plays straight after.
+- **Google errors in plain words, with the fix.** For example:
+  - a blocked sign-in window → allow pop-ups (with where to find that in Chrome on Android)
+  - the API key turned down → the website restriction the key needs in Google Cloud
+  - "access denied" → allow Drive access, or be added as a test user
+  - not found or not allowed → check the folder is shared with this email, then connect again
+  - offline, signed out, Drive full or busy, or a temporary Google problem
+- If Google's file picker closes with nothing selected, Review says what to select, and what an API-key error in the picker means.
+- Google's own error text is kept for the performance log.
+
 ## 2.3.0 — 2026-11-02 (video size: small, medium, large)
 
 - **S / M / L next to Speed on Watch and tag**, or press **V** to cycle.

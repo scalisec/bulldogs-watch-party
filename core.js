@@ -2,8 +2,8 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '2.3.0';
-  const APP_RELEASED = '2026-11-01';
+  const APP_VERSION = '2.4.0';
+  const APP_RELEASED = '2026-11-02';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
   const DEFAULT_AFTER = 4;
@@ -2232,6 +2232,55 @@
     return out;
   }
 
+  // ---------------------------------------------------------------------
+  // GOOGLE: plain-language errors and this device's connection (v2.4)
+  // ---------------------------------------------------------------------
+  /**
+   * Turn a Google sign-in / Drive / Picker failure into a sentence a coach can act on: what happened and how to fix it.
+   * err: { code (HTTP status, 0 = offline), message (Google's text), type (sign-in error type) }.
+   */
+  function googleHelp(err) {
+    const e = err || {};
+    const raw = String(e.message || e.raw || '');
+    const code = e.code;
+    const type = String(e.type || '');
+    const has = (re) => re.test(raw);
+    if (type === 'popup_failed_to_open' || has(/popup.*(blocked|failed)/i)) return 'Your browser blocked Google’s sign-in window. Allow pop-ups for this site, then try again. (Chrome on Android: ⋮ › Settings › Site settings › Pop-ups and redirects.)';
+    if (type === 'popup_closed' || has(/popup.?closed|window was closed/i)) return 'The Google sign-in window closed before you finished. Try again and choose your Google account.';
+    if (has(/developer key|api key|apikey|API_KEY/i)) return 'Google turned down the app’s API key, so the file picker can’t open. In Google Cloud (signed in as the admin account), the key’s website restriction must be https://scalisec.github.io/* . Changes take up to 5 minutes; then reload and try again.';
+    if (has(/access_denied|access denied/i)) return 'Google didn’t give the app access. Try again and allow Google Drive access when asked. If Google says you can’t continue, the admin must add this email as a test user in Google Cloud (OAuth consent screen › Test users).';
+    if (has(/origin|redirect_uri|idpiframe|invalid_client/i)) return 'Google sign-in isn’t allowed from this web address. Open the app at scalisec.github.io/bulldogs-watch-party and try again.';
+    if (code === 0 || has(/no connection|failed to fetch|network|couldn’t reach google/i)) return 'Can’t reach Google. Check Wi-Fi or mobile data, then try again.';
+    if (code === 401 || has(/signed out/i)) return 'Your Google sign-in ran out (they last about an hour). Sign in again.';
+    if (code === 403 && has(/insufficient|scope|permission.*scope/i)) return 'Google didn’t give the app access to Drive. Sign in again and allow Google Drive access.';
+    if (has(/storage ?quota|storageQuotaExceeded|drive.*full/i)) return 'The Google Drive this saves to is full. Free up space in that Google account (or ask the head coach to), then try again.';
+    if ((code === 403 || code === 429) && has(/rate|quota|limit/i)) return 'Google Drive is busy right now. Wait a minute and try again.';
+    if (code === 429) return 'Google Drive is busy right now. Wait a minute and try again.';
+    if (code === 403) return 'This Google account isn’t allowed to open that file. Check the team’s folder is shared with this email (the head coach shares it), then connect again and select everything in the folder.';
+    if (code === 404) return 'Google Drive can’t find that file for this account. It may have been deleted, or this account hasn’t been given it yet: connect again and select everything in the team’s Watch Party folder.';
+    if (typeof code === 'number' && code >= 500) return 'Google Drive had a temporary problem. Try again in a minute.';
+    if (has(/sign-in failed|unknown/i)) return 'Google sign-in didn’t work. Try again; if it keeps failing, allow pop-ups and third-party sign-in for this site.';
+    return raw || 'Something went wrong talking to Google. Try again.';
+  }
+
+  /**
+   * Where this device stands with the team's Google Drive, in one line, plus the one thing to do next.
+   * o: { configured, web, signedIn, account, team (team data connected), owner, library (clip library connected), problem, clips }
+   * -> { state: 'local'|'off'|'signed-out'|'problem'|'partial'|'ok', text, action: null|'connect'|'signin'|'retry'|'library', button }
+   */
+  function deviceConnection(o) {
+    const x = o || {};
+    const who = x.account ? ' as ' + x.account : '';
+    if (!x.configured) return { state: 'local', text: 'This device only — Google sign-in isn’t set up, so clips and team data stay here.', action: null, button: '' };
+    if (!x.web) return { state: 'local', text: 'This device only — open the web version (scalisec.github.io/bulldogs-watch-party) to connect to the team’s Google Drive.', action: null, button: '' };
+    if (!x.team) return { state: 'off', text: 'This device: not connected to the team’s Google Drive', action: 'connect', button: 'Connect this device' };
+    if (!x.signedIn) return { state: 'signed-out', text: 'This device: signed out of Google' + (x.account ? ' (' + x.account + ')' : '') + ' — sign in to sync and to play clips saved in Drive', action: 'signin', button: 'Sign in with Google' };
+    if (x.problem) return { state: 'problem', text: 'This device: connected' + who + ' · sync problem: ' + x.problem, action: 'retry', button: 'Try again' };
+    if (!x.library && !x.owner) return { state: 'partial', text: 'This device: connected' + who + ' · the team clip library isn’t open yet', action: 'library', button: 'Open clip library' };
+    const n = typeof x.clips === 'number' ? ' · ' + x.clips + (x.clips === 1 ? ' team clip' : ' team clips') : '';
+    return { state: 'ok', text: 'This device: connected' + who + n, action: null, button: '' };
+  }
+
   /** A game with no video, made from a game sheet (summary only). */
   function newSheetGame(sheet, fields) {
     const f = fields || {};
@@ -2268,7 +2317,8 @@
     applyEntryTags, folderName, teamFolderKeys, destLabel,
     DEFAULT_LEAGUE, divisionKey, normalizeLeague, guessLeagueTeam, leagueTeams, leagueLogo, cleanVenue, scoreResult, gamesheetUrl, teamSchedule, matchScheduleGame, scheduleFields, leagueLink, linkGame, formatClock,
     shortTeamName, parseResult, periodAt, periodLabel, penaltyOutcome, OUTCOME_LABELS, gameSummary, summaryResult, seasonStats, updateGoal, summaryNotes,
-    SHEET_CODES, sheetInfraction, parseGameSheet, sheetSide, clockElapsed, sheetFacts, matchSheetGoals, sheetGoalAgrees, sheetGoalDetails, fillFromSheet, sheetOnlyPenalties, newSheetGame
+    SHEET_CODES, sheetInfraction, parseGameSheet, sheetSide, clockElapsed, sheetFacts, matchSheetGoals, sheetGoalAgrees, sheetGoalDetails, fillFromSheet, sheetOnlyPenalties, newSheetGame,
+    googleHelp, deviceConnection
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = WP;
