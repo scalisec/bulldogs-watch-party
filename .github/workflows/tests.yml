@@ -33,4 +33,6 @@ jobs:
         run: python tests/e2e_v24.py shots
       - name: Staying signed in and one-tap reconnect (simulated Google sign-in)
         run: python tests/e2e_v241.py shots
+      - name: Review on a phone - tapping a clip scrolls to it, nothing starts on its own (simulated Google Drive)
+        run: python tests/e2e_v242.py shots
       # e2e.py and e2e_library.py need game video, which stays off GitHub (it shows the players). Run them locally.

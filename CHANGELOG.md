@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.4.2 — 2026-11-02 (Review on a phone: tap a clip, see the video)
+
+- **Tapping a clip scrolls to the video.** On a phone the player sits above the list; it used to open out of sight.
+- **A tapped clip loads ready to play but doesn't start on its own.** Press play when you're ready. On the computer, a clip that isn't in Drive yet shows its first frame with a **▶ Play clip** button.
+- **Play all** still starts straight away and moves on to the next clip (with Auto-play next ticked). **Previous** and **Next** load the clip without starting it.
+- **Clips not exported to Drive say so:** the card reads "Not in Drive yet · only on Coach …'s PC", and tapping it explains that it needs exporting to Drive on that computer to play elsewhere.
+
 ## 2.4.1 — 2026-11-02 (stay signed in to Google)
 
 - **The Google sign-in is kept when the app is closed.** Reopening within the hour needs no sign-in.

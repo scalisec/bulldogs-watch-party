@@ -33,7 +33,7 @@ App.ready.then(() => {
     if (e.private) return { color: '#B45309', text: '🔒 Private' + ((e.drive || []).length ? ' · in my Drive folder' : ' · on this device only') };
     if ((e.drive || []).length) return { color: '#16A34A', text: 'In Drive · ' + e.drive.map((x) => WP.destLabel(x.folder, S.settings.roster)).join(', ') };
     const mine = localClip(e.id);
-    return { color: '#F59E0B', text: mine ? 'On this PC (not in Drive yet)' : 'Only on ' + (e.owner || 'another coach') + '’s PC' };
+    return { color: '#F59E0B', text: mine ? 'On this PC (not in Drive yet)' : 'Not in Drive yet · only on ' + (e.owner || 'another coach') + '’s PC' };
   }
 
   function chipBtn(text, on, fn, extra) {
@@ -137,7 +137,7 @@ App.ready.then(() => {
     $('rv-results').replaceChildren(...(list.length ? list.slice(0, R.shown).map((e, i) => {
       const w = whereInfo(e);
       const feats = Object.entries(e.features || {}).filter(([, v]) => v).map(([k]) => ({ drawing: 'Drawing', slow: 'Slow-mo', zoom: 'Zoom', voice: 'Voice' })[k]);
-      return el('button', { type: 'button', class: 'rvcard' + (e.id === nowId ? ' now' : ''), 'data-entry': e.id, onclick: () => startQueue(list, i) },
+      return el('button', { type: 'button', class: 'rvcard' + (e.id === nowId ? ' now' : ''), 'data-entry': e.id, onclick: () => startQueue(list, i, false) },
         el('div', { class: 'row', style: 'gap:6px' }, el('span', { class: 'dot', style: 'background:' + (e.color || '#64748B') }), el('strong', {}, e.category || 'Clip'), ...evBadges(null, null, e.events), e.starred ? el('span', { style: 'color:#FACC15', 'aria-label': 'Starred' }, '★') : ''),
         el('span', { class: 'small' }, [e.game.title, WP.label(WP.GAME_TYPES, e.game.type), WP.label(WP.HOME_AWAY, e.game.homeAway)].filter(Boolean).join(' · ')),
         el('span', { class: 'small muted' }, [e.period ? WP.periodName(e.period) + ' ' + WP.formatTime(e.periodTime) : 'game ' + WP.formatTime(e.start), e.state ? e.state + ' ' + e.score.for + '–' + e.score.against : '', Math.round(e.end - e.start) + ' s'].filter(Boolean).join(' · ')),
@@ -165,23 +165,33 @@ App.ready.then(() => {
     try { S.lib.team.views = WP.addView(S.lib.team.views, name, R.filters); R.viewId = S.lib.team.views[S.lib.team.views.length - 1].id; save(); renderReview(); toast('View saved'); }
     catch (err) { toast(err.message, { err: true }); }
   });
-  $('rv-play').addEventListener('click', () => R.list && R.list.length && startQueue(R.list, 0));
+  $('rv-play').addEventListener('click', () => R.list && R.list.length && startQueue(R.list, 0, true));
   $('rv-more-btn').addEventListener('click', () => { R.shown += PAGE; renderReview(); });
   $('rv-filter-toggle').addEventListener('click', () => {
     const open = !$('rv-more').classList.contains('open');
     $('rv-more').classList.toggle('open', open);
     $('rv-filter-toggle').setAttribute('aria-expanded', String(open));
   });
-  $('rv-prev').addEventListener('click', () => playAt(R.idx - 1));
-  $('rv-next').addEventListener('click', () => playAt(R.idx + 1));
+  $('rv-prev').addEventListener('click', () => playAt(R.idx - 1, false));
+  $('rv-next').addEventListener('click', () => playAt(R.idx + 1, false));
   $('rv-close').addEventListener('click', stopReviewPlayer);
 
-  function startQueue(list, i) {
+  /**
+   * Open the player on clip i. autoplay: true for Play all (and the next clip after one ends); tapping a clip only
+   * loads it, ready to play, and scrolls to the video (on a phone the player sits above the list).
+   */
+  function startQueue(list, i, autoplay) {
     R.queue = list.slice();
     R.qname = $('rv-title').textContent;
     $('rv-player-card').classList.remove('hidden');
-    playAt(i);
-    $('rv-player-card').scrollIntoView({ block: 'nearest' });
+    playAt(i, autoplay);
+    showPlayer();
+  }
+
+  function showPlayer() {
+    const card = $('rv-player-card');
+    const top = card.getBoundingClientRect().top;
+    if (top < 0 || top > window.innerHeight * 0.25) card.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
   function stopReviewPlayer() {
@@ -192,7 +202,7 @@ App.ready.then(() => {
     renderReview();
   }
 
-  function nextAfterEnd() { if ($('rv-auto').checked && R.idx < R.queue.length - 1) playAt(R.idx + 1); }
+  function nextAfterEnd() { if ($('rv-auto').checked && R.idx < R.queue.length - 1) playAt(R.idx + 1, true); }
 
   // Drive clips already downloaded (or downloading): the next clip is fetched while the current one plays
   const blobCache = new Map(); // fileId -> Promise<Blob>
@@ -210,7 +220,7 @@ App.ready.then(() => {
     if (f && WPDrive.hasToken()) driveBlob(f.fileId).catch(() => {});
   }
 
-  async function playAt(i) {
+  async function playAt(i, autoplay) {
     if (i < 0 || i >= R.queue.length) return;
     if (R.cleanup) { R.cleanup(); R.cleanup = null; }
     R.idx = i;
@@ -235,7 +245,8 @@ App.ready.then(() => {
         if (R.token !== token) return;
         prefetchAfter(i);
         const url = URL.createObjectURL(blob);
-        const v = el('video', { src: url, controls: true, autoplay: true, playsinline: true });
+        const v = el('video', { src: url, controls: true, playsinline: true, preload: 'auto' });
+        if (autoplay) v.autoplay = true;
         v.addEventListener('ended', nextAfterEnd);
         stage.replaceChildren(v);
         R.cleanup = () => { v.pause(); URL.revokeObjectURL(url); };
@@ -261,15 +272,20 @@ App.ready.then(() => {
       let started = false;
       const iv = setInterval(() => { if (p.isPlaying()) started = true; else if (started) { clearInterval(iv); nextAfterEnd(); } }, 250);
       R.cleanup = () => { clearInterval(iv); p.destroy(); };
-      await p.playRange(loc.clip.start, loc.clip.end);
+      if (autoplay) { await p.playRange(loc.clip.start, loc.clip.end); return; }
+      // tapped: show the clip's first frame with a play button; nothing starts until it's pressed
+      await p.seek(loc.clip.start);
+      if (R.token !== token) return;
+      const go = el('button', { type: 'button', class: 'btn primary rvgo', 'aria-label': 'Play clip', onclick: () => { go.remove(); p.playRange(loc.clip.start, loc.clip.end); } }, '\u25B6 Play clip');
+      wrap.append(go);
       return;
     }
     if (file) {
-      if (App.connectDevice && WPDrive.configured() && WPDrive.webOrigin()) msg('This clip is saved in Google Drive. Sign in to play it.', el('button', { type: 'button', class: 'btn small primary', onclick: async () => { await App.connectDevice(); if (WPDrive.hasToken() && R.queue[i] === e) playAt(i); } }, 'Sign in with Google'));
+      if (App.connectDevice && WPDrive.configured() && WPDrive.webOrigin()) msg('This clip is saved in Google Drive. Sign in to play it.', el('button', { type: 'button', class: 'btn small primary', onclick: async () => { await App.connectDevice(); if (WPDrive.hasToken() && R.queue[i] === e) playAt(i, false); } }, 'Sign in with Google'));
       else msg('This clip is saved in Google Drive. Open the web version of the app and sign in to play it.');
       return;
     }
-    msg('Only on ' + (e.owner || 'another coach') + '’s PC — not saved to Drive yet.');
+    msg('Not in Google Drive yet: this clip is only on ' + (e.owner || 'another coach') + '’s computer. Export it to Drive on that computer, then it plays here.');
   }
 
   function editEntry(e, patch) {

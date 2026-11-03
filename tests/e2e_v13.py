@@ -73,6 +73,12 @@ with sync_playwright() as p:
     page.click('#rv-groups .chip:has-text("%s")' % n3)
     page.locator('.rvcard').first.click()
     page.wait_for_selector('#rv-cats', timeout=8000)
+    # v2.4.2: a tapped clip waits with a Play clip button; pressing it plays the clip
+    page.wait_for_selector('#rv-stage .rvgo', timeout=8000)
+    check(not page.evaluate("(() => { const v = document.querySelector('#rv-stage video'); return v && !v.paused; })()"), 'Review (v2.4.2): a tapped clip doesn’t start on its own')
+    page.click('#rv-stage .rvgo')
+    page.wait_for_function("(() => { const v = document.querySelector('#rv-stage video'); return v && !v.paused; })()", timeout=8000)
+    check(not page.is_visible('#rv-stage .rvgo'), 'Review (v2.4.2): ▶ Play clip plays it')
     page.click('#rv-cats button[data-cat="%s"]' % c3)
     clip = page.evaluate('window.__bwp.state.games[0].clips[0]')
     check([clip['categoryId']] + clip['alsoCats'] == [c2, c1, c3], 'Review: tapping a category on a clip adds it to the clip')

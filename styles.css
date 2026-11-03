@@ -453,3 +453,5 @@ body.wide-game #view-tag .cliplist { max-height: calc(100vh - 230px); }
 @media (max-width: 640px) { .syncbadge { max-width: 140px; line-height: 1.2; } }
 #rv-connect .connect { margin-bottom: 14px; }
 #rv-connect .connect { max-width: 820px; }
+.rvstage .rvgo { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+#rv-player-card { scroll-margin-top: 8px; }
