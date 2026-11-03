@@ -1340,3 +1340,63 @@ test('v2.5.0 joinLink / parseJoin: a link that opens the team folder on a new de
   assert.deepEqual([d.action, d.button], ['connect', 'Join Bulldogs U10 Blue']);
   assert.match(d.text, /invited to join Bulldogs U10 Blue/);
 });
+
+test('v2.6.0 shots: on goal, missed, blocked; goals count as shots on goal', () => {
+  const roster = [{ number: '16', name: 'L', primary: 'F' }, { number: '18', name: 'E', primary: 'D' }, { number: '30', name: 'G1', primary: 'G' }, { number: '31', name: 'G2', primary: 'G' }];
+  let g = WP.newGame({ opponent: 'Hawks', parts: [{ name: REAL, size: 1, duration: 3600 }] });
+  const at = (t) => { g.marks = WP.togglePeriod(g, t).marks; };
+  at(100); at(1300); at(1400); at(2600);
+  const shot = (t, side, d) => { g.marks = WP.addShot(g, t, side, d).marks; };
+  shot(200, 'for', { shooter: '16' }); shot(250, 'for', { shooter: '16', result: 'missed' }); shot(300, 'for', { shooter: '18', result: 'blocked' });
+  shot(400, 'against', {}); shot(500, 'against', { shooter: '9', result: 'missed' }); shot(1500, 'against', {}); shot(1600, 'against', {});
+  g.marks = WP.addGoal(g, 600, 'for', { scorer: '16', assists: ['18'] });
+  g.marks = WP.addGoal(g, 700, 'against', {});
+  g.marks = WP.addGoal(g, 1700, 'for', { scorer: '18' });
+  const st = WP.shotStats(g, roster);
+  assert.equal(st.tracked, true);
+  assert.deepEqual(st.for, { sog: 3, goals: 2, saved: 1, missed: 1, blocked: 1, attempts: 5 });
+  assert.deepEqual(st.against, { sog: 4, goals: 1, saved: 3, missed: 1, blocked: 0, attempts: 5 });
+  assert.deepEqual(st.byPeriod.slice(0, 2).map((p) => [p.n, p.for, p.against]), [[1, 2, 2], [2, 1, 2]]);
+  assert.deepEqual(st.shooters.map((x) => [x.number, x.sog, x.g, x.missed, x.blocked]), [['16', 2, 1, 1, 0], ['18', 1, 1, 0, 1]]);
+  assert.equal(WP.shotLabel(WP.gameMarks(g).shots[1]), 'Shot #16 · missed');
+  assert.equal(WP.shotLabel(WP.gameMarks(g).shots[4]), 'Shot against #9 · missed');
+  // shots in a clip tag it
+  assert.deepEqual(WP.clipAuto(g, { start: 390, end: 410 }).events, ['shot_against', 'save']);
+  const rm = WP.removeShot(g, WP.gameMarks(g).shots[0].id);
+  assert.equal(rm.shots.length, 6);
+  assert.equal(WP.shotStats({ marks: { goals: g.marks.goals } }, roster).tracked, false, 'no shots marked: not tracked');
+});
+
+test('v2.6.0 goalies: starter from the lineup, a change mid-period, stats per goalie', () => {
+  const roster = [{ number: '16', name: 'L', primary: 'F' }, { number: '30', name: 'G1', primary: 'G' }, { number: '31', name: 'G2', primary: 'G' }];
+  const g = WP.newGame({ opponent: 'Hawks', parts: [{ name: REAL, size: 1, duration: 3600 }] });
+  g.marks = WP.togglePeriod(g, 100).marks; g.marks = WP.togglePeriod(g, 1300).marks; g.marks = WP.togglePeriod(g, 1400).marks;
+  assert.equal(WP.startingGoalie(g, roster), '30');
+  g.marks = WP.addGoalieChange(g, 1900, '31').marks; // halfway through the 2nd
+  assert.equal(WP.goalieAt(g, roster, 1800), '30');
+  assert.equal(WP.goalieAt(g, roster, 2000), '31');
+  assert.deepEqual(WP.goalieStints(g, roster).map((x) => [x.number, x.from, x.to]), [['30', 0, 1900], ['31', 1900, null]]);
+  for (const t of [500, 600, 1500]) g.marks = WP.addShot(g, t, 'against', {}).marks;
+  for (const t of [2000, 2100]) g.marks = WP.addShot(g, t, 'against', {}).marks;
+  g.marks = WP.addGoal(g, 700, 'against', {});
+  g.marks = WP.addGoal(g, 800, 'for', { scorer: '16' });
+  g.marks = WP.addGoal(g, 2200, 'for', { scorer: '16' });
+  g.marks = WP.addGoal(g, 2300, 'against', {});
+  g.marks = WP.addGoal(g, 2400, 'for', { scorer: '16' });
+  const gl = WP.shotStats(g, roster).goalies;
+  assert.deepEqual(gl.map((x) => [x.number, x.sa, x.ga, x.sv]), [['30', 4, 1, 3], ['31', 3, 1, 2]]);
+  assert.equal(gl[0].svPct, 0.75);
+  const sum = WP.gameSummary(g, roster, '');
+  assert.deepEqual([sum.outcome, sum.decision.number], ['W', '31'], 'the win goes to the goalie in net for the go-ahead goal that held');
+  const ss = WP.seasonStats([g], roster, '', null);
+  const p30 = ss.players.find((x) => x.number === '30'), p31 = ss.players.find((x) => x.number === '31');
+  assert.deepEqual([p30.gGp, p30.ga, p30.sa, p30.gw, p31.gGp, p31.ga, p31.sa, p31.gw], [1, 1, 4, 0, 1, 1, 3, 1]);
+  assert.equal(ss.players.find((x) => x.number === '16').shPct, 1, '3 goals on 3 shots on goal');
+  assert.deepEqual([ss.record.shotGames, ss.record.sf, ss.record.sa], [1, 3, 7]);
+  // a change before the game starts just sets the starter
+  const g2 = WP.newGame({ opponent: 'X', parts: [{ name: REAL, size: 1, duration: 3600 }] });
+  g2.marks = WP.togglePeriod(g2, 100).marks;
+  g2.marks = WP.addGoalieChange(g2, 50, '31').marks;
+  assert.deepEqual(WP.goalieStints(g2, roster).map((x) => x.number), ['31']);
+  assert.throws(() => WP.addGoalieChange(g2, 60, ''), /Pick the goalie/);
+});

@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '2.5.0';
+  const APP_VERSION = '2.6.0';
   const APP_RELEASED = '2026-11-03';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
@@ -946,7 +946,9 @@
     return {
       periods: (m.periods || []).slice().sort((a, b) => a.start - b.start),
       goals: (m.goals || []).slice().sort((a, b) => a.t - b.t),
-      penalties: (m.penalties || []).slice().sort((a, b) => a.t - b.t)
+      penalties: (m.penalties || []).slice().sort((a, b) => a.t - b.t),
+      shots: (m.shots || []).slice().sort((a, b) => a.t - b.t),
+      goalies: (m.goalies || []).slice().sort((a, b) => a.t - b.t)
     };
   }
 
@@ -1142,6 +1144,127 @@
   }
 
   function removeGoal(game, id) { const m = gameMarks(game); m.goals = m.goals.filter((g) => g.id !== id); return m; }
+
+  // ---------- shots and goalies (v2.6) ----------
+  // A shot: { id, t, side: 'for' | 'against', result: 'on' (on goal, saved) | 'missed' | 'blocked', shooter: jersey or '' }.
+  // Goals are shots on goal too: they're counted from the goal marks, so a goal is never also marked as a shot.
+  // A goalie change: { id, t, number } = that goalie is in our net from t on. Before the first change, the
+  // starting goalie is the lineup's goalie (position G).
+  const SHOT_RESULTS = [['on', 'On goal'], ['missed', 'Missed the net'], ['blocked', 'Blocked']];
+
+  function addShot(game, t, side, details) {
+    const d = details || {};
+    const m = gameMarks(game);
+    const shot = { id: uid('shot'), t: round1(t), side: side === 'against' ? 'against' : 'for', result: SHOT_RESULTS.some((r) => r[0] === d.result) ? d.result : 'on', shooter: jersey(d.shooter) };
+    m.shots.push(shot);
+    m.shots.sort((a, b) => a.t - b.t);
+    return { marks: m, shot };
+  }
+  function removeShot(game, id) { const m = gameMarks(game); m.shots = m.shots.filter((x) => x.id !== id); return m; }
+  function shotLabel(x) {
+    const res = { on: 'on goal', missed: 'missed', blocked: 'blocked' }[x.result] || 'on goal';
+    return (x.side === 'for' ? 'Shot' + (x.shooter ? ' #' + x.shooter : '') : 'Shot against' + (x.shooter ? ' #' + x.shooter : '')) + ' · ' + res;
+  }
+
+  /** Our starting goalie: the lineup's goalie (position G); with two, the first one listed. '' when none. */
+  function startingGoalie(game, roster) {
+    const g = gameLineup(game, roster).filter((r) => !r.away && r.pos === 'G');
+    return g.length ? g[0].number : '';
+  }
+  /** Mark that `number` is in our net from t on (a change within 2 s of another replaces it). */
+  function addGoalieChange(game, t, number) {
+    const n = jersey(number);
+    if (!n) throw new Error('Pick the goalie going in');
+    const m = gameMarks(game);
+    m.goalies = m.goalies.filter((x) => Math.abs(x.t - t) > 2);
+    const ch = { id: uid('gch'), t: round1(t), number: n };
+    m.goalies.push(ch);
+    m.goalies.sort((a, b) => a.t - b.t);
+    return { marks: m, change: ch };
+  }
+  function removeGoalieChange(game, id) { const m = gameMarks(game); m.goalies = m.goalies.filter((x) => x.id !== id); return m; }
+  /** Who was in our net at video time t. */
+  function goalieAt(game, roster, t) {
+    let n = startingGoalie(game, roster);
+    for (const c of gameMarks(game).goalies) if (c.t <= t + 0.01) n = c.number;
+    return n;
+  }
+  /** Each goalie's time in net: [{ number, from, to }] (to = null: to the end). A goalie replaced before the game started isn't listed. */
+  function goalieStints(game, roster) {
+    const m = gameMarks(game);
+    const start = m.periods.length ? m.periods[0].start : 0;
+    const out = [];
+    let cur = { number: startingGoalie(game, roster), from: 0 };
+    for (const c of m.goalies) {
+      if (c.number === cur.number) continue;
+      if (cur.number && c.t > start + 0.5) out.push(Object.assign(cur, { to: c.t }));
+      cur = { number: c.number, from: c.t };
+    }
+    if (cur.number) out.push(Object.assign(cur, { to: null }));
+    return out;
+  }
+
+  /**
+   * Shots for one game, from the shot marks plus the marked goals (each goal is a shot on goal):
+   *   tracked: any shots marked (otherwise shot numbers mean nothing)
+   *   for / against: { sog, goals, saved, missed, blocked, attempts }
+   *   byPeriod: [{ n, for, against }] shots on goal
+   *   shooters: our players [{ number, sog, g, missed, blocked, attempts }]
+   *   goalies: [{ number, from, to, sa (null when shots weren't tracked), ga, sv, svPct }]
+   */
+  function shotStats(game, roster) {
+    const m = gameMarks(game);
+    const tracked = m.shots.length > 0;
+    const side = (sd) => {
+      const sh = m.shots.filter((x) => x.side === sd);
+      const goals = m.goals.filter((g) => g.side === sd).length;
+      const saved = sh.filter((x) => x.result === 'on').length;
+      const missed = sh.filter((x) => x.result === 'missed').length;
+      const blocked = sh.filter((x) => x.result === 'blocked').length;
+      return { sog: saved + goals, goals, saved, missed, blocked, attempts: saved + goals + missed + blocked };
+    };
+    const nums = [...new Set(m.periods.map((p) => p.n).concat([1, 2, 3]))].sort((a, b) => a - b);
+    const onGoal = (sd, n) => m.shots.filter((x) => x.side === sd && x.result === 'on' && periodAt(game, x.t) === n).length + m.goals.filter((g) => g.side === sd && periodAt(game, g.t) === n).length;
+    const byPeriod = nums.map((n) => ({ n, for: onGoal('for', n), against: onGoal('against', n) }));
+    const loose = { n: null, for: m.shots.filter((x) => x.side === 'for' && x.result === 'on' && periodAt(game, x.t) == null).length + m.goals.filter((g) => g.side === 'for' && periodAt(game, g.t) == null).length,
+      against: m.shots.filter((x) => x.side === 'against' && x.result === 'on' && periodAt(game, x.t) == null).length + m.goals.filter((g) => g.side === 'against' && periodAt(game, g.t) == null).length };
+    if (m.periods.length && (loose.for || loose.against)) byPeriod.push(loose);
+    const sh = new Map();
+    const S = (n) => { if (!sh.has(n)) sh.set(n, { number: n, sog: 0, g: 0, missed: 0, blocked: 0, attempts: 0 }); return sh.get(n); };
+    for (const x of m.shots) if (x.side === 'for' && x.shooter) { const r = S(x.shooter); r.attempts += 1; if (x.result === 'on') r.sog += 1; else r[x.result] += 1; }
+    for (const g of m.goals) if (g.side === 'for' && g.scorer) { const r = S(g.scorer); r.g += 1; r.sog += 1; r.attempts += 1; }
+    const shooters = [...sh.values()].sort((a, b) => b.sog - a.sog || b.g - a.g || Number(a.number) - Number(b.number));
+    const inNet = (st, t) => t >= st.from - 0.01 && (st.to == null || t < st.to - 0.01);
+    const goalies = goalieStints(game, roster).map((st) => {
+      const ga = m.goals.filter((g) => g.side === 'against' && inNet(st, g.t)).length;
+      const saves = m.shots.filter((x) => x.side === 'against' && x.result === 'on' && inNet(st, x.t)).length;
+      const sa = tracked ? saves + ga : null;
+      return { number: st.number, from: st.from, to: st.to, sa, ga, sv: tracked ? saves : null, svPct: tracked && sa ? saves / sa : null };
+    });
+    // merge a goalie with two stints (in, out, back in)
+    const gl = [];
+    for (const x of goalies) {
+      const o = gl.find((y) => y.number === x.number);
+      if (!o) { gl.push(Object.assign({ stints: [{ from: x.from, to: x.to }] }, x)); continue; }
+      o.stints.push({ from: x.from, to: x.to }); o.ga += x.ga;
+      if (tracked) { o.sa += x.sa; o.sv += x.sv; o.svPct = o.sa ? o.sv / o.sa : null; }
+    }
+    return { tracked, for: side('for'), against: side('against'), byPeriod, shooters, goalies: gl };
+  }
+
+  /** The goalie who gets the win or loss: in net for the goal that decided it (the lead that held), else at the end. */
+  function goalieDecision(game, roster, outcome) {
+    const goals = gameMarks(game).goals;
+    if (!goals.length || outcome === 'T' || !outcome) return { number: goals.length ? goalieAt(game, roster, goals[goals.length - 1].t) : startingGoalie(game, roster), outcome };
+    let f = 0, a = 0, key = null;
+    for (const g of goals) {
+      if (g.side === 'for') f += 1; else a += 1;
+      const lead = f - a;
+      if ((outcome === 'W' && lead === 1 && g.side === 'for') || (outcome === 'L' && lead === -1 && g.side === 'against')) key = g;
+    }
+    const t = key ? key.t : goals[goals.length - 1].t;
+    return { number: goalieAt(game, roster, t), outcome };
+  }
   function removePeriod(game, n) {
     const m = gameMarks(game);
     m.periods = m.periods.filter((p) => p.n !== n).map((p, i) => Object.assign({}, p, { n: i + 1 }));
@@ -1158,7 +1281,10 @@
     for (const g of m.goals) if (g.t < clip.start - 0.01) { if (g.side === 'for') f += 1; else a += 1; }
     const inside = m.goals.filter((g) => g.t >= clip.start - 0.01 && g.t <= clip.end + 0.01);
     const calls = m.penalties.filter((p) => p.t >= clip.start - 0.01 && p.t <= clip.end + 0.01);
+    const shots = m.shots.filter((x) => x.t >= clip.start - 0.01 && x.t <= clip.end + 0.01);
     const events = [...new Set(inside.map((g) => (g.side === 'for' ? 'goal_for' : 'goal_against'))
+      .concat(shots.map((x) => (x.side === 'for' ? 'shot_for' : 'shot_against')))
+      .concat(shots.filter((x) => x.side === 'against' && x.result === 'on').map(() => 'save'))
       .concat(calls.map((p) => (p.team === 'us' ? 'penalty_against' : 'penalty_for'))))];
     const state = !m.goals.length && !per ? null : f > a ? 'leading' : f < a ? 'trailing' : 'tied';
     return { period: per ? per.n : null, periodTime: per ? round1(clip.start - per.start) : null, score: { for: f, against: a }, state, events,
@@ -1721,6 +1847,8 @@
       ['P', 'Period start / period end'],
       ['G', 'Goal for (we score)'],
       ['H', 'Goal against'],
+      ['S', 'Shot for: on goal, missed or blocked, and who took it'],
+      ['D', 'Shot against (a goal counts as a shot on its own)'],
       ['X', 'Penalty: call one, or mark a player back'],
       ['T', 'New clip with a custom tag you type'],
       ['V', 'Video size: small / medium / large'],
@@ -1951,8 +2079,10 @@
     const names = new Map((roster || []).map((r) => [r.number, r.name]));
     const points = Object.values(pts).map((x) => Object.assign(x, { name: names.get(x.number) || '', pts: x.g + x.a }))
       .sort((x, y) => y.pts - x.pts || y.g - x.g || Number(x.number) - Number(y.number));
-    const goalies = gameLineup(game, roster).filter((r) => !r.away && r.pos === 'G').map((r) => r.number);
-    return { score, source, mismatch, typed, outcome, goals, penalties, byPeriod, points, goalies, sheet, sheetCheck,
+    const shots = shotStats(game, roster);
+    const goalies = shots.goalies.length ? shots.goalies.map((x) => x.number) : gameLineup(game, roster).filter((r) => !r.away && r.pos === 'G').map((r) => r.number);
+    const decision = outcome && m.goals.length ? goalieDecision(game, roster, outcome) : null;
+    return { score, source, mismatch, typed, outcome, goals, penalties, byPeriod, points, goalies, shots, decision, sheet, sheetCheck,
       pim: { us: penalties.filter((p) => p.team === 'us').reduce((s, p) => s + p.minutes, 0), them: penalties.filter((p) => p.team === 'them').reduce((s, p) => s + p.minutes, 0) },
       marked: m.goals.length > 0, periodsMarked: m.periods.length };
   }
@@ -1966,10 +2096,11 @@
    */
   function seasonStats(games, roster, gameType, official) {
     const list = (games || []).filter((g) => !gameType || g.gameType === gameType);
-    const rec = { w: 0, l: 0, t: 0, gf: 0, ga: 0, pim: 0, games: 0 };
+    const rec = { w: 0, l: 0, t: 0, gf: 0, ga: 0, pim: 0, games: 0, shotGames: 0, sf: 0, sa: 0 };
     const players = new Map();
     const row = (n) => {
-      if (!players.has(n)) players.set(n, { number: n, name: '', gp: 0, g: 0, a: 0, pts: 0, pim: 0, ppg: 0, clips: 0, goalie: false, gGp: 0, ga: 0, gw: 0, gl: 0, gt: 0 });
+      if (!players.has(n)) players.set(n, { number: n, name: '', gp: 0, g: 0, a: 0, pts: 0, pim: 0, ppg: 0, clips: 0, sog: 0, shotG: 0, missed: 0, blocked: 0, shPct: null,
+        goalie: false, gGp: 0, ga: 0, gw: 0, gl: 0, gt: 0, sa: 0, sv: 0, saGames: 0, svPct: null });
       return players.get(n);
     };
     for (const r of roster || []) { const x = row(r.number); x.name = r.name || ''; }
@@ -1983,14 +2114,30 @@
       for (const n of playersForGame(game, roster)) row(n).gp += 1;
       for (const p of sum.points) { const x = row(p.number); x.g += p.g; x.a += p.a; x.pim += p.pim; x.ppg += p.ppg; }
       for (const c of game.clips || []) for (const n of c.players || []) row(n).clips += 1;
-      if (sum.score && sum.goalies.length === 1) {
+      const sh = sum.shots;
+      if (sh.tracked) {
+        rec.shotGames += 1; rec.sf += sh.for.sog; rec.sa += sh.against.sog;
+        for (const s of sh.shooters) { const x = row(s.number); x.sog += s.sog; x.shotG += s.g; x.missed += s.missed; x.blocked += s.blocked; }
+      }
+      if (sum.marked && sh.goalies.length) {
+        // goals marked on the video: each goalie gets the goals (and shots) while they were in net
+        for (const gl of sh.goalies) {
+          const x = row(gl.number);
+          x.goalie = true; x.gGp += 1; x.ga += gl.ga;
+          if (gl.sa != null) { x.sa += gl.sa; x.sv += gl.sv; x.saGames += 1; }
+        }
+        if (sum.decision && sum.decision.number) {
+          const x = row(sum.decision.number);
+          if (sum.outcome === 'W') x.gw += 1; else if (sum.outcome === 'L') x.gl += 1; else if (sum.outcome === 'T') x.gt += 1;
+        }
+      } else if (sum.score && sum.goalies.length === 1) {
         const x = row(sum.goalies[0]);
         x.goalie = true; x.gGp += 1; x.ga += sum.score.against;
         if (sum.outcome === 'W') x.gw += 1; else if (sum.outcome === 'L') x.gl += 1; else x.gt += 1;
       }
     }
-    const rows = [...players.values()].map((x) => Object.assign(x, { pts: x.g + x.a }))
-      .filter((x) => x.gp || x.pts || x.pim || x.clips || x.goalie)
+    const rows = [...players.values()].map((x) => Object.assign(x, { pts: x.g + x.a, shPct: x.sog ? x.shotG / x.sog : null, svPct: x.sa ? x.sv / x.sa : null }))
+      .filter((x) => x.gp || x.pts || x.pim || x.clips || x.goalie || x.sog || x.missed || x.blocked)
       .sort((x, y) => y.pts - x.pts || y.g - x.g || Number(x.number) - Number(y.number));
     return { record: rec, players: rows };
   }
@@ -2338,7 +2485,8 @@
     DEFAULT_LEAGUE, divisionKey, normalizeLeague, guessLeagueTeam, leagueTeams, leagueLogo, cleanVenue, scoreResult, gamesheetUrl, teamSchedule, matchScheduleGame, scheduleFields, leagueLink, linkGame, formatClock,
     shortTeamName, parseResult, periodAt, periodLabel, penaltyOutcome, OUTCOME_LABELS, gameSummary, summaryResult, seasonStats, updateGoal, summaryNotes,
     SHEET_CODES, sheetInfraction, parseGameSheet, sheetSide, clockElapsed, sheetFacts, matchSheetGoals, sheetGoalAgrees, sheetGoalDetails, fillFromSheet, sheetOnlyPenalties, newSheetGame,
-    googleHelp, deviceConnection, joinLink, parseJoin
+    googleHelp, deviceConnection, joinLink, parseJoin,
+    SHOT_RESULTS, addShot, removeShot, shotLabel, startingGoalie, addGoalieChange, removeGoalieChange, goalieAt, goalieStints, shotStats, goalieDecision
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = WP;

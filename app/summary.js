@@ -189,6 +189,27 @@ App.ready.then(() => {
         el('tbody', {}, ...penRows))) : el('span', { class: 'small muted' }, 'No penalties marked.'),
       sum.penalties.some((p) => p.fromSheet) ? el('span', { class: 'small muted' }, 'Penalties “from game sheet” aren’t marked on the video. Mark them with X on Watch and tag if you want clips for them.') : '');
 
+    // shots and goalies (v2.6)
+    const sh = sum.shots;
+    const pct = (v) => (v == null ? '—' : (v * 100).toFixed(1) + '%');
+    const stint = (x) => x.stints.map((t) => (t.from > 0.5 ? WP.formatTime(t.from) : 'start') + '–' + (t.to == null ? 'end' : WP.formatTime(t.to))).join(', ');
+    const shotsCard = card({ 'aria-labelledby': 'gs-shots-h', id: 'gs-shots' },
+      el('div', { class: 'row spread', style: 'align-items:baseline' }, el('h2', { id: 'gs-shots-h' }, 'Shots'),
+        el('span', { class: 'small muted' }, sh.tracked ? 'Shots on goal include goals.' : 'Mark shots with S (ours) and D (theirs) on Watch and tag.')),
+      sh.tracked ? el('div', { class: 'tablewrap', style: 'border:0;background:none' }, el('table', { class: 'dtable', id: 'gs-shots-table', style: 'min-width:420px' },
+        el('thead', {}, el('tr', {}, el('th', {}, 'Shots on goal'), ...sh.byPeriod.map((p) => el('th', { class: 'num' }, p.n == null ? 'Other' : WP.periodLabel(p.n))), el('th', { class: 'num' }, 'Total'), el('th', { class: 'num' }, 'Missed'), el('th', { class: 'num' }, 'Blocked'))),
+        el('tbody', {},
+          el('tr', {}, el('td', {}, us), ...sh.byPeriod.map((p) => el('td', { class: 'num' }, String(p.for))), el('td', { class: 'num' }, el('strong', {}, String(sh.for.sog))), el('td', { class: 'num' }, String(sh.for.missed)), el('td', { class: 'num' }, String(sh.for.blocked))),
+          el('tr', {}, el('td', {}, them), ...sh.byPeriod.map((p) => el('td', { class: 'num' }, String(p.against))), el('td', { class: 'num' }, el('strong', {}, String(sh.against.sog))), el('td', { class: 'num' }, String(sh.against.missed)), el('td', { class: 'num' }, String(sh.against.blocked)))))) : '',
+      sh.tracked && sh.shooters.length ? el('div', { class: 'tablewrap', style: 'border:0;background:none' }, el('table', { class: 'dtable', id: 'gs-shooters', style: 'min-width:420px' },
+        el('thead', {}, el('tr', {}, el('th', {}, 'Player'), ...['SOG', 'G', 'Missed', 'Blocked', 'S%'].map((h) => el('th', { class: 'num' }, h)))),
+        el('tbody', {}, ...sh.shooters.map((x) => el('tr', {}, el('td', {}, pl(x.number)), el('td', { class: 'num' }, el('strong', {}, String(x.sog))), el('td', { class: 'num' }, String(x.g)), el('td', { class: 'num' }, String(x.missed)), el('td', { class: 'num' }, String(x.blocked)), el('td', { class: 'num' }, x.sog ? pct(x.g / x.sog) : '—')))))) : '',
+      sh.goalies.length ? el('div', { class: 'tablewrap', style: 'border:0;background:none' }, el('table', { class: 'dtable', id: 'gs-goalies', style: 'min-width:420px' },
+        el('thead', {}, el('tr', {}, el('th', {}, 'Goalie'), el('th', {}, 'In net'), ...['SA', 'GA', 'SV', 'SV%'].map((h) => el('th', { class: 'num' }, h)), el('th', {}, ''))),
+        el('tbody', {}, ...sh.goalies.map((x) => el('tr', {}, el('td', {}, pl(x.number)), el('td', { class: 'small' }, stint(x)),
+          el('td', { class: 'num' }, x.sa == null ? '—' : String(x.sa)), el('td', { class: 'num' }, String(x.ga)), el('td', { class: 'num' }, x.sv == null ? '—' : String(x.sv)), el('td', { class: 'num' }, pct(x.svPct)),
+          el('td', {}, sum.decision && sum.decision.number === x.number && sum.outcome ? el('span', { class: 'pill ' + (sum.outcome === 'W' ? 'good' : sum.outcome === 'L' ? 'bad' : 'work') }, sum.outcome) : '')))))) : el('span', { class: 'small muted' }, 'No goalie in the lineup: set a player’s position to G (Game details › Lineup) to track goalies.'));
+
     // clips
     const clips = g.clips.slice().sort((a, b) => a.start - b.start);
     const clipsCard = card({ 'aria-labelledby': 'gs-clips-h' },
@@ -212,7 +233,7 @@ App.ready.then(() => {
       ...(sum.points.length ? sum.points.map((p) => el('div', { class: 'ptsrow' }, el('span', {}, pl(p.number)),
         el('span', { class: 'muted' }, [p.g + ' G', p.a + ' A', p.pim ? p.pim + ' PIM' : '', p.ppg ? p.ppg + ' PPG' : ''].filter(Boolean).join(' · '))))
         : [el('span', { class: 'small muted' }, 'Nobody yet. Points come from the scorer and assists on each goal.')]),
-      sum.score && sum.goalies.length ? el('div', { class: 'ptsrow' }, el('span', {}, sum.goalies.map(pl).join(', ') + ' (G)'), el('span', { class: 'muted' }, sum.score.against + ' GA')) : '');
+      sum.score && sum.goalies.length && !sum.shots.goalies.length ? el('div', { class: 'ptsrow' }, el('span', {}, sum.goalies.map(pl).join(', ') + ' (G)'), el('span', { class: 'muted' }, sum.score.against + ' GA')) : '');
     const goalClips = sum.goals.filter((x) => x.clipId && g.clips.some((c) => c.id === x.clipId));
     const actCard = card({ class: 'card stack noprint', 'aria-label': 'Actions' },
       g.noVideo ? '' : el('button', { type: 'button', class: 'btn primary', id: 'gs-export-goals', disabled: goalClips.length ? null : '', onclick: () => App.exportGoalClips(g) }, 'Export all goal clips (' + goalClips.length + ')'),
@@ -220,7 +241,7 @@ App.ready.then(() => {
       el('button', { type: 'button', class: 'btn', onclick: () => window.print() }, 'Print or save as PDF'));
 
     $('gsum').replaceChildren(el('div', { class: 'sumgrid' },
-      el('div', { class: 'sum-main' }, scoreCard, sheetBar, goalsCard, pensCard, g.noVideo ? '' : clipsCard),
+      el('div', { class: 'sum-main' }, scoreCard, sheetBar, goalsCard, g.noVideo ? '' : shotsCard, pensCard, g.noVideo ? '' : clipsCard),
       el('div', { class: 'sum-side' }, notesCard, ptsCard, actCard)));
   }
 
@@ -284,19 +305,20 @@ App.ready.then(() => {
         el('div', { class: 'tile' }, el('span', { class: 'small muted' }, 'Games with a score'), el('strong', {}, String(r.games))),
         el('div', { class: 'tile' }, el('span', { class: 'small muted' }, 'Record'), el('strong', {}, r.w + '–' + r.l + '–' + r.t)),
         el('div', { class: 'tile' }, el('span', { class: 'small muted' }, 'Goals for / against'), el('strong', {}, r.gf + ' / ' + r.ga)),
-        el('div', { class: 'tile' }, el('span', { class: 'small muted' }, 'Our penalty minutes'), el('strong', {}, String(r.pim)))),
-      el('div', { class: 'tablewrap' }, el('table', { class: 'dtable', id: 'stats-skaters', style: 'min-width:720px' },
-        el('thead', {}, el('tr', {}, el('th', {}, 'Player'), ...['GP', 'G', 'A', 'PTS', 'PIM', 'PPG'].map((h) => el('th', { class: 'num' }, h)), el('th', {}, 'Clips'))),
+        el('div', { class: 'tile' }, el('span', { class: 'small muted' }, 'Our penalty minutes'), el('strong', {}, String(r.pim))),
+        r.shotGames ? el('div', { class: 'tile' }, el('span', { class: 'small muted' }, 'Shots on goal for / against (' + r.shotGames + (r.shotGames === 1 ? ' game' : ' games') + ')'), el('strong', {}, r.sf + ' / ' + r.sa)) : ''),
+      el('div', { class: 'tablewrap' }, el('table', { class: 'dtable', id: 'stats-skaters', style: 'min-width:820px' },
+        el('thead', {}, el('tr', {}, el('th', {}, 'Player'), ...['GP', 'G', 'A', 'PTS', 'PIM', 'PPG', 'SOG', 'S%'].map((h) => el('th', { class: 'num', title: h === 'SOG' ? 'Shots on goal (games with shots marked)' : h === 'S%' ? 'Shooting %: goals per shot on goal, in games with shots marked' : null }, h)), el('th', {}, 'Clips'))),
         el('tbody', {}, ...(skaters.length ? skaters.map((p) => el('tr', {},
           el('td', {}, el('strong', {}, '#' + p.number), p.name ? ' ' + p.name : ''),
-          num(p.gp), num(p.g), num(p.a), el('td', { class: 'num' }, el('strong', {}, String(p.pts))), num(p.pim), num(p.ppg),
+          num(p.gp), num(p.g), num(p.a), el('td', { class: 'num' }, el('strong', {}, String(p.pts))), num(p.pim), num(p.ppg), num(r.shotGames ? p.sog : '—'), num(p.shPct == null ? '—' : (p.shPct * 100).toFixed(1) + '%'),
           el('td', {}, p.clips ? el('button', { type: 'button', class: 'btn small', onclick: () => toReview(p.number), 'aria-label': p.clips + ' clips of #' + p.number + ' in Review' }, p.clips + (p.clips === 1 ? ' clip' : ' clips')) : el('span', { class: 'muted' }, '—'))))
-          : [el('tr', {}, el('td', { colspan: '8', class: 'empty' }, 'No players yet. Add your roster on the Team tab.'))])))),
-      goalies.length ? el('div', { class: 'tablewrap' }, el('table', { class: 'dtable', id: 'stats-goalies', style: 'min-width:520px' },
-        el('thead', {}, el('tr', {}, el('th', {}, 'Goalie'), ...['GP', 'GA', 'GAA', 'W', 'L', 'T'].map((h) => el('th', { class: 'num' }, h)))),
+          : [el('tr', {}, el('td', { colspan: '10', class: 'empty' }, 'No players yet. Add your roster on the Team tab.'))])))),
+      goalies.length ? el('div', { class: 'tablewrap' }, el('table', { class: 'dtable', id: 'stats-goalies', style: 'min-width:640px' },
+        el('thead', {}, el('tr', {}, el('th', {}, 'Goalie'), ...['GP', 'SA', 'GA', 'SV%', 'GA per game', 'W', 'L', 'T'].map((h) => el('th', { class: 'num' }, h)))),
         el('tbody', {}, ...goalies.map((p) => el('tr', {}, el('td', {}, el('strong', {}, '#' + p.number), p.name ? ' ' + p.name : ''),
-          num(p.gGp), num(p.ga), num(p.gGp ? (p.ga / p.gGp).toFixed(2) : '—'), num(p.gw), num(p.gl), num(p.gt)))))) : '',
-      el('span', { class: 'small muted' }, 'From your goal and penalty marks; the record also counts games with only a final score. A goalie is credited when the game’s lineup has exactly one goalie. Click a player’s clips to see them in Review.')));
+          num(p.gGp), num(p.saGames ? p.sa : '—'), num(p.ga), num(p.svPct == null ? '—' : p.svPct.toFixed(3).replace(/^0/, '')), num(p.gGp ? (p.ga / p.gGp).toFixed(2) : '—'), num(p.gw), num(p.gl), num(p.gt)))))) : '',
+      el('span', { class: 'small muted' }, 'From your goal, penalty and shot marks; the record also counts games with only a final score. Shots on goal include goals; SOG, S%, SA and SV% only count games with shots marked. Goalies get the shots and goals against while they were in net (the Goalie button on Watch and tag marks a change); the win or loss goes to the goalie in net for the goal that decided it. Click a player’s clips to see them in Review.')));
   }
 
   Object.assign(App, { renderSummaries, renderGameSummary, renderStats });

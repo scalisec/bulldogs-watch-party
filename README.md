@@ -89,6 +89,12 @@ In the clip editor, tick **Voice-over** and/or **Record at half speed**, then cl
 | Ctrl+Z | Undo last drawing |
 | Esc | Stop drawing |
 
+## Shots and goalies (v2.6)
+
+- **S** marks our shot and **D** theirs: On goal (default), Missed or Blocked (1 / 2 / 3 in the popup), and who shot (ours from the lineup; their number optional). Goals count as shots on goal on their own.
+- **Goalie** marks who's in our net from that moment (the starter is the lineup's goalie). Shots against, saves and goals against go to whoever was in net.
+- The scoreboard shows shots on goal so far. The game summary has shots by period, shooters and each goalie's SA / GA / SV%. Season stats add SOG, S%, SA and SV%.
+
 ## Watch-and-tag keys
 
 | Key | Action |
@@ -100,6 +106,8 @@ In the clip editor, tick **Voice-over** and/or **Record at half speed**, then cl
 | P | Period start / end |
 | G / H | Goal for / goal against: scorer and assists, and a goal clip tagged with them |
 | X | Penalty: call one (who, type, length), or mark a player back |
+| S / D | Shot for / shot against: on goal, missed or blocked, and who shot |
+| V | Video size: small / medium / large |
 | T | New clip with a custom tag you type (suggests tags you've used before) |
 | + / − / 0 | Zoom in / out / fit |
 | Esc | Cancel marks |
@@ -225,7 +233,8 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 
 ## Tests
 
-- `node --test tests/core.test.js` runs the core logic tests (93), including reading the audio track of a small generated MP4 (`tests/fixtures/media`).
+- `node --test tests/core.test.js` runs the core logic tests (95), including reading the audio track of a small generated MP4 (`tests/fixtures/media`).
+- `python3 tests/e2e_v26.py <screenshot-dir> <media-dir>` tests v2.6: S and D shots (result keys, shooter, their number), the scoreboard's shots, a goalie change partway through, Game details, clip events, the summary's shots, shooters and goalies (SA, GA, SV%, decision), Season stats (SOG, S%, SA, SV%) and the shortcuts list.
 - `python3 tests/e2e_v25.py <screenshot-dir>` tests v2.5 against the simulated Google Drive: the join link on Team › Coaches and Drive and access, Copy link, the link in Google's share email, opening it on a phone (Join button, kept after a reload), the picker opening inside the team folder, and opening it again or a broken link.
 - `python3 tests/e2e_v242.py <screenshot-dir>` tests v2.4.2 on a phone-sized screen: tapping a clip scrolls to the video and loads it without playing, Next does the same, a clip not in Drive says so, and Play all still plays.
 - `python3 tests/e2e_v241.py <screenshot-dir>` tests v2.4.1 on a phone-sized screen: the sign-in kept after closing the app, nothing opening without a tap after the hour, quiet one-tap reconnect from the Review tab, a Drive clip and the header, a refused pass, and Stop syncing forgetting it.

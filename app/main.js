@@ -86,6 +86,8 @@ App.ready.then(() => {
     else if (k === 'g' || k === 'G') { e.preventDefault(); markGoal('for'); } // either case, so Caps Lock can't flip it
     else if (k === 'h' || k === 'H') { e.preventDefault(); markGoal('against'); }
     else if (k === 'x' || k === 'X') { e.preventDefault(); openPenalty(); }
+    else if (k === 's' || k === 'S') { e.preventDefault(); App.openShot('for'); }
+    else if (k === 'd' || k === 'D') { e.preventDefault(); App.openShot('against'); }
     else if (k === 't' || k === 'T') { e.preventDefault(); openQuickTag(); }
     else if (k === 'v' || k === 'V') { e.preventDefault(); App.setVideoSize(); }
     else if (/^[1-9]$/.test(k)) {

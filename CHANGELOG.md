@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.6.0 — 2026-11-03 (shots and goalie changes)
+
+- **Shots on Watch and tag:** **S** for our shot, **D** for theirs (or the new **Shot** / **Shot against** buttons).
+  - The popup asks for the result, **On goal** (the default), **Missed** or **Blocked** (or press 1, 2 or 3), and who shot. Our shooter is picked from the lineup; their shooter's number is optional, like on goals. Enter saves, and the toast has Undo.
+  - **A goal counts as a shot on goal on its own.** Mark goals with G or H as before, never as a shot too.
+- **Goalie changes:** the **Goalie** button shows who's in our net (Goalie #30) and marks a change from that moment. The other goalie in the lineup is picked already.
+  - Before any change, the starting goalie is the lineup's goalie (position G). Mark a change at the very start to pick a different starter.
+  - Shots against, saves and goals against count for whoever was in net.
+- **The scoreboard** on the video shows shots on goal so far (Shots 12–8).
+- **Game details** lists each shot and goalie change, with ✕ to remove one. A clip over a shot is tagged Shot for / Shot against (and Save) automatically.
+- **Game summary › Shots:**
+  - shots on goal by period for both teams, with missed and blocked
+  - each player's shots on goal, goals, missed, blocked and shooting %
+  - each goalie's time in net, shots against, goals against, saves and save %, and who got the win or loss
+- **Season stats:**
+  - **SOG** and **S%** for each player
+  - **SA** and **SV%** for each goalie, with goals against per game
+  - a shots on goal for / against tile
+  - Shots count only in games where shots were marked.
+  - Goalies who split a game each get credit for their part. The win or loss goes to the goalie in net for the goal that decided it.
+- The game sheet isn't used for shots.
+- The shortcut hints in the Game events bar now sit on their own line under the buttons.
+- Storage: a shot is about 60 bytes, so a full season of shots is under 100 KB.
+
 ## 2.5.0 — 2026-11-03 (join link: no browsing in Google's picker)
 
 - **A join link for coaches**, in **Team › Coaches** and **Team › Drive and access**, with **Copy link** (and **Share…** on a phone). Send it to a coach, or to your own phone.

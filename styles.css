@@ -427,10 +427,10 @@ body.wide-game #view-tag .cliplist { max-height: calc(100vh - 230px); }
 .linkbtn { background: none; border: 0; padding: 0; color: var(--accent-text); font: inherit; cursor: pointer; }
 .linkbtn:hover { text-decoration: underline; }
 @media (max-width: 900px) { .keyhints { display: none; } }
-#gstatus .evrow { flex-wrap: nowrap; align-items: center; }
+#gstatus .evrow { flex-wrap: wrap; align-items: center; }
 #gstatus .evrow > .btn, #gstatus .evrow > .small { flex: none; }
-#gstatus .keyhints { flex: 1 1 0; }
-@media (max-width: 1400px) { .keyhints .kh-opt { display: none; } }
+#gstatus .keyhints { flex: 1 1 100%; order: 99; margin: 2px 0 0; }
+@media (max-width: 1200px) { .keyhints .kh-opt { display: none; } }
 @media (max-width: 900px) { #gstatus .evrow { flex-wrap: wrap; } }
 
 /* v2.2.0: performance log */
@@ -455,3 +455,7 @@ body.wide-game #view-tag .cliplist { max-height: calc(100vh - 230px); }
 #rv-connect .connect { max-width: 820px; }
 .rvstage .rvgo { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
 #rv-player-card { scroll-margin-top: 8px; }
+/* v2.6: shots and goalie changes */
+.mark.shot.for { background: rgba(59,130,246,.16); color: #93C5FD; } .mark.shot.against { background: rgba(139,92,246,.16); color: #C4B5FD; }
+.mark.gk { background: var(--surface-2); color: var(--ink); }
+.scoreboard .sb-sog { font-family: Inter, system-ui, sans-serif; font-size: 12px; background: rgba(15,23,42,.7); }

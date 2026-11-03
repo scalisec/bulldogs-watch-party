@@ -312,9 +312,11 @@ App.ready.then(() => {
     const st = WP.strengthAt(App.G, t);
     const box = WP.unendedPenalties(App.G, t);
     const m = WP.gameMarks(App.G);
-    const key = [m.periods.length, m.goals.length, m.penalties.length, a.period, a.score.for, a.score.against, st.us, st.them, ...box.map((x) => x.p.id + (x.over ? '!' : '') + Math.round(x.left / 5))].join('|');
+    const key = [m.periods.length, m.goals.length, m.penalties.length, m.shots.length, m.shots.filter((x) => x.t <= t + 0.01).length, m.goalies.length, WP.goalieAt(App.G, S.settings.roster, t), a.period, a.score.for, a.score.against, st.us, st.them, ...box.map((x) => x.p.id + (x.over ? '!' : '') + Math.round(x.left / 5))].join('|');
     if (!force && key === gsKey) return;
     gsKey = key;
+    const gk = WP.goalieAt(App.G, S.settings.roster, t);
+    $('b-goalie').textContent = gk ? 'Goalie #' + gk : 'Goalie';
     renderScoreboard(a, st, m);
     $('gs-box').replaceChildren(...box.map((x) => el('li', { class: 'gs-pen ' + x.p.team + (x.over ? ' over' : '') },
       el('span', { class: 'grow' }, el('strong', {}, x.p.team === 'us' ? 'Us ' : 'Them '), WP.penaltyLabel(x.p).replace(/^(Us|Them) ?(· )?/, '')),
@@ -326,7 +328,7 @@ App.ready.then(() => {
   /** The scoreboard on the video: us, period, them, and a power play or penalty kill. */
   function renderScoreboard(a, st, m) {
     const sb = $('sb');
-    const any = m.goals.length || m.periods.length || m.penalties.length;
+    const any = m.goals.length || m.periods.length || m.penalties.length || m.shots.length;
     sb.classList.toggle('hidden', !any);
     if (!any) return;
     const us = WP.shortTeamName(S.settings.team.name) || 'Us';
@@ -337,6 +339,11 @@ App.ready.then(() => {
       per ? el('span', { class: 'sb-per' }, per) : el('span', { class: 'sb-per' }, '–'),
       el('span', { class: 'sb-them' }, el('span', { class: 'sb-n' }, String(a.score.against)), el('span', { class: 'sb-name' }, them))
     ];
+    if (m.shots.length) {
+      const t = App.player ? App.player.time() : 0;
+      const sog = (sd) => m.shots.filter((x) => x.side === sd && x.result === 'on' && x.t <= t + 0.01).length + m.goals.filter((g) => g.side === sd && g.t <= t + 0.01).length;
+      kids.push(el('span', { class: 'sb-sog', title: 'Shots on goal so far' }, 'Shots ' + sog('for') + '–' + sog('against')));
+    }
     if (st.situation !== 'even' || st.us < 5) kids.push(el('span', { class: 'sb-str ' + st.situation }, (st.situation === 'pp' ? 'Power play ' : st.situation === 'pk' ? 'Penalty kill ' : 'Even ') + st.us + ' on ' + st.them));
     sb.replaceChildren(...kids);
     sb.setAttribute('aria-label', us + ' ' + a.score.for + ', ' + them + ' ' + a.score.against + (per && per !== '–' ? ', ' + per + ' period' : '') + (st.situation === 'pp' ? ', power play' : st.situation === 'pk' ? ', penalty kill' : ''));
@@ -628,7 +635,17 @@ App.ready.then(() => {
         el('button', { type: 'button', style: 'width:auto;padding:0 4px;background:none', title: 'Go to this penalty', onclick: () => watchAt(App.G.id, p.t - 3) }, WP.penaltyLabel(p) + ' · ' + WP.formatTime(p.t) + ' (' + endText + ')'),
         el('button', { type: 'button', 'aria-label': 'Delete penalty ' + WP.penaltyLabel(p), onclick: () => { App.G.marks = WP.removePenalty(App.G, p.id); marksChanged(); } }, '✕')));
     }
-    $('marks-list').replaceChildren(...(items.length ? items : [el('span', { class: 'small muted' }, 'No periods, goals or penalties marked yet.')]));
+    for (const c of m.goalies) {
+      items.push(el('span', { class: 'mark gk' },
+        el('button', { type: 'button', style: 'width:auto;padding:0 4px;background:none', title: 'Go to this goalie change', onclick: () => watchAt(App.G.id, c.t - 3) }, 'Goalie #' + c.number + ' in · ' + WP.formatTime(c.t)),
+        el('button', { type: 'button', 'aria-label': 'Delete goalie change at ' + WP.formatTime(c.t), onclick: () => { App.G.marks = WP.removeGoalieChange(App.G, c.id); marksChanged(); } }, '✕')));
+    }
+    for (const x of m.shots) {
+      items.push(el('span', { class: 'mark shot ' + x.side },
+        el('button', { type: 'button', style: 'width:auto;padding:0 4px;background:none', title: 'Go to this shot', onclick: () => watchAt(App.G.id, x.t - 3) }, WP.shotLabel(x) + ' · ' + WP.formatTime(x.t)),
+        el('button', { type: 'button', 'aria-label': 'Delete ' + WP.shotLabel(x) + ' at ' + WP.formatTime(x.t), onclick: () => { App.G.marks = WP.removeShot(App.G, x.id); marksChanged(); } }, '✕')));
+    }
+    $('marks-list').replaceChildren(...(items.length ? items : [el('span', { class: 'small muted' }, 'No periods, goals, penalties or shots marked yet.')]));
     selectOpts($('t-gtype'), WP.GAME_TYPES, App.G.gameType, 'Not set');
     selectOpts($('t-gha'), WP.HOME_AWAY, App.G.homeAway, 'Not set');
   }
@@ -775,6 +792,96 @@ App.ready.then(() => {
   $('gl-cancel').addEventListener('click', closeGoal);
   $('dlg-goal').addEventListener('cancel', (e) => { e.preventDefault(); closeGoal(); });
 
+  // ---- shots (S / D): result, and who shot (ours; theirs optional) ----
+  const SH = { side: 'for', t: 0, wasPlaying: false, result: 'on', shooter: '' };
+  function openShot(side) {
+    if (!App.player) return;
+    SH.side = side === 'against' ? 'against' : 'for';
+    SH.t = App.player.time();
+    SH.wasPlaying = App.player.isPlaying();
+    if (SH.wasPlaying) App.player.pause();
+    SH.result = 'on'; SH.shooter = '';
+    $('sh-num').value = '';
+    $('sh-h').textContent = SH.side === 'for' ? 'Shot for' : 'Shot against';
+    const gk = WP.goalieAt(App.G, S.settings.roster, SH.t);
+    $('sh-at').textContent = 'At ' + WP.formatTime(SH.t) + (SH.side === 'against' && gk ? ' · #' + gk + ' in net' : '');
+    renderShotForm();
+    $('dlg-shot').showModal();
+    if (SH.side === 'against') $('sh-num').focus(); else $('sh-ok').focus();
+  }
+  function renderShotForm() {
+    for (const b of $('sh-result').children) b.setAttribute('aria-pressed', String(b.dataset.res === SH.result));
+    $('sh-ours').hidden = SH.side !== 'for';
+    $('sh-theirs').hidden = SH.side !== 'against';
+    const rows = WP.gameLineup(App.G, S.settings.roster).filter((r) => !r.away && r.pos !== 'G');
+    $('sh-players').replaceChildren(...(rows.length ? rows.map((r) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(SH.shooter === r.number), onclick: () => { SH.shooter = SH.shooter === r.number ? '' : r.number; renderShotForm(); } }, '#' + r.number + (r.name ? ' ' + r.name : '')))
+      : [el('span', { class: 'small muted' }, 'Add a lineup (or roster) to pick the shooter.')]));
+  }
+  function closeShot() {
+    if ($('dlg-shot').open) $('dlg-shot').close();
+    if (SH.wasPlaying && App.player) App.player.resume();
+    SH.wasPlaying = false;
+  }
+  function saveShot() {
+    const shooter = SH.side === 'for' ? SH.shooter : $('sh-num').value;
+    const r = WP.addShot(App.G, SH.t, SH.side, { result: SH.result, shooter });
+    App.G.marks = r.marks;
+    marksChanged();
+    closeShot();
+    const st = WP.shotStats(App.G, S.settings.roster);
+    toast(WP.shotLabel(r.shot) + ' at ' + WP.formatTime(r.shot.t) + ' — shots on goal ' + st.for.sog + '–' + st.against.sog, { action: { label: 'Undo', fn: () => { App.G.marks = WP.removeShot(App.G, r.shot.id); marksChanged(); } } });
+  }
+  $('sh-result').addEventListener('click', (e) => { const b = e.target.closest('button[data-res]'); if (b) { SH.result = b.dataset.res; renderShotForm(); } });
+  $('sh-form').addEventListener('submit', (e) => { e.preventDefault(); saveShot(); });
+  $('sh-cancel').addEventListener('click', closeShot);
+  $('dlg-shot').addEventListener('cancel', (e) => { e.preventDefault(); closeShot(); });
+  // on the document: tapping a player redraws the list, which can move focus out of the popup
+  document.addEventListener('keydown', (e) => {
+    if (!$('dlg-shot').open || e.target.tagName === 'INPUT' || e.isComposing) return;
+    const res = { 1: 'on', 2: 'missed', 3: 'blocked' }[e.key];
+    if (res) { e.preventDefault(); SH.result = res; renderShotForm(); }
+    else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveShot(); }
+  });
+  $('sh-num').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveShot(); } });
+
+  // ---- goalie change: who's in our net from now on ----
+  const GK = { t: 0, wasPlaying: false, number: '' };
+  function openGoalie() {
+    if (!App.player) return;
+    GK.t = App.player.time();
+    GK.wasPlaying = App.player.isPlaying();
+    if (GK.wasPlaying) App.player.pause();
+    const now = WP.goalieAt(App.G, S.settings.roster, GK.t);
+    const rows = WP.gameLineup(App.G, S.settings.roster).filter((r) => !r.away);
+    const others = rows.filter((r) => r.pos === 'G' && r.number !== now);
+    GK.number = others.length === 1 ? others[0].number : '';
+    $('gk-at').textContent = 'At ' + WP.formatTime(GK.t) + (now ? ' · #' + now + ' in net until now' : '');
+    renderGoalieForm();
+    $('dlg-goalie').showModal();
+    $('gk-ok').focus();
+  }
+  function renderGoalieForm() {
+    const rows = WP.gameLineup(App.G, S.settings.roster).filter((r) => !r.away).sort((a, b) => (a.pos === 'G' ? 0 : 1) - (b.pos === 'G' ? 0 : 1));
+    $('gk-players').replaceChildren(...rows.map((r) => el('button', { type: 'button', class: 'chip', 'aria-pressed': String(GK.number === r.number), onclick: () => { GK.number = r.number; renderGoalieForm(); } }, '#' + r.number + (r.name ? ' ' + r.name : '') + (r.pos === 'G' ? ' (G)' : ''))));
+  }
+  function closeGoalie() {
+    if ($('dlg-goalie').open) $('dlg-goalie').close();
+    if (GK.wasPlaying && App.player) App.player.resume();
+    GK.wasPlaying = false;
+  }
+  function saveGoalie() {
+    try {
+      const r = WP.addGoalieChange(App.G, GK.t, GK.number);
+      App.G.marks = r.marks;
+      marksChanged();
+      closeGoalie();
+      toast('Goalie #' + r.change.number + ' in net from ' + WP.formatTime(r.change.t), { action: { label: 'Undo', fn: () => { App.G.marks = WP.removeGoalieChange(App.G, r.change.id); marksChanged(); } } });
+    } catch (e) { toast(e.message, { err: true }); }
+  }
+  $('gk-form').addEventListener('submit', (e) => { e.preventDefault(); saveGoalie(); });
+  $('gk-cancel').addEventListener('click', closeGoalie);
+  $('dlg-goalie').addEventListener('cancel', (e) => { e.preventDefault(); closeGoalie(); });
+
   // ---- custom tag (T): a new clip at this moment with a tag you type ----
   const QT = { t: 0, wasPlaying: false, catId: null, range: null };
   function openQuickTag() {
@@ -885,6 +992,9 @@ App.ready.then(() => {
 
   $('b-period').addEventListener('click', markPeriod);
   $('b-goal-for').addEventListener('click', () => markGoal('for'));
+  $('b-shot-for').addEventListener('click', () => openShot('for'));
+  $('b-shot-against').addEventListener('click', () => openShot('against'));
+  $('b-goalie').addEventListener('click', openGoalie);
   $('b-goal-against').addEventListener('click', () => markGoal('against'));
   $('t-gtype').addEventListener('change', (e) => { App.G.gameType = e.target.value; save(); renderTagView(); });
   $('t-gha').addEventListener('change', (e) => { App.G.homeAway = e.target.value; save(); renderTagView(); });
@@ -921,7 +1031,7 @@ App.ready.then(() => {
   }
   Object.assign(App, {
     renderTagLineup,
-    applyZoom, userZoom, autoLine, cancelMarks, evBadges, markGoal, markIn, markOut, markPeriod, onCategory, openPenalty, openQuickTag,
+    applyZoom, userZoom, autoLine, cancelMarks, evBadges, markGoal, openShot, openGoalie, markIn, markOut, markPeriod, onCategory, openPenalty, openQuickTag,
     openGame, selectGame, watchAt, setVideoSize, renderDetails, editGoal, renderTagView, removeClip, renderClips, renderTags, sameJ, selectOpts, zoomLabel
   });
 }).catch((e) => setTimeout(() => { throw e; }));

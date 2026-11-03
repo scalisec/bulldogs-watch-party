@@ -16,7 +16,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=2.5.0">
+<link rel="stylesheet" href="styles.css?v=2.6.0">
 </head>
 <body>
 <header class="topbar">
@@ -162,6 +162,7 @@
             <span><kbd>I</kbd> <kbd>O</kbd> start / end</span>
             <span><kbd>1</kbd>–<kbd>9</kbd> category clip</span>
             <span><kbd>T</kbd> custom tag</span>
+            <span><kbd>S</kbd> <kbd>D</kbd> shot for / against</span>
             <span class="kh-opt"><kbd>+</kbd><kbd>−</kbd> <kbd>0</kbd> zoom / fit</span>
             <span><kbd>V</kbd> video size</span>
             <button type="button" class="linkbtn" id="key-hints-all" title="All keyboard shortcuts (?)"><kbd>?</kbd> all</button>
@@ -170,6 +171,9 @@
           <button type="button" class="btn small" id="b-goal-for" title="Goal for (G)" style="color:#86EFAC">Goal for <kbd>G</kbd></button>
           <button type="button" class="btn small" id="b-goal-against" title="Goal against (H)" style="color:#FCA5A5">Goal against <kbd>H</kbd></button>
           <button type="button" class="btn small" id="b-penalty" title="Penalty: call one, or mark a player back (X)" style="color:#FCD34D">Penalty <kbd>X</kbd></button>
+          <button type="button" class="btn small" id="b-shot-for" title="Shot for: on goal, missed or blocked (S)" style="color:#93C5FD">Shot <kbd>S</kbd></button>
+          <button type="button" class="btn small" id="b-shot-against" title="Shot against (D)" style="color:#C4B5FD">Shot against <kbd>D</kbd></button>
+          <button type="button" class="btn small" id="b-goalie" title="Goalie change: who’s in our net from now on">Goalie</button>
         </div>
         <ul class="gs-box" id="gs-box" aria-label="Penalty box" hidden></ul>
       </div>
@@ -572,6 +576,39 @@
   </form>
 </dialog>
 
+<dialog id="dlg-shot" aria-labelledby="sh-h">
+  <form class="dlg" id="sh-form">
+    <div class="stack" style="gap:2px"><h2 id="sh-h">Shot</h2><span class="small muted" id="sh-at"></span></div>
+    <div class="stack" style="gap:6px">
+      <span style="font-weight:600;font-size:13px">Result</span>
+      <div class="seg" role="group" aria-label="Result" id="sh-result">
+        <button type="button" class="btn small" data-res="on">On goal <kbd>1</kbd></button>
+        <button type="button" class="btn small" data-res="missed">Missed <kbd>2</kbd></button>
+        <button type="button" class="btn small" data-res="blocked">Blocked <kbd>3</kbd></button>
+      </div>
+    </div>
+    <div class="stack" id="sh-ours" style="gap:6px"><span style="font-weight:600;font-size:13px">Who shot</span><div class="chips" id="sh-players"></div></div>
+    <label class="field" id="sh-theirs" style="max-width:220px">Their shooter # <span class="small muted">(optional)</span><input type="text" id="sh-num" inputmode="numeric" maxlength="2" autocomplete="off"></label>
+    <span class="small muted" id="sh-note">A goal counts as a shot on goal on its own: mark goals with G or H, not here.</span>
+    <div class="row" style="justify-content:flex-end">
+      <button type="button" class="btn" id="sh-cancel">Cancel</button>
+      <button type="submit" class="btn primary" id="sh-ok">Save shot</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-goalie" aria-labelledby="gk-h">
+  <form class="dlg" id="gk-form">
+    <div class="stack" style="gap:2px"><h2 id="gk-h">Goalie change</h2><span class="small muted" id="gk-at"></span></div>
+    <div class="stack" style="gap:6px"><span style="font-weight:600;font-size:13px">In our net from now on</span><div class="chips" id="gk-players"></div></div>
+    <span class="small muted">Shots against, saves and goals against count for whoever is in net. Before any change, the starting goalie is the lineup’s goalie (position G). Mark a change at the very start to pick a different starter.</span>
+    <div class="row" style="justify-content:flex-end">
+      <button type="button" class="btn" id="gk-cancel">Cancel</button>
+      <button type="submit" class="btn primary" id="gk-ok">Save change</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="dlg-qtag" aria-labelledby="qt-h">
   <form class="dlg" id="qt-form">
     <div class="stack" style="gap:2px"><h2 id="qt-h">New clip with a tag</h2><span class="small muted" id="qt-at"></span></div>
@@ -667,31 +704,31 @@
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
-<script src="config.js?v=2.5.0"></script>
-<script src="core.js?v=2.5.0"></script>
-<script src="storage.js?v=2.5.0"></script>
-<script src="vendor/mp4-muxer.js?v=2.5.0"></script>
-<script src="render.js?v=2.5.0"></script>
-<script src="audio.js?v=2.5.0"></script>
-<script src="drive.js?v=2.5.0"></script>
-<script src="app/base.js?v=2.5.0"></script>
-<script src="app/diag.js?v=2.5.0"></script>
-<script src="app/player.js?v=2.5.0"></script>
-<script src="app/lineup.js?v=2.5.0"></script>
-<script src="app/league.js?v=2.5.0"></script>
-<script src="app/games.js?v=2.5.0"></script>
-<script src="app/tag.js?v=2.5.0"></script>
-<script src="app/editor.js?v=2.5.0"></script>
-<script src="app/record.js?v=2.5.0"></script>
-<script src="app/export.js?v=2.5.0"></script>
-<script src="app/settings.js?v=2.5.0"></script>
-<script src="app/team.js?v=2.5.0"></script>
-<script src="app/team-sync.js?v=2.5.0"></script>
-<script src="app/library.js?v=2.5.0"></script>
-<script src="app/review.js?v=2.5.0"></script>
-<script src="app/summary.js?v=2.5.0"></script>
-<script src="app/gamesheet.js?v=2.5.0"></script>
-<script src="app/teams.js?v=2.5.0"></script>
-<script src="app/main.js?v=2.5.0"></script>
+<script src="config.js?v=2.6.0"></script>
+<script src="core.js?v=2.6.0"></script>
+<script src="storage.js?v=2.6.0"></script>
+<script src="vendor/mp4-muxer.js?v=2.6.0"></script>
+<script src="render.js?v=2.6.0"></script>
+<script src="audio.js?v=2.6.0"></script>
+<script src="drive.js?v=2.6.0"></script>
+<script src="app/base.js?v=2.6.0"></script>
+<script src="app/diag.js?v=2.6.0"></script>
+<script src="app/player.js?v=2.6.0"></script>
+<script src="app/lineup.js?v=2.6.0"></script>
+<script src="app/league.js?v=2.6.0"></script>
+<script src="app/games.js?v=2.6.0"></script>
+<script src="app/tag.js?v=2.6.0"></script>
+<script src="app/editor.js?v=2.6.0"></script>
+<script src="app/record.js?v=2.6.0"></script>
+<script src="app/export.js?v=2.6.0"></script>
+<script src="app/settings.js?v=2.6.0"></script>
+<script src="app/team.js?v=2.6.0"></script>
+<script src="app/team-sync.js?v=2.6.0"></script>
+<script src="app/library.js?v=2.6.0"></script>
+<script src="app/review.js?v=2.6.0"></script>
+<script src="app/summary.js?v=2.6.0"></script>
+<script src="app/gamesheet.js?v=2.6.0"></script>
+<script src="app/teams.js?v=2.6.0"></script>
+<script src="app/main.js?v=2.6.0"></script>
 </body>
 </html>
