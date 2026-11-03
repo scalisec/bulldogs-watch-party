@@ -1319,3 +1319,9 @@ test('v2.4.0 deviceConnection: one line for where this device stands, and the ne
   assert.equal(ok.text, 'This device: connected as coach@x.com · 12 team clips');
   assert.match(d({ clips: 1 }).text, /1 team clip$/);
 });
+
+test('v2.4.1 deviceConnection: a device that signed in before reconnects in one tap', () => {
+  const d = WP.deviceConnection({ configured: true, web: true, signedIn: false, quick: true, account: 'coach@x.com', team: true, library: true });
+  assert.deepEqual([d.state, d.action, d.button], ['signed-out', 'signin', 'Reconnect']);
+  assert.match(d.text, /coach@x\.com.*one tap reconnects, no typing/);
+});

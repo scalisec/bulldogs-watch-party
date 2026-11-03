@@ -227,6 +227,8 @@ App.ready.then(() => {
     const msg = (text, ...kids) => stage.replaceChildren(el('div', { class: 'msg' }, el('span', {}, text), ...kids));
     msg('Loading…');
     const file = (e.drive || [])[0];
+    if (file && !WPDrive.hasToken() && App.reconnect) await App.reconnect(); // tapped a Drive clip after the hour: reconnect, then play
+    if (R.token !== token) return;
     if (file && WPDrive.hasToken()) {
       try {
         const blob = await driveBlob(file.fileId);

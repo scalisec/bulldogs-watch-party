@@ -8,6 +8,7 @@
   const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
   const FOLDER = 'application/vnd.google-apps.folder';
   const TOKEN_KEY = 'bwp-google-token';
+  const OK_KEY = 'bwp-google-ok'; // this device has signed in before (Drive access already allowed): later sign-ins are quick
 
   let token = null;
   let tokenExp = 0;
@@ -31,11 +32,15 @@
     return scripts[src];
   }
 
+  // The sign-in is kept when the app closes (v2.4.1), so reopening within the hour needs no sign-in.
+  // It is a one-hour Google pass for this app's own files only (drive.file), never the Google password.
   function restoreToken() {
-    try {
-      const t = JSON.parse(sessionStorage.getItem(TOKEN_KEY) || 'null');
-      if (t && t.exp > Date.now() + 60000) { token = t.token; tokenExp = t.exp; }
-    } catch (e) { /* private mode etc. */ }
+    for (const store of [() => localStorage, () => sessionStorage]) {
+      try {
+        const t = JSON.parse(store().getItem(TOKEN_KEY) || 'null');
+        if (t && t.exp > Date.now() + 60000) { token = t.token; tokenExp = t.exp; return; }
+      } catch (e) { /* private mode etc. */ }
+    }
   }
   restoreToken();
 
@@ -51,8 +56,18 @@
   /** Seconds until the Google sign-in runs out (0 when signed out). Sign-ins last about an hour. */
   function expiresIn() { return token ? Math.max(0, Math.round((tokenExp - Date.now()) / 1000)) : 0; }
 
-  /** Ask Google for an access token. Must be called from a click (it may open a pop-up). */
+  /** This device signed in before and Drive access was allowed: the next sign-in skips Google's account chooser. */
+  function remembered() { try { return !!localStorage.getItem(OK_KEY); } catch (e) { return false; } }
+  /** Load Google's sign-in script ahead of time, so a quick reconnect opens its window straight from the tap. */
+  function preload() { if (configured() && webOrigin()) loadScript('https://accounts.google.com/gsi/client').catch(() => {}); }
+
+  /**
+   * Ask Google for an access token. Must be called from a click (it may open a pop-up).
+   * quiet: true = no account chooser or consent screen (just a quick window that closes itself); left out = quiet when
+   * this device has signed in before.
+   */
   async function signIn(hint, quiet) {
+    if (quiet === undefined) quiet = remembered();
     if (!configured()) throw new Error('Google sign-in isn’t set up yet');
     if (!webOrigin()) throw new Error('Google sign-in only works on the web version of the app');
     await loadScript('https://accounts.google.com/gsi/client');
@@ -64,7 +79,7 @@
           if (r.error) { reject(gErr(undefined, r.error + (r.error_description ? ': ' + r.error_description : ''))); return; }
           token = r.access_token;
           tokenExp = Date.now() + (Number(r.expires_in) || 3600) * 1000;
-          try { sessionStorage.setItem(TOKEN_KEY, JSON.stringify({ token, exp: tokenExp })); } catch (e) { /* ignore */ }
+          try { localStorage.setItem(TOKEN_KEY, JSON.stringify({ token, exp: tokenExp })); localStorage.setItem(OK_KEY, '1'); } catch (e) { /* ignore */ }
           resolve(token);
         },
         error_callback: (e) => reject(gErr(undefined, (e && e.message) || 'Google sign-in failed', e && e.type))
@@ -75,12 +90,20 @@
     });
   }
 
+  /** Google turned the pass down (ran out early or was taken back): drop it, but keep "signed in before". */
+  function forget() {
+    token = null; tokenExp = 0;
+    try { localStorage.removeItem(TOKEN_KEY); sessionStorage.removeItem(TOKEN_KEY); } catch (e) { /* ignore */ }
+  }
+
   function signOut() {
     if (token && root.google && root.google.accounts && root.google.accounts.oauth2) {
       try { root.google.accounts.oauth2.revoke(token, () => {}); } catch (e) { /* ignore */ }
     }
     token = null; tokenExp = 0;
-    try { sessionStorage.removeItem(TOKEN_KEY); } catch (e) { /* ignore */ }
+    for (const store of [() => localStorage, () => sessionStorage]) {
+      try { store().removeItem(TOKEN_KEY); store().removeItem(OK_KEY); } catch (e) { /* ignore */ }
+    }
   }
 
   async function call(method, url, body, headers, as) {
@@ -91,7 +114,7 @@
     } catch (e) {
       throw gErr(0, 'No connection to Google Drive');
     }
-    if (res.status === 401) { token = null; tokenExp = 0; throw gErr(401, 'Signed out of Google'); }
+    if (res.status === 401) { forget(); throw gErr(401, 'Signed out of Google'); }
     if (!res.ok) {
       let msg = 'Google Drive error ' + res.status;
       try { const j = await res.json(); if (j.error && j.error.message) msg = j.error.message; } catch (e) { /* ignore */ }
@@ -149,7 +172,7 @@
       if (onProgress && x.upload) x.upload.onprogress = (ev) => { if (ev.lengthComputable) onProgress(ev.loaded / ev.total); };
       x.onerror = () => reject(gErr(0, 'No connection to Google Drive'));
       x.onload = () => {
-        if (x.status === 401) { token = null; tokenExp = 0; reject(gErr(401, 'Signed out of Google')); return; }
+        if (x.status === 401) { forget(); reject(gErr(401, 'Signed out of Google')); return; }
         if (x.status < 200 || x.status >= 300) {
           let msg = 'Google Drive error ' + x.status;
           try { const j = JSON.parse(x.responseText); if (j.error && j.error.message) msg = j.error.message; } catch (e) { /* ignore */ }
@@ -246,5 +269,5 @@
     });
   }
 
-  root.WPDrive = { SCOPE, FOLDER, configured, webOrigin, hasToken, expiresIn, signIn, signOut, whoAmI, createFolder, createFile, getMeta, readText, updateText, share, pickFile, findByName, uploadBlob, copyFile, downloadBlob, trash, syncJson };
+  root.WPDrive = { SCOPE, FOLDER, configured, webOrigin, hasToken, expiresIn, remembered, preload, signIn, signOut, whoAmI, createFolder, createFile, getMeta, readText, updateText, share, pickFile, findByName, uploadBlob, copyFile, downloadBlob, trash, syncJson };
 })(window);

@@ -139,6 +139,7 @@ The roster, categories, coaches, opponents, rinks, and team name and season are 
   - Review and Settings show where the device stands: not connected, connected as an account (with the number of team clips), signed out, a sync problem, or the clip library not open yet. The header says "This device: not connected" until it is.
   - Each state has one button for the next step. A Google sign-in lasts about an hour; signed out, the clip list stays and **Sign in with Google** plays Drive clips again.
   - Google errors are shown in plain words with the fix (blocked sign-in window, API key restriction, access denied, not shared, offline, Drive full).
+  - **Staying signed in (v2.4.1):** the one-hour Google sign-in is kept when the app closes. After the hour, one tap reconnects without the account chooser: going to Review, Settings or Team, tapping a Drive clip, or tapping **Tap to reconnect to Google**. Stop syncing on this device forgets it.
   - Only exported clips (saved to Drive) play on other devices. Marks, summaries and clips not yet exported stay on the computer with the video.
 
 Each coach's own name (shown on their clips) stays on their device.
@@ -222,7 +223,8 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 
 ## Tests
 
-- `node --test tests/core.test.js` runs the core logic tests (91), including reading the audio track of a small generated MP4 (`tests/fixtures/media`).
+- `node --test tests/core.test.js` runs the core logic tests (92), including reading the audio track of a small generated MP4 (`tests/fixtures/media`).
+- `python3 tests/e2e_v241.py <screenshot-dir>` tests v2.4.1 on a phone-sized screen: the sign-in kept after closing the app, nothing opening without a tap after the hour, quiet one-tap reconnect from the Review tab, a Drive clip and the header, a refused pass, and Stop syncing forgetting it.
 - `python3 tests/e2e_v24.py <screenshot-dir>` tests v2.4 on a phone-sized screen against the simulated Google Drive: the not-connected status and Connect this device in Review, the picker closing with nothing selected, connecting in one tap, the status line, playing a Drive clip, signing back in after the hour, plain-language errors (not found, blocked sign-in window), and a second device on the same account connecting without the picker.
 - `python3 tests/e2e_v21.py <screenshot-dir> <media-dir>` tests v2.1: reading a name-free test game sheet PDF with the bundled pdf.js, a summary-only game from it, season stats from the sheet, the sheet on New game, marks filled in from the sheet, Differs / Use game sheet, adding video to a summary-only game, and Remove.
 - `python3 tests/e2e_v22.py <screenshot-dir> <media-dir>` tests v2.2: the performance log catches the app being busy and the video picture getting stuck (and tells them apart), F8, the Troubleshooting summary, Download log, keeping it across a reload, and Clear log.
@@ -243,7 +245,7 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 - `python3 tests/e2e_drive.py <screenshot-dir>` tests shared team data with two coaches against a simulated Google Drive (23 checks).
 - `python3 tests/e2e.py <screenshot-dir> <media-dir>` runs the browser test (75 checks). It covers tagging, zoom, the editor, drawing, slow motion, preview, MP4 export, and recording a breakdown with a simulated microphone.
 
-GitHub runs the core tests, `e2e_drive.py`, `e2e_v07.py`, `e2e_v12.py`, `e2e_v202.py` and `e2e_v24.py` on every push (`.github/workflows/tests.yml`). The two tests that need game video run locally only, so team footage never goes on GitHub.
+GitHub runs the core tests, `e2e_drive.py`, `e2e_v07.py`, `e2e_v12.py`, `e2e_v202.py`, `e2e_v24.py` and `e2e_v241.py` on every push (`.github/workflows/tests.yml`). The two tests that need game video run locally only, so team footage never goes on GitHub.
 
 ## How the code is organised
 

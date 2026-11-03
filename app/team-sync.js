@@ -30,7 +30,8 @@ App.ready.then(() => {
       return;
     }
     if (Team.busy) { b.textContent = 'Syncing team data…'; b.className = 'syncbadge'; return; }
-    if (!WPDrive.hasToken() && WPDrive.configured() && WPDrive.webOrigin()) { b.textContent = 'Signed out of Google \u2014 tap to sign in'; b.className = 'syncbadge warn clickable'; return; }
+    if (Team.reconnecting) { b.textContent = 'Reconnecting to Google\u2026'; b.className = 'syncbadge'; return; }
+    if (!WPDrive.hasToken() && WPDrive.configured() && WPDrive.webOrigin()) { b.textContent = WPDrive.remembered() ? 'Tap to reconnect to Google' : 'Signed out of Google \u2014 tap to sign in'; b.className = 'syncbadge warn clickable'; return; }
     if (Team.lastErr) { b.textContent = 'Team data: sync problem'; b.className = 'syncbadge warn'; return; }
     if (S.sync.dirty) { b.textContent = 'Team data: not synced yet'; b.className = 'syncbadge warn'; return; }
     b.textContent = 'Team data synced';
@@ -246,10 +247,37 @@ App.ready.then(() => {
   // ---- this device's connection: one line everywhere, and one button that does the next step ----
   function deviceState() {
     return WP.deviceConnection({
-      configured: WPDrive.configured(), web: WPDrive.webOrigin(), signedIn: WPDrive.hasToken(),
+      configured: WPDrive.configured(), web: WPDrive.webOrigin(), signedIn: WPDrive.hasToken(), quick: WPDrive.remembered(),
       account: (S.sync && S.sync.account) || Team.account, team: !!S.sync, owner: !!(S.sync && S.sync.owner), library: !!S.lib.teamSync,
       problem: Team.lastErr || (App.LIB && App.LIB.err) || '', clips: Object.keys(S.lib.team.entries).length
     });
+  }
+
+  /**
+   * The Google sign-in ran out (they last an hour) on a device that signed in before: get a new one with no account
+   * chooser and no typing, then catch up. Google's window needs a tap, so this runs only right after one (a tap on
+   * something that needs Drive, or going to Review, Settings or Team). Returns true when signed in again.
+   */
+  async function reconnect() {
+    if (WPDrive.hasToken()) return true;
+    if (!S.sync || Team.reconnecting || !WPDrive.configured() || !WPDrive.webOrigin() || !WPDrive.remembered()) return false;
+    const ua = navigator.userActivation;
+    if (ua && !ua.isActive) return false; // no recent tap: the browser would block Google's window
+    Team.reconnecting = true;
+    renderSyncBadge();
+    try {
+      await WPDrive.signIn(S.sync.account, true);
+      Team.connectNote = '';
+      return true;
+    } catch (e) {
+      Team.connectNote = e.message;
+      if (e.type !== 'popup_closed') toast('Couldn\u2019t reconnect to Google: ' + e.message, { err: true, ms: 7000 });
+      return false;
+    } finally {
+      Team.reconnecting = false;
+      if (WPDrive.hasToken()) { syncNow(false); App.libSyncAll(false); }
+      refreshConnect();
+    }
   }
 
   /** Must run from a tap: signs in (Google's window), then finds or picks the team data, then syncs the clip library. */
@@ -260,7 +288,7 @@ App.ready.then(() => {
     refreshConnect();
     try {
       if (st.action === 'connect') await openSharedTeamData();
-      else if (st.action === 'signin') await connectGoogle();
+      else if (st.action === 'signin') { if (WPDrive.remembered()) await reconnect(); else await connectGoogle(); }
       else if (st.action === 'library') await openSharedLibrary();
       else if (st.action === 'retry') { Team.lastErr = null; if (App.LIB) App.LIB.err = null; await syncNow(true); await App.libSyncAll(true); }
     } catch (e) { Team.connectNote = e.message; }
@@ -403,7 +431,12 @@ App.ready.then(() => {
     libSyncIfStale(60000);
     renderSyncBadge();
   });
-  $('sync-badge').addEventListener('click', () => { if (S.sync && !WPDrive.hasToken()) connectGoogle(); });
+  $('sync-badge').addEventListener('click', (e) => {
+    if (!S.sync || WPDrive.hasToken()) return;
+    e.preventDefault();
+    if (WPDrive.remembered()) reconnect(); else connectGoogle();
+  });
+  if (S.sync && !WPDrive.hasToken()) WPDrive.preload(); // so a reconnect opens Google's window straight from the tap
   setInterval(renderSyncBadge, 30000); // notice when the hour-long Google sign-in runs out
 
   /** Pull other coaches' new clips if the library hasn't synced for a while. */
@@ -413,7 +446,7 @@ App.ready.then(() => {
     if (Date.now() - last > ms) App.libSyncAll(false);
   }
   Object.assign(App, {
-    Team, connectDevice, connectPanel, deviceState, connectTeamFolders, shareWithCoaches, libSyncIfStale, renderGameLists, renderSyncBadge, renderTeamCard, renderTeamSettings,
+    Team, connectDevice, connectPanel, deviceState, reconnect, connectTeamFolders, shareWithCoaches, libSyncIfStale, renderGameLists, renderSyncBadge, renderTeamCard, renderTeamSettings,
     syncNow, teamChanged, ensureSignedIn
   });
 }).catch((e) => setTimeout(() => { throw e; }));

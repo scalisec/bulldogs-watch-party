@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '2.4.0';
+  const APP_VERSION = '2.4.1';
   const APP_RELEASED = '2026-11-02';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
@@ -2265,7 +2265,7 @@
 
   /**
    * Where this device stands with the team's Google Drive, in one line, plus the one thing to do next.
-   * o: { configured, web, signedIn, account, team (team data connected), owner, library (clip library connected), problem, clips }
+   * o: { configured, web, signedIn, quick (signed in on this device before: reconnecting takes one tap), account, team (team data connected), owner, library (clip library connected), problem, clips }
    * -> { state: 'local'|'off'|'signed-out'|'problem'|'partial'|'ok', text, action: null|'connect'|'signin'|'retry'|'library', button }
    */
   function deviceConnection(o) {
@@ -2274,6 +2274,7 @@
     if (!x.configured) return { state: 'local', text: 'This device only — Google sign-in isn’t set up, so clips and team data stay here.', action: null, button: '' };
     if (!x.web) return { state: 'local', text: 'This device only — open the web version (scalisec.github.io/bulldogs-watch-party) to connect to the team’s Google Drive.', action: null, button: '' };
     if (!x.team) return { state: 'off', text: 'This device: not connected to the team’s Google Drive', action: 'connect', button: 'Connect this device' };
+    if (!x.signedIn && x.quick) return { state: 'signed-out', text: 'This device: Google sign-in paused' + (x.account ? ' (' + x.account + ')' : '') + ' — one tap reconnects, no typing', action: 'signin', button: 'Reconnect' };
     if (!x.signedIn) return { state: 'signed-out', text: 'This device: signed out of Google' + (x.account ? ' (' + x.account + ')' : '') + ' — sign in to sync and to play clips saved in Drive', action: 'signin', button: 'Sign in with Google' };
     if (x.problem) return { state: 'problem', text: 'This device: connected' + who + ' · sync problem: ' + x.problem, action: 'retry', button: 'Try again' };
     if (!x.library && !x.owner) return { state: 'partial', text: 'This device: connected' + who + ' · the team clip library isn’t open yet', action: 'library', button: 'Open clip library' };

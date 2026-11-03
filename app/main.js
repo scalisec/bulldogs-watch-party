@@ -34,6 +34,8 @@ App.ready.then(() => {
 
   function route() {
     const [view, id, sub] = (location.hash.replace('#', '') || 'games').split('/');
+    // going to a screen that shows Drive data, with a tap (e.g. the Review tab): reconnect to Google if the hour ran out
+    if (['review', 'settings', 'team'].includes(view) && App.reconnect) App.reconnect();
     if (view === 'tag' && id) { if (openGame(id)) show('tag'); }
     else if (view === 'edit' && id && sub) { show('edit'); if (!openEditor(id, sub)) return; }
     else if (view === 'sum' && id) { if (App.selectGame(id)) { show('gsum'); App.renderGameSummary(); } }

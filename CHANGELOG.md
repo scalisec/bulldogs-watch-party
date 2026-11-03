@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.4.1 — 2026-11-02 (stay signed in to Google)
+
+- **The Google sign-in is kept when the app is closed.** Reopening within the hour needs no sign-in.
+- **After the hour, one tap reconnects, with no account chooser and no typing.** Google's window flashes open and closes by itself. It happens when you:
+  - go to Review, Settings or Team
+  - tap a clip saved in Drive (it plays straight after)
+  - tap **Tap to reconnect to Google** in the header, or **Reconnect** in Review or Settings
+- Google's sign-ins last an hour and a browser only opens Google's window after a tap, so nothing reconnects completely in the background. Opening the app without a tap shows "Google sign-in paused — one tap reconnects".
+- The first sign-in on a device still shows Google's account chooser. **Stop syncing on this device** forgets the sign-in completely.
+- What's kept is a one-hour Google pass for this app's own files only, never the Google password.
+
 ## 2.4.0 — 2026-11-02 (connect a phone or another device from Review)
 
 - **"Connect this device" right in Review.** On a device that has never been connected, Review says so and has one button. It signs in with Google, then finds the team's data. The first time on a Google account, Google's file picker opens: open **Bulldogs Watch Party**, select everything inside it, and tap Select. After that, any other device signed in with the same account connects without the picker. The coach's name is filled in from Google.

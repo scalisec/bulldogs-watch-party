@@ -31,4 +31,6 @@ jobs:
         run: python tests/e2e_v202.py shots
       - name: Connecting another device from Review, plain-language Google errors (simulated Google Drive)
         run: python tests/e2e_v24.py shots
+      - name: Staying signed in and one-tap reconnect (simulated Google sign-in)
+        run: python tests/e2e_v241.py shots
       # e2e.py and e2e_library.py need game video, which stays off GitHub (it shows the players). Run them locally.
