@@ -2,8 +2,8 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '2.4.2';
-  const APP_RELEASED = '2026-11-02';
+  const APP_VERSION = '2.5.0';
+  const APP_RELEASED = '2026-11-03';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
   const DEFAULT_AFTER = 4;
@@ -2265,7 +2265,7 @@
 
   /**
    * Where this device stands with the team's Google Drive, in one line, plus the one thing to do next.
-   * o: { configured, web, signedIn, quick (signed in on this device before: reconnecting takes one tap), account, team (team data connected), owner, library (clip library connected), problem, clips }
+   * o: { configured, web, join (a join link was opened: { team }), signedIn, quick (signed in on this device before: reconnecting takes one tap), account, team (team data connected), owner, library (clip library connected), problem, clips }
    * -> { state: 'local'|'off'|'signed-out'|'problem'|'partial'|'ok', text, action: null|'connect'|'signin'|'retry'|'library', button }
    */
   function deviceConnection(o) {
@@ -2273,6 +2273,7 @@
     const who = x.account ? ' as ' + x.account : '';
     if (!x.configured) return { state: 'local', text: 'This device only — Google sign-in isn’t set up, so clips and team data stay here.', action: null, button: '' };
     if (!x.web) return { state: 'local', text: 'This device only — open the web version (scalisec.github.io/bulldogs-watch-party) to connect to the team’s Google Drive.', action: null, button: '' };
+    if (!x.team && x.join) return { state: 'off', text: 'You’re invited to join ' + (x.join.team || 'the team') + ' — tap Join to connect this device', action: 'connect', button: 'Join ' + (x.join.team || 'the team') };
     if (!x.team) return { state: 'off', text: 'This device: not connected to the team’s Google Drive', action: 'connect', button: 'Connect this device' };
     if (!x.signedIn && x.quick) return { state: 'signed-out', text: 'This device: Google sign-in paused' + (x.account ? ' (' + x.account + ')' : '') + ' — one tap reconnects, no typing', action: 'signin', button: 'Reconnect' };
     if (!x.signedIn) return { state: 'signed-out', text: 'This device: signed out of Google' + (x.account ? ' (' + x.account + ')' : '') + ' — sign in to sync and to play clips saved in Drive', action: 'signin', button: 'Sign in with Google' };
@@ -2280,6 +2281,24 @@
     if (!x.library && !x.owner) return { state: 'partial', text: 'This device: connected' + who + ' · the team clip library isn’t open yet', action: 'library', button: 'Open clip library' };
     const n = typeof x.clips === 'number' ? ' · ' + x.clips + (x.clips === 1 ? ' team clip' : ' team clips') : '';
     return { state: 'ok', text: 'This device: connected' + who + n, action: null, button: '' };
+  }
+
+  // ---------------------------------------------------------------------
+  // JOIN LINK (v2.5): a link a coach opens on a new device to connect to the team's Drive folder
+  // ---------------------------------------------------------------------
+  const DRIVE_ID = /^[A-Za-z0-9_-]{2,200}$/;
+  /** The link: base + #join/<team folder id>/<team name>. The folder id opens nothing on its own: Drive still checks the folder is shared with that coach. */
+  function joinLink(base, folderId, teamName) {
+    if (!DRIVE_ID.test(String(folderId || ''))) throw new Error('The team folder isn’t known yet. Sync the team data first.');
+    return String(base || '').replace(/[#?].*$/, '') + '#join/' + folderId + '/' + encodeURIComponent(String(teamName || '').trim().slice(0, 60));
+  }
+  /** "#join/<id>/<name>" -> { folderId, team } or null. */
+  function parseJoin(hash) {
+    const m = /^#?join\/([^/]+)(?:\/(.*))?$/.exec(String(hash || ''));
+    if (!m || !DRIVE_ID.test(m[1])) return null;
+    let team = '';
+    try { team = decodeURIComponent(m[2] || ''); } catch (e) { team = ''; }
+    return { folderId: m[1], team: team.replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 60) };
   }
 
   /** A game with no video, made from a game sheet (summary only). */
@@ -2319,7 +2338,7 @@
     DEFAULT_LEAGUE, divisionKey, normalizeLeague, guessLeagueTeam, leagueTeams, leagueLogo, cleanVenue, scoreResult, gamesheetUrl, teamSchedule, matchScheduleGame, scheduleFields, leagueLink, linkGame, formatClock,
     shortTeamName, parseResult, periodAt, periodLabel, penaltyOutcome, OUTCOME_LABELS, gameSummary, summaryResult, seasonStats, updateGoal, summaryNotes,
     SHEET_CODES, sheetInfraction, parseGameSheet, sheetSide, clockElapsed, sheetFacts, matchSheetGoals, sheetGoalAgrees, sheetGoalDetails, fillFromSheet, sheetOnlyPenalties, newSheetGame,
-    googleHelp, deviceConnection
+    googleHelp, deviceConnection, joinLink, parseJoin
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = WP;

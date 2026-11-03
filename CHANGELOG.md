@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.5.0 — 2026-11-03 (join link: no browsing in Google's picker)
+
+- **A join link for coaches**, in **Team › Coaches** and **Team › Drive and access**, with **Copy link** (and **Share…** on a phone). Send it to a coach, or to your own phone.
+- **Opening the link** starts Watch Party on Review with "You're invited to join Bulldogs U10 Blue" and a **Join** button. Tap it and sign in with Google, and **Google's file picker opens right inside the team's folder**: select everything in it and tap Select. No browsing through "Shared with me".
+- The invitation is kept if the page reloads during sign-in, and used up once the device is connected. On a device that's already connected, the link just says so.
+- **Google's share email** (Share with coaches) now includes the join link.
+- **Connect team folders** already opened inside the team folder; it still does.
+- The link only works for Google accounts the team folder is shared with: the folder id in it opens nothing on its own.
+
 ## 2.4.2 — 2026-11-02 (Review on a phone: tap a clip, see the video)
 
 - **Tapping a clip scrolls to the video.** On a phone the player sits above the list; it used to open out of sight.

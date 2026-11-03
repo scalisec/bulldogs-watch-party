@@ -122,7 +122,8 @@ The roster, categories, coaches, opponents, rinks, and team name and season are 
   4. It shares the folder with the coaches.
   5. When a player is added later, the admin's app creates their family folder the next time it opens.
 - **Coaches (once per Google account):**
-  1. On the device, open **Review** and tap **Connect this device** (v2.4). Or, in Settings, **Sign in with Google**, then **Open shared team data**.
+  1. Easiest (v2.5): open the **join link** from **Team › Coaches** (Copy link, or it's in Google's share email) on the device, tap **Join**, and in Google's picker (already inside the team folder) select everything and tap Select.
+  1. Or, on the device, open **Review** and tap **Connect this device** (v2.4). Or, in Settings, **Sign in with Google**, then **Open shared team data**.
   2. In Google's picker, open **Bulldogs Watch Party**, select everything inside it, and click **Select**.
   3. Picking is how Google lets this app use folders another account created; it's needed once, not per device.
   4. Later, if a new family folder appears, **Settings › Connect team folders** does the same for it. Settings shows how many team folders are connected.
@@ -224,7 +225,8 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 
 ## Tests
 
-- `node --test tests/core.test.js` runs the core logic tests (92), including reading the audio track of a small generated MP4 (`tests/fixtures/media`).
+- `node --test tests/core.test.js` runs the core logic tests (93), including reading the audio track of a small generated MP4 (`tests/fixtures/media`).
+- `python3 tests/e2e_v25.py <screenshot-dir>` tests v2.5 against the simulated Google Drive: the join link on Team › Coaches and Drive and access, Copy link, the link in Google's share email, opening it on a phone (Join button, kept after a reload), the picker opening inside the team folder, and opening it again or a broken link.
 - `python3 tests/e2e_v242.py <screenshot-dir>` tests v2.4.2 on a phone-sized screen: tapping a clip scrolls to the video and loads it without playing, Next does the same, a clip not in Drive says so, and Play all still plays.
 - `python3 tests/e2e_v241.py <screenshot-dir>` tests v2.4.1 on a phone-sized screen: the sign-in kept after closing the app, nothing opening without a tap after the hour, quiet one-tap reconnect from the Review tab, a Drive clip and the header, a refused pass, and Stop syncing forgetting it.
 - `python3 tests/e2e_v24.py <screenshot-dir>` tests v2.4 on a phone-sized screen against the simulated Google Drive: the not-connected status and Connect this device in Review, the picker closing with nothing selected, connecting in one tap, the status line, playing a Drive clip, signing back in after the hour, plain-language errors (not found, blocked sign-in window), and a second device on the same account connecting without the picker.
@@ -247,7 +249,7 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 - `python3 tests/e2e_drive.py <screenshot-dir>` tests shared team data with two coaches against a simulated Google Drive (23 checks).
 - `python3 tests/e2e.py <screenshot-dir> <media-dir>` runs the browser test (75 checks). It covers tagging, zoom, the editor, drawing, slow motion, preview, MP4 export, and recording a breakdown with a simulated microphone.
 
-GitHub runs the core tests, `e2e_drive.py`, `e2e_v07.py`, `e2e_v12.py`, `e2e_v202.py`, `e2e_v24.py`, `e2e_v241.py` and `e2e_v242.py` on every push (`.github/workflows/tests.yml`). The two tests that need game video run locally only, so team footage never goes on GitHub.
+GitHub runs the core tests, `e2e_drive.py`, `e2e_v07.py`, `e2e_v12.py`, `e2e_v202.py`, `e2e_v24.py`, `e2e_v241.py`, `e2e_v242.py` and `e2e_v25.py` on every push (`.github/workflows/tests.yml`). The two tests that need game video run locally only, so team footage never goes on GitHub.
 
 ## How the code is organised
 

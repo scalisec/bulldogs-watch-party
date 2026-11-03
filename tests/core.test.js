@@ -1325,3 +1325,18 @@ test('v2.4.1 deviceConnection: a device that signed in before reconnects in one 
   assert.deepEqual([d.state, d.action, d.button], ['signed-out', 'signin', 'Reconnect']);
   assert.match(d.text, /coach@x\.com.*one tap reconnects, no typing/);
 });
+
+test('v2.5.0 joinLink / parseJoin: a link that opens the team folder on a new device', () => {
+  const url = WP.joinLink('https://scalisec.github.io/bulldogs-watch-party/#review', '1Xx4AbCdEfGhIjK_l-9', 'Bulldogs U10 Blue');
+  assert.equal(url, 'https://scalisec.github.io/bulldogs-watch-party/#join/1Xx4AbCdEfGhIjK_l-9/Bulldogs%20U10%20Blue');
+  assert.deepEqual(WP.parseJoin(url.slice(url.indexOf('#'))), { folderId: '1Xx4AbCdEfGhIjK_l-9', team: 'Bulldogs U10 Blue' });
+  assert.deepEqual(WP.parseJoin('#join/1Xx4AbCdEfGhIjK'), { folderId: '1Xx4AbCdEfGhIjK', team: '' });
+  assert.equal(WP.parseJoin('#join/bad id!'), null);
+  assert.equal(WP.parseJoin('#review'), null);
+  assert.equal(WP.parseJoin('#join/1Xx4AbCdEfGhIjK/%E0%A4%A').team, '', 'a broken name is dropped, the link still works');
+  assert.equal(WP.parseJoin('#join/1Xx4AbCdEfGhIjK/%3Cb%3EHi').team, 'bHi', 'no markup in the team name');
+  assert.throws(() => WP.joinLink('x', '', 'T'), /isn’t known yet/);
+  const d = WP.deviceConnection({ configured: true, web: true, team: false, join: { team: 'Bulldogs U10 Blue' } });
+  assert.deepEqual([d.action, d.button], ['connect', 'Join Bulldogs U10 Blue']);
+  assert.match(d.text, /invited to join Bulldogs U10 Blue/);
+});

@@ -182,6 +182,7 @@ App.ready.then(() => {
       el('div', { class: 'row' },
         S.sync.folderId ? el('a', { class: 'btn small outline', href: driveFolderUrl(S.sync.folderId), target: '_blank', rel: 'noopener' }, 'Open team folder in Google Drive') : '',
         btn('Check for missing folders', checkFolders, '', T.checking)),
+      App.inviteCard ? App.inviteCard('admin') : '',
       el('div', { class: 'card flush stack', style: 'gap:0' },
         el('div', { class: 'row spread cardhead' }, el('h2', {}, 'Coach access'),
           btn(notShared.length ? 'Share with ' + notShared.length + ' new coach' + (notShared.length === 1 ? '' : 'es') : 'Everyone has access', () => App.shareWithCoaches(), 'primary', !notShared.length)),

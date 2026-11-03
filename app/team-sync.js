@@ -8,7 +8,51 @@ App.ready.then(() => {
   // =====================================================================
   // SHARED TEAM DATA IN GOOGLE DRIVE (milestone 3a)
   // =====================================================================
-  const Team = { busy: false, again: false, lastErr: null, account: null, connectNote: '' };
+  const Team = { busy: false, again: false, lastErr: null, account: null, connectNote: '', join: null };
+  const JOIN_KEY = 'bwp-join'; // a join link opened on this device, kept until it's used (sign-in can take a while)
+  try { const j = JSON.parse(localStorage.getItem(JOIN_KEY) || 'null'); if (j && j.folderId && Date.now() - (j.at || 0) < 30 * 86400000) Team.join = j; } catch (e) { /* ignore */ }
+  function setJoin(j) {
+    Team.join = j ? Object.assign({ at: Date.now() }, j) : null;
+    try { if (j) localStorage.setItem(JOIN_KEY, JSON.stringify(Team.join)); else localStorage.removeItem(JOIN_KEY); } catch (e) { /* ignore */ }
+  }
+
+  /** A coach opened a join link (#join/<team folder>/<team name>). */
+  function acceptJoin(j) {
+    if (!j) { toast('That join link isn\u2019t complete. Ask for a new one.', { err: true }); return; }
+    if (S.sync) {
+      if (S.sync.folderId === j.folderId) toast('This device is already connected to ' + (j.team || S.settings.team.name) + '.');
+      else toast('This device is already connected to ' + S.settings.team.name + '. To join ' + (j.team || 'another team') + ' too, add it with the team switcher (Settings \u203a Teams), then open the link again.', { ms: 10000 });
+      setJoin(null);
+      return;
+    }
+    setJoin(j);
+    Team.connectNote = '';
+  }
+
+  /** The link a coach sends to another coach (or to their own phone): opens the app and the team folder in one go. */
+  function inviteLink() {
+    return WP.joinLink(location.origin + location.pathname, S.sync && S.sync.folderId, S.settings.team.name);
+  }
+
+  function inviteCard(where) {
+    const sfx = where ? '-' + where : '';
+    if (!S.sync || !S.sync.folderId) return '';
+    let url = '';
+    try { url = inviteLink(); } catch (e) { return ''; }
+    const copy = async () => {
+      try { await navigator.clipboard.writeText(url); toast('Join link copied \u2014 text or email it to the coach'); }
+      catch (e) { prompt('Copy this link:', url); }
+    };
+    const share = async () => { try { await navigator.share({ title: 'Join ' + S.settings.team.name + ' on Watch Party', text: 'Open this on your phone or computer to see the team\u2019s clips:', url }); } catch (e) { /* cancelled */ } };
+    return el('div', { class: 'card stack invite', id: 'invite-card' + sfx, style: 'gap:8px' },
+      el('h3', {}, 'Join link for coaches'),
+      el('span', { class: 'small muted' }, 'Send this to a coach (or to your own phone). Opening it starts Watch Party and, after signing in with Google, opens the team\u2019s folder in Google\u2019s picker \u2014 no browsing. It only works for Google accounts the team folder is shared with.'),
+      el('input', { type: 'text', readonly: true, value: url, id: 'invite-url' + sfx, 'aria-label': 'Join link', onfocus: (ev) => ev.target.select() }),
+      el('div', { class: 'row' },
+        el('button', { type: 'button', class: 'btn small primary', onclick: copy }, 'Copy link'),
+        navigator.share ? el('button', { type: 'button', class: 'btn small', onclick: share }, 'Share\u2026') : ''));
+  }
+
   let pushTimer = 0;
 
   function teamChanged() {
@@ -152,7 +196,9 @@ App.ready.then(() => {
     const failed = [];
     for (const c of todo) {
       try {
-        await WPDrive.share(S.sync.folderId, c.email, 'You’ve been added to the ' + S.settings.team.name + ' coaching staff in Watch Party by Bench Boss Labs. Open the app, go to Settings, sign in with Google and choose “Open shared team data”.');
+        let link = '';
+        try { link = inviteLink(); } catch (e) { link = ''; }
+        await WPDrive.share(S.sync.folderId, c.email, 'You’ve been added to the ' + S.settings.team.name + ' coaching staff in Watch Party by Bench Boss Labs. ' + (link ? 'Open this link on your phone or computer and tap Join: ' + link : 'Open the app, go to Review and tap Connect this device.'));
         done.push(c.email);
       } catch (e) { failed.push(c.email + ' (' + (e.raw || e.message) + ')'); }
     }
@@ -202,7 +248,10 @@ App.ready.then(() => {
       } else {
         // a coach joining: open the shared team folder in Google's picker and select everything in it.
         // Picking is how Google lets this app use files and folders another account created.
-        const picked = await WPDrive.pickFile({ multi: true, folders: true, title: 'Open the team\u2019s Watch Party folder (shared with you), select everything inside it, then click Select' });
+        const jf = Team.join && Team.join.folderId;
+        const picked = await WPDrive.pickFile(jf
+          ? { multi: true, folders: true, parentId: jf, title: 'This is the team\u2019s Watch Party folder. Select everything in it, then tap Select' }
+          : { multi: true, folders: true, title: 'Open the team\u2019s Watch Party folder (shared with you), select everything inside it, then click Select' });
         if (!picked || !picked.length) { Team.connectNote = PICK_HELP; return; }
         const t = picked.find((x) => /team data/i.test(x.name || ''));
         if (!t) throw new Error('\u201cWatch Party team data\u201d wasn\u2019t selected. Open the team\u2019s Watch Party folder and select everything inside it.');
@@ -220,6 +269,7 @@ App.ready.then(() => {
       S.sync = { fileId: id, folderId: rootId, appFolderId: rootId, version: meta.version, base: data, dirty: false, account: who.email, owner, lastSyncAt: Date.now(), lastBy: meta.lastModifyingUser ? (meta.lastModifyingUser.displayName || meta.lastModifyingUser.emailAddress) : '' };
       Team.lastErr = null;
       Team.connectNote = '';
+      setJoin(null);
       App.folderAccessReset();
       save();
       toast(owner ? 'Found your team data in Google Drive' : 'Connected to the team\u2019s Drive folder: roster, categories' + (libId ? ', clip library' : '') + ' and clip folders');
@@ -247,7 +297,7 @@ App.ready.then(() => {
   // ---- this device's connection: one line everywhere, and one button that does the next step ----
   function deviceState() {
     return WP.deviceConnection({
-      configured: WPDrive.configured(), web: WPDrive.webOrigin(), signedIn: WPDrive.hasToken(), quick: WPDrive.remembered(),
+      configured: WPDrive.configured(), web: WPDrive.webOrigin(), join: !S.sync ? Team.join : null, signedIn: WPDrive.hasToken(), quick: WPDrive.remembered(),
       account: (S.sync && S.sync.account) || Team.account, team: !!S.sync, owner: !!(S.sync && S.sync.owner), library: !!S.lib.teamSync,
       problem: Team.lastErr || (App.LIB && App.LIB.err) || '', clips: Object.keys(S.lib.team.entries).length
     });
@@ -300,7 +350,9 @@ App.ready.then(() => {
     const st = deviceState();
     const busy = Team.busy || Team.connecting;
     const kids = [el('div', { class: 'row', style: 'gap:8px' }, el('span', { class: 'cdot', 'aria-hidden': 'true' }), el('strong', { class: 'ctext' }, st.text))];
-    if (big && st.action === 'connect') {
+    if (big && st.action === 'connect' && Team.join) {
+      kids.push(el('span', { class: 'small' }, 'Tap Join: sign in with Google, and Google\u2019s file picker opens right inside the team\u2019s folder. Select everything in it and tap Select. That\u2019s it \u2014 any other device signed in with the same account then connects on its own.'));
+    } else if (big && st.action === 'connect') {
       kids.push(el('span', { class: 'small' }, 'Connect to see the clips the coaches saved to Google Drive. It signs in with Google, then finds the team\u2019s data. The first time on a Google account, Google\u2019s file picker opens: open the \u201cBulldogs Watch Party\u201d folder, select everything inside it, and tap Select. After that, any device signed in with the same account connects on its own.'));
     } else if (big && st.action === 'signin') {
       kids.push(el('span', { class: 'small' }, 'Google sign-ins last about an hour. The clip list is still here; sign in again to play clips saved in Drive and get new ones.'));
@@ -395,6 +447,7 @@ App.ready.then(() => {
       S.sync && c.email === S.sync.account ? el('span', { class: 'pill zoompill' }, 'You') : '',
       el('button', { type: 'button', class: 'btn small danger', 'aria-label': 'Remove ' + c.email, onclick: () => { S.settings.coaches = WP.removeCoach(S.settings.coaches, c.email); teamChanged(); renderSettings(); } }, 'Remove')))
       : [el('span', { class: 'small muted' }, 'No coaches yet.')]));
+    if ($('coach-invite')) $('coach-invite').replaceChildren(inviteCard());
     const chips = (list, key, label) => list.length ? list.map((v) => el('button', { type: 'button', class: 'chip', 'aria-label': 'Remove ' + v, onclick: () => { S.settings[key] = WP.removeListItem(S.settings[key], v); teamChanged(); renderSettings(); } }, v + ' ✕')) : [el('span', { class: 'small muted' }, 'No ' + label + ' yet.')];
     $('opponents').replaceChildren(...chips(S.settings.opponents, 'opponents', 'opponents'));
     $('rinks').replaceChildren(...chips(S.settings.rinks, 'rinks', 'rinks'));
@@ -416,7 +469,7 @@ App.ready.then(() => {
       S.settings.coaches = WP.addCoach(S.settings.coaches, $('c-name').value, $('c-email').value);
       $('c-name').value = ''; $('c-email').value = '';
       teamChanged(); renderSettings();
-      if (S.sync && S.sync.owner) toast('Added. Click “Share with coaches” to give them access, and add their email as a test user in Google Cloud.', { ms: 8000 });
+      if (S.sync && S.sync.owner) toast('Added. Click “Share with coaches” to give them access (Google emails them the join link), and add their email as a test user in Google Cloud.', { ms: 9000 });
     } catch (err) { toast(err.message, { err: true }); }
   });
   for (const [form, input, key] of [['opp-add', 'o-new', 'opponents'], ['rink-add', 'k-new', 'rinks']]) {
@@ -446,7 +499,7 @@ App.ready.then(() => {
     if (Date.now() - last > ms) App.libSyncAll(false);
   }
   Object.assign(App, {
-    Team, connectDevice, connectPanel, deviceState, reconnect, connectTeamFolders, shareWithCoaches, libSyncIfStale, renderGameLists, renderSyncBadge, renderTeamCard, renderTeamSettings,
+    Team, acceptJoin, inviteCard, inviteLink, connectDevice, connectPanel, deviceState, reconnect, connectTeamFolders, shareWithCoaches, libSyncIfStale, renderGameLists, renderSyncBadge, renderTeamCard, renderTeamSettings,
     syncNow, teamChanged, ensureSignedIn
   });
 }).catch((e) => setTimeout(() => { throw e; }));
