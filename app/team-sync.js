@@ -67,6 +67,18 @@ App.ready.then(() => {
     const b = $('sync-badge');
     if (!b) return;
     b.title = S.sync && S.sync.account ? 'This device is connected to the team\u2019s Google Drive as ' + S.sync.account : '';
+    const waiting = App.uploadWaiting ? App.uploadWaiting() : 0;
+    if (navigator.onLine === false) {
+      b.textContent = 'Offline \u00b7 saved on this device' + (waiting ? ' \u00b7 ' + waiting + ' to upload' : '');
+      b.className = 'syncbadge warn';
+      b.title = 'No internet. Marks, clips and exports are saved on this device; Drive uploads wait until you\u2019re back online.';
+      return;
+    }
+    if (waiting && S.sync && !Team.busy && !Team.reconnecting) {
+      b.textContent = waiting + (waiting === 1 ? ' clip' : ' clips') + ' waiting to upload \u2014 tap to upload';
+      b.className = 'syncbadge warn clickable';
+      return;
+    }
     if (!S.sync) {
       const off = WPDrive.configured() && WPDrive.webOrigin();
       b.textContent = off ? 'This device: not connected' : '';
@@ -297,6 +309,7 @@ App.ready.then(() => {
   // ---- this device's connection: one line everywhere, and one button that does the next step ----
   function deviceState() {
     return WP.deviceConnection({
+      offline: navigator.onLine === false, waiting: App.uploadWaiting ? App.uploadWaiting() : 0,
       configured: WPDrive.configured(), web: WPDrive.webOrigin(), join: !S.sync ? Team.join : null, signedIn: WPDrive.hasToken(), quick: WPDrive.remembered(),
       account: (S.sync && S.sync.account) || Team.account, team: !!S.sync, owner: !!(S.sync && S.sync.owner), library: !!S.lib.teamSync,
       problem: Team.lastErr || (App.LIB && App.LIB.err) || '', clips: Object.keys(S.lib.team.entries).length
@@ -340,6 +353,7 @@ App.ready.then(() => {
       if (st.action === 'connect') await openSharedTeamData();
       else if (st.action === 'signin') { if (WPDrive.remembered()) await reconnect(); else await connectGoogle(); }
       else if (st.action === 'library') await openSharedLibrary();
+      else if (st.action === 'upload') await App.uploadQueued();
       else if (st.action === 'retry') { Team.lastErr = null; if (App.LIB) App.LIB.err = null; await syncNow(true); await App.libSyncAll(true); }
     } catch (e) { Team.connectNote = e.message; }
     finally { Team.connecting = false; refreshConnect(); }
@@ -485,12 +499,15 @@ App.ready.then(() => {
     renderSyncBadge();
   });
   $('sync-badge').addEventListener('click', (e) => {
+    if (navigator.onLine !== false && S.sync && App.uploadWaiting && App.uploadWaiting()) { e.preventDefault(); App.uploadQueued(); return; }
     if (!S.sync || WPDrive.hasToken()) return;
     e.preventDefault();
     if (WPDrive.remembered()) reconnect(); else connectGoogle();
   });
   if (S.sync && !WPDrive.hasToken()) WPDrive.preload(); // so a reconnect opens Google's window straight from the tap
-  setInterval(renderSyncBadge, 30000); // notice when the hour-long Google sign-in runs out
+  setInterval(renderSyncBadge, 30000);
+  window.addEventListener('online', refreshConnect);
+  window.addEventListener('offline', refreshConnect); // notice when the hour-long Google sign-in runs out
 
   /** Pull other coaches' new clips if the library hasn't synced for a while. */
   function libSyncIfStale(ms) {

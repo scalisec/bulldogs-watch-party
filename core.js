@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const APP_VERSION = '2.6.0';
+  const APP_VERSION = '2.7.0';
   const APP_RELEASED = '2026-11-03';
   const SCHEMA_VERSION = 1;
   const DEFAULT_BEFORE = 8;
@@ -2412,12 +2412,14 @@
 
   /**
    * Where this device stands with the team's Google Drive, in one line, plus the one thing to do next.
-   * o: { configured, web, join (a join link was opened: { team }), signedIn, quick (signed in on this device before: reconnecting takes one tap), account, team (team data connected), owner, library (clip library connected), problem, clips }
+   * o: { offline, waiting (clips exported offline, not uploaded yet), configured, web, join (a join link was opened: { team }), signedIn, quick (signed in on this device before: reconnecting takes one tap), account, team (team data connected), owner, library (clip library connected), problem, clips }
    * -> { state: 'local'|'off'|'signed-out'|'problem'|'partial'|'ok', text, action: null|'connect'|'signin'|'retry'|'library', button }
    */
   function deviceConnection(o) {
     const x = o || {};
     const who = x.account ? ' as ' + x.account : '';
+    const wait = x.waiting ? ' · ' + x.waiting + (x.waiting === 1 ? ' clip' : ' clips') + ' waiting to upload' : '';
+    if (x.offline) return { state: 'offline', text: 'Offline — what you mark and export is saved on this device' + wait, action: null, button: '' };
     if (!x.configured) return { state: 'local', text: 'This device only — Google sign-in isn’t set up, so clips and team data stay here.', action: null, button: '' };
     if (!x.web) return { state: 'local', text: 'This device only — open the web version (scalisec.github.io/bulldogs-watch-party) to connect to the team’s Google Drive.', action: null, button: '' };
     if (!x.team && x.join) return { state: 'off', text: 'You’re invited to join ' + (x.join.team || 'the team') + ' — tap Join to connect this device', action: 'connect', button: 'Join ' + (x.join.team || 'the team') };
@@ -2427,6 +2429,7 @@
     if (x.problem) return { state: 'problem', text: 'This device: connected' + who + ' · sync problem: ' + x.problem, action: 'retry', button: 'Try again' };
     if (!x.library && !x.owner) return { state: 'partial', text: 'This device: connected' + who + ' · the team clip library isn’t open yet', action: 'library', button: 'Open clip library' };
     const n = typeof x.clips === 'number' ? ' · ' + x.clips + (x.clips === 1 ? ' team clip' : ' team clips') : '';
+    if (x.waiting) return { state: 'waiting', text: 'This device: connected' + who + wait, action: 'upload', button: 'Upload ' + x.waiting + (x.waiting === 1 ? ' clip' : ' clips') };
     return { state: 'ok', text: 'This device: connected' + who + n, action: null, button: '' };
   }
 

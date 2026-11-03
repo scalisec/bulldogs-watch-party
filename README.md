@@ -223,7 +223,11 @@ Games fill in from the Alliance schedule instead of being typed. Watch Party rea
 
 ## Updates
 
-**Install the app (v1.1.1):** Settings › Install the app adds Watch Party to the home screen or desktop. `sw.js` is a minimal service worker that only exists so Chrome offers its install prompt; it caches nothing.
+**Install the app (v1.1.1):** Settings › Install the app adds Watch Party to the home screen or desktop.
+
+**Offline (v2.7):** `sw.js` keeps a copy of the app's own files (network first; the copy is used when the network doesn't answer in 4 s), so the app opens with no internet. Videos, Google, Drive, league data and fonts are never cached by it. Its `VERSION` changes with every release (a new cache). Clips exported offline with a Drive folder ticked are kept in IndexedDB (`upq:<clip id>`, list in `upq-list`) and uploaded after the coach says yes to "Upload N clips to Google Drive?".
+
+**On the train:** open Watch Party once at home (online) on the laptop, with the LiveBarn files downloaded to it. On the train, open it as usual, open the game (reconnect its video files if asked), mark and clip, and export. Back home it asks to upload what's waiting.
 
 When a new version is on the site, a yellow banner offers **Reload now**, so phones that can't press Ctrl+F5 still update. On a phone, Chrome's menu › **Add to Home screen** installs the app with its own icon.
 
@@ -233,7 +237,8 @@ Video files can't be saved inside the browser. When you reopen a game, click **R
 
 ## Tests
 
-- `node --test tests/core.test.js` runs the core logic tests (95), including reading the audio track of a small generated MP4 (`tests/fixtures/media`).
+- `node --test tests/core.test.js` runs the core logic tests (96), including reading the audio track of a small generated MP4 (`tests/fixtures/media`).
+- `python3 tests/e2e_v27.py <screenshot-dir> <media-dir>` tests v2.7 against the simulated Google Drive: the app's own copy, marking and exporting offline (nothing sent to Drive), the waiting status in the header and Review, reopening the app with no internet, the ask-first upload when back online (Cancel, then the header link), uploads into the game folder, and the device copies deleted.
 - `python3 tests/e2e_v26.py <screenshot-dir> <media-dir>` tests v2.6: S and D shots (result keys, shooter, their number), the scoreboard's shots, a goalie change partway through, Game details, clip events, the summary's shots, shooters and goalies (SA, GA, SV%, decision), Season stats (SOG, S%, SA, SV%) and the shortcuts list.
 - `python3 tests/e2e_v25.py <screenshot-dir>` tests v2.5 against the simulated Google Drive: the join link on Team › Coaches and Drive and access, Copy link, the link in Google's share email, opening it on a phone (Join button, kept after a reload), the picker opening inside the team folder, and opening it again or a broken link.
 - `python3 tests/e2e_v242.py <screenshot-dir>` tests v2.4.2 on a phone-sized screen: tapping a clip scrolls to the video and loads it without playing, Next does the same, a clip not in Drive says so, and Play all still plays.

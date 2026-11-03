@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.7.0 — 2026-11-03 (offline mode: mark and clip on the train)
+
+- **The app opens with no internet.** Once it's been opened online, the laptop keeps a copy of Watch Party's own files. Online, it still loads fresh and updates arrive through the yellow **Reload now** banner; the copy is only used when the network doesn't answer within 4 seconds.
+- **Everything else already worked offline and still does:** the LiveBarn files play from the laptop, and periods, goals, penalties, shots, goalie changes, clips, the clip editor and exporting the MP4 to the laptop need no internet.
+- **Upload later.** Exporting a clip with a Drive folder ticked while offline makes the MP4 once and keeps it on the laptop, "waiting to upload". The same happens if the connection drops partway through an upload. The export panel says so before you export.
+- **Asked first.** When the laptop is back online (or the app is opened online), Watch Party asks: "Upload 6 clips to Google Drive?". **Upload now** sends them to the folders you chose, with no exporting again, and deletes the copy kept on the laptop. **Cancel** leaves them waiting.
+- **Status everywhere:**
+  - header: "Offline · saved on this device · 2 to upload", or online, "2 clips waiting to upload — tap to upload"
+  - Settings and Review: "Offline — what you mark and export is saved on this device"
+  - Review: an **Upload 2 clips** button
+  - Review cards: "Exported · waiting to upload to Drive"
+- Waiting clips take about 10–30 MB each in the browser's storage until they're uploaded.
+
 ## 2.6.0 — 2026-11-03 (shots and goalie changes)
 
 - **Shots on Watch and tag:** **S** for our shot, **D** for theirs (or the new **Shot** / **Shot against** buttons).

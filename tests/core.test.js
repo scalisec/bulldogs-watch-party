@@ -1400,3 +1400,15 @@ test('v2.6.0 goalies: starter from the lineup, a change mid-period, stats per go
   assert.deepEqual(WP.goalieStints(g2, roster).map((x) => x.number), ['31']);
   assert.throws(() => WP.addGoalieChange(g2, 60, ''), /Pick the goalie/);
 });
+
+test('v2.7.0 deviceConnection: offline, and clips waiting to upload', () => {
+  const base = { configured: true, web: true, signedIn: true, account: 'coach@x.com', team: true, library: true, clips: 4 };
+  const off = WP.deviceConnection(Object.assign({}, base, { offline: true, waiting: 3 }));
+  assert.deepEqual([off.state, off.action], ['offline', null]);
+  assert.equal(off.text, 'Offline — what you mark and export is saved on this device · 3 clips waiting to upload');
+  assert.equal(WP.deviceConnection(Object.assign({}, base, { offline: true, team: false })).state, 'offline', 'offline wins even when not connected');
+  const w = WP.deviceConnection(Object.assign({}, base, { waiting: 1 }));
+  assert.deepEqual([w.state, w.action, w.button], ['waiting', 'upload', 'Upload 1 clip']);
+  assert.match(w.text, /connected as coach@x\.com · 1 clip waiting to upload/);
+  assert.equal(WP.deviceConnection(Object.assign({}, base, { signedIn: false, waiting: 2 })).action, 'signin', 'signed out: sign in first');
+});

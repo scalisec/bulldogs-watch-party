@@ -33,6 +33,7 @@ App.ready.then(() => {
     if (e.private) return { color: '#B45309', text: '🔒 Private' + ((e.drive || []).length ? ' · in my Drive folder' : ' · on this device only') };
     if ((e.drive || []).length) return { color: '#16A34A', text: 'In Drive · ' + e.drive.map((x) => WP.destLabel(x.folder, S.settings.roster)).join(', ') };
     const mine = localClip(e.id);
+    if (mine && App.isWaiting && App.isWaiting(e.id)) return { color: '#F59E0B', text: 'Exported \u00b7 waiting to upload to Drive' };
     return { color: '#F59E0B', text: mine ? 'On this PC (not in Drive yet)' : 'Not in Drive yet · only on ' + (e.owner || 'another coach') + '’s PC' };
   }
 

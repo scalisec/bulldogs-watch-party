@@ -24,8 +24,15 @@ App.ready.then(() => {
     const d = App.E.d;
     const cat = WP.clipCategoryLabel(d, S.settings.categories);
     const name = WP.exportFileName(d, cat, App.G);
+    let queueOnly = false; // offline: make the MP4 now, upload it to Drive later
     if (wantsDrive(d) && (S.sync || d.private)) {
-      try { await ensureDriveSession(true); } catch (e) { toast('Sign in to Google to save to Drive: ' + e.message, { err: true, ms: 8000 }); return false; }
+      if (isOffline()) queueOnly = true;
+      else {
+        try { await ensureDriveSession(true); } catch (e) {
+          if (netErr(e)) queueOnly = true;
+          else { toast('Sign in to Google to save to Drive: ' + e.message, { err: true, ms: 8000 }); return false; }
+        }
+      }
     }
     const dests = chosenDests(d);
     if (!destPick.local && !dests.length) { toast('Choose where to save the MP4 (this computer or a Drive folder)', { err: true }); return false; }
@@ -74,7 +81,8 @@ App.ready.then(() => {
         await w.write(res.blob);
         await w.close();
       } else if (destPick.local) downloadBlob(name, res.blob);
-      if (dests.length) await sendToDrive(d, res.blob, name, dests);
+      if (dests.length && queueOnly) await queueUpload(App.G, d, res.blob, name, dests, 'offline');
+      else if (dests.length) await sendToDrive(d, res.blob, name, dests);
       window.__bwp.lastExport = { dests, name: finalName, size: res.blob.size, codec: res.codec, h264: res.h264, audio: res.audio, frames: res.frames, duration: res.duration, blob: res.blob };
       App.E.mode = 'idle';
       commit({ exported: { at: Date.now(), name: finalName, size: res.blob.size, codec: res.codec } });
@@ -168,7 +176,7 @@ App.ready.then(() => {
     const d = App.E.d;
     const box = $('e-dests');
     const cb = (key, text, disabled) => {
-      const i = el('input', { type: 'checkbox', style: 'width:18px;height:18px;flex:none', disabled: !!disabled, onchange: (e) => { destPick[key] = e.target.checked; saveDestPick(); } });
+      const i = el('input', { type: 'checkbox', style: 'width:18px;height:18px;flex:none', disabled: !!disabled, onchange: (e) => { destPick[key] = e.target.checked; saveDestPick(); renderDests(); } });
       i.checked = !!destPick[key] && !disabled;
       return el('label', { style: 'display:flex;align-items:center;gap:8px;font-size:13px' }, i, text);
     };
@@ -182,6 +190,7 @@ App.ready.then(() => {
       rows.push(cb('players', fam, !!why || !d.players.length));
     }
     if (why) rows.push(el('span', { class: 'small muted' }, why));
+    else if (isOffline() && wantsDrive(d)) rows.push(el('span', { class: 'small', style: 'color:var(--work)', id: 'e-offline-note' }, 'Offline: the MP4 is made now and kept on this device; it uploads to Drive when you\u2019re back online (you\u2019ll be asked first).'));
     else if (!WPDrive.hasToken() && wantsDrive(d)) rows.push(el('span', { class: 'small muted' }, 'Your Google sign-in has run out \u2014 you\u2019ll be asked to sign in again when you export.'));
     if ((d.drive || []).length) rows.push(el('span', { class: 'small muted' }, 'In Drive: ' + d.drive.map((x) => WP.destLabel(x.folder, S.settings.roster)).join(', ')));
     const failed = failedUploads.get(d.id);
@@ -226,8 +235,8 @@ App.ready.then(() => {
    * Each game gets its own folder inside a destination (e.g. Team clips › "2026-10-18 vs Raiders").
    * Remembered on the game; on another device the same account finds it by name; otherwise it's made.
    */
-  async function gameFolder(parentId) {
-    const g = App.G;
+  async function gameFolder(parentId, game) {
+    const g = game || App.G;
     const name = WP.gameFolderName(g);
     g.driveFolders = g.driveFolders || {};
     const known = g.driveFolders[parentId];
@@ -242,17 +251,18 @@ App.ready.then(() => {
 
   /** Upload once, then let Google copy it into the other folders (no second upload).
       On failure the error carries .partial = { list, done } so finished folders aren't forgotten. */
-  async function uploadToDrive(d, blob, name, dests, onStep) {
+  async function uploadToDrive(d, blob, name, dests, onStep, game) {
+    const G = game || App.G;
     const cat = WP.clipCategoryLabel(d, S.settings.categories);
-    const auto = WP.clipAuto(App.G, d);
-    const desc = [cat ? cat.name : 'Clip', WP.gameTitle(App.G), auto.period ? WP.periodName(auto.period) : ''].filter(Boolean).join(' · ') + ' — ' + S.settings.team.name + ' · Watch Party';
+    const auto = WP.clipAuto(G, d);
+    const desc = [cat ? cat.name : 'Clip', WP.gameTitle(G), auto.period ? WP.periodName(auto.period) : ''].filter(Boolean).join(' · ') + ' — ' + S.settings.team.name + ' · Watch Party';
     let list = (d.drive || []).slice();
     const done = [];
     let firstId = null;
     try {
       for (const dest of dests) {
         if (onStep) onStep(dest, null);
-        const folderId = await gameFolder(await ensureDestFolder(dest));
+        const folderId = await gameFolder(await ensureDestFolder(dest), G);
         let f = null;
         if (firstId) { try { f = await WPDrive.copyFile(firstId, name, folderId, desc); } catch (e) { if (e.code === 401 || e.code === 0) throw e; f = null; } }
         if (!f) f = await WPDrive.uploadBlob(name, folderId, blob, desc, (p) => onStep && onStep(dest, p));
@@ -297,6 +307,7 @@ App.ready.then(() => {
       const left = err.partial ? dests.filter((x) => !err.partial.done.includes(x)) : dests;
       if (err.partial && err.partial.done.length) commit({ drive: err.partial.list }, true);
       failedUploads.set(d.id, { blob, name, dests: left });
+      if (netErr(err)) { await queueUpload(App.G, d, blob, name, left, 'lost'); return false; }
       if (err.needsConnect || (err.code === 404 && S.sync && !S.sync.owner)) {
         App.folderAccessReset();
         toast('Not saved to Drive: ' + err.message + '. Connect the team folders, then use \u201cRetry upload\u201d.', { err: true, ms: 15000, action: { label: 'Connect team folders', fn: () => App.connectTeamFolders() } });
@@ -314,8 +325,108 @@ App.ready.then(() => {
     App.renderSyncBadge();
   }
 
+  // =====================================================================
+  // UPLOAD LATER (v2.7): clips exported with no internet wait on this device, and the app asks before uploading
+  // =====================================================================
+  // The MP4s are kept in this browser's storage (IndexedDB 'upq:<clip id>') with a list in 'upq-list', and deleted
+  // once uploaded. Nothing is rendered again.
+  const UPQ = { items: [], busy: false, asked: false, loaded: false };
+  const isOffline = () => navigator.onLine === false;
+  const netErr = (e) => !!e && (e.code === 0 || /reach Google|internet connection|no connection/i.test(String(e.raw || e.message || '')));
+
+  function waitingHere() { const ids = new Set(S.games.map((g) => g.id)); return UPQ.items.filter((x) => ids.has(x.gameId)); }
+  function uploadWaiting() { return waitingHere().length; }
+  function isWaiting(clipId) { return UPQ.items.some((x) => x.clipId === clipId); }
+
+  function queueChanged() {
+    if (App.renderSyncBadge) App.renderSyncBadge();
+    if (App.renderTeamCard && App.LIB) App.renderTeamCard(); // (not before the clip library module has loaded)
+    if (!$('view-review').classList.contains('hidden') && App.renderReview) App.renderReview();
+    if (App.E) renderEditor();
+  }
+  async function saveQueue() { await idb.put('upq-list', UPQ.items); queueChanged(); }
+  async function loadQueue() {
+    const list = await idb.get('upq-list');
+    UPQ.items = Array.isArray(list) ? list : [];
+    UPQ.loaded = true;
+    queueChanged();
+  }
+
+  /** Keep a finished MP4 to upload to these Drive folders later. why: 'offline' (exported offline) or 'lost' (connection dropped mid-upload). */
+  async function queueUpload(game, d, blob, name, dests, why) {
+    await idb.put('upq:' + d.id, blob);
+    UPQ.items = UPQ.items.filter((x) => x.clipId !== d.id).concat([{ clipId: d.id, gameId: game.id, name, dests: dests.slice(), size: blob.size, at: Date.now() }]);
+    await saveQueue();
+    const where = dests.map((x) => WP.destLabel(x, S.settings.roster)).join(', ');
+    toast((why === 'lost' ? 'The connection dropped. ' : 'Offline: ') + 'the clip is saved on this device and waiting to upload to ' + where + '. You\u2019ll be asked when you\u2019re back online.', { ms: 9000 });
+  }
+
+  function setClipDrive(game, clipId, list) {
+    game.clips = game.clips.map((c) => (c.id === clipId ? Object.assign({}, c, { drive: list }) : c));
+    if (App.E && App.E.clipId === clipId) App.E.d.drive = list;
+    save();
+    if (App.libChanged) App.libChanged();
+  }
+  async function dropQueued(clipId) {
+    UPQ.items = UPQ.items.filter((x) => x.clipId !== clipId);
+    await idb.del('upq:' + clipId);
+  }
+
+  /** Upload everything waiting (for this team). Must start from a tap: it may need Google's sign-in window. */
+  async function uploadQueued() {
+    const list = waitingHere();
+    if (!list.length || UPQ.busy) return;
+    if (isOffline()) { toast('Still offline. The clips upload once there\u2019s internet.', { err: true }); return; }
+    try { await ensureDriveSession(true); } catch (e) { toast('Couldn\u2019t sign in to Google: ' + e.message, { err: true, ms: 8000 }); return; }
+    UPQ.busy = true;
+    queueChanged();
+    let done = 0;
+    let lastErr = null;
+    try {
+      for (let i = 0; i < list.length; i++) {
+        const it = list[i];
+        const game = S.games.find((g) => g.id === it.gameId);
+        const clip = game && game.clips.find((c) => c.id === it.clipId);
+        const blob = await idb.get('upq:' + it.clipId);
+        if (!game || !clip || !blob) { await dropQueued(it.clipId); continue; } // the clip or game was deleted
+        toast('Uploading clip ' + (i + 1) + ' of ' + list.length + '\u2026', { ms: 4000 });
+        try {
+          const up = await uploadToDrive(clip, blob, it.name, it.dests, null, game);
+          setClipDrive(game, clip.id, up.list);
+          await dropQueued(it.clipId);
+          done += 1;
+        } catch (err) {
+          lastErr = err;
+          if (err.partial && err.partial.done.length) {
+            setClipDrive(game, clip.id, err.partial.list);
+            it.dests = it.dests.filter((x) => !err.partial.done.includes(x));
+          }
+          if (netErr(err) || err.code === 401) break; // try the rest next time
+        }
+      }
+    } finally {
+      UPQ.busy = false;
+      await saveQueue();
+    }
+    const left = waitingHere().length;
+    if (!left) toast('Uploaded ' + done + (done === 1 ? ' clip' : ' clips') + ' to Google Drive', { ms: 7000 });
+    else toast('Uploaded ' + done + ' of ' + (done + left) + '. ' + left + ' still waiting' + (lastErr ? ': ' + lastErr.message : '') + '.', { err: true, ms: 10000 });
+  }
+
+  /** Back online (or opening the app online) with clips waiting: ask before uploading them. */
+  async function askToUpload(force) {
+    const n = uploadWaiting();
+    if (!n || UPQ.busy || isOffline() || (UPQ.asked && !force) || document.querySelector('dialog[open]') || (App.E && edBusy())) return;
+    UPQ.asked = true;
+    const mb = Math.round(waitingHere().reduce((s, x) => s + (x.size || 0), 0) / 1e6);
+    if (await App.askYes('Upload ' + n + (n === 1 ? ' clip' : ' clips') + ' to Google Drive?', 'You exported ' + (n === 1 ? 'it' : 'them') + ' while offline (about ' + mb + ' MB). ' + (n === 1 ? 'It goes' : 'They go') + ' to the Drive folders you chose, and the copy kept on this device is then deleted.', 'Upload now', false)) uploadQueued();
+  }
+  window.addEventListener('online', () => { queueChanged(); setTimeout(() => askToUpload(false), 1500); });
+  window.addEventListener('offline', queueChanged);
+  loadQueue().then(() => setTimeout(() => askToUpload(false), 2500));
+
   function wantsDrive(d) { return d.private ? destPick.private : (destPick.team || destPick.coaches || (destPick.players && d.players.length > 0)); }
   Object.assign(App, {
-    editorKey, renderDests
+    editorKey, renderDests, uploadQueued, uploadWaiting, isWaiting, askToUpload, isOffline
   });
 }).catch((e) => setTimeout(() => { throw e; }));

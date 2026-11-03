@@ -459,3 +459,6 @@ body.wide-game #view-tag .cliplist { max-height: calc(100vh - 230px); }
 .mark.shot.for { background: rgba(59,130,246,.16); color: #93C5FD; } .mark.shot.against { background: rgba(139,92,246,.16); color: #C4B5FD; }
 .mark.gk { background: var(--surface-2); color: var(--ink); }
 .scoreboard .sb-sog { font-family: Inter, system-ui, sans-serif; font-size: 12px; background: rgba(15,23,42,.7); }
+/* v2.7: offline mode */
+.connect.offline .cdot, .connect.waiting .cdot { background: var(--warn); }
+.connect.waiting { border-color: var(--warn); }
