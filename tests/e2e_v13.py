@@ -19,7 +19,7 @@ with sync_playwright() as p:
     b = p.chromium.launch(args=['--autoplay-policy=no-user-gesture-required'])
     ctx = b.new_context(viewport={'width': 1440, 'height': 1000})
     ctx.route('https://fonts.googleapis.com/**', lambda r: r.abort())
-    ctx.route('https://scalisec.github.io/**', lambda r: r.abort())
+    ctx.route('https://bench-boss-labs.github.io/**', lambda r: r.abort())
     page = ctx.new_page()
     errors = []
     page.on('pageerror', lambda e: errors.append(str(e)))
