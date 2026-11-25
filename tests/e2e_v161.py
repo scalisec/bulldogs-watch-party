@@ -9,7 +9,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIX = os.path.join(ROOT, 'tests', 'fixtures', 'alliance')
 SHOTS = sys.argv[1] if len(sys.argv) > 1 else '.'
 APP = 'file://' + ROOT + '/index.html'
-BASE = 'https://scalisec.github.io/alliance-tracker/'
+BASE = 'https://bench-boss-labs.github.io/alliance-tracker/'
 fails = []
 
 def check(cond, msg):

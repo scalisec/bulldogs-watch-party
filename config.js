@@ -6,5 +6,5 @@ window.WP_CONFIG = {
   googleApiKey: 'AIzaSyD312sVkbpXbxTLhoAsQ87ZRFnL__dMPFc',     // for the Google file picker
   googleAppId: '288699264821',      // the 12-digit Google Cloud project number
   // Where the league schedule comes from: the data Alliance Tracker publishes. Change this one line if that site moves.
-  leagueDataUrl: 'https://scalisec.github.io/alliance-tracker/'
+  leagueDataUrl: 'https://bench-boss-labs.github.io/alliance-tracker/'
 };

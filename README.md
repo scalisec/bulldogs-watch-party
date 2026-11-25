@@ -188,7 +188,7 @@ The team button in the header lists the teams on this device, switches between t
 
 ## League schedule (v1.1)
 
-Games fill in from the Alliance schedule instead of being typed. Watch Party reads the files that [Alliance Tracker](https://scalisec.github.io/alliance-tracker/) publishes: `data/teams.json` (teams, divisions, logos) and `data/games/<division>.json` (dates, times, rinks, scores, LiveBarn and GameSheet links). The address is `leagueDataUrl` in `config.js`.
+Games fill in from the Alliance schedule instead of being typed. Watch Party reads the files that [Alliance Tracker](https://bench-boss-labs.github.io/alliance-tracker/) publishes: `data/teams.json` (teams, divisions, logos) and `data/games/<division>.json` (dates, times, rinks, scores, LiveBarn and GameSheet links). The address is `leagueDataUrl` in `config.js`.
 
 - **Team › Team and league** sets the league team (shared with all coaches). Default: Burlington Bulldogs Blue, U10 BB.
 - **New game:** pick a game from the schedule, or drop the LiveBarn files and the matching game (same date, starting from an hour before to two hours after the scheduled time, rink as a tie-breaker) is picked for you. Everything stays editable.

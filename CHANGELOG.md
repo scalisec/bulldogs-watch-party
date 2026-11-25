@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.7.1 — 2026-11-25 (league schedule's new address)
+
+- **The league schedule loads from Alliance Tracker's new address**, `bench-boss-labs.github.io/alliance-tracker`. The old address now only forwards people to the new site, so the schedule, scores, logos, and LiveBarn and GameSheet links would have stopped loading.
+- Nothing else changed. A schedule copy kept for offline use is replaced the next time the app is online.
+
 ## 2.7.0 — 2026-11-03 (offline mode: mark and clip on the train)
 
 - **The app opens with no internet.** Once it's been opened online, the laptop keeps a copy of Watch Party's own files. Online, it still loads fresh and updates arrive through the yellow **Reload now** banner; the copy is only used when the network doesn't answer within 4 seconds.

@@ -7,7 +7,7 @@ App.ready.then(() => {
     $, S, el, toast
   } = App;
 
-  const BASE = String((window.WP_CONFIG && window.WP_CONFIG.leagueDataUrl) || 'https://scalisec.github.io/alliance-tracker/').replace(/\/?$/, '/');
+  const BASE = String((window.WP_CONFIG && window.WP_CONFIG.leagueDataUrl) || 'https://bench-boss-labs.github.io/alliance-tracker/').replace(/\/?$/, '/');
   const GAMES_STALE = 30 * 60 * 1000;      // re-read the schedule after 30 minutes
   const TEAMS_STALE = 24 * 60 * 60 * 1000; // the team list changes rarely
   const K_TEAMS = 'bwp-league-teams-2'; // v1.6.1: new name, so copies saved before club teams existed are dropped
