@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.8.0 — 2026-11-26 (the team's Game Book)
+
+- **The team folder gets a Game Book**: `Game Book – Bulldogs U10 Blue 2026-27.json`, next to the team data. The admin's device creates it once, with the team name, season and roster, and no games yet. Nothing else in the app changes.
+- It's the shared record of each game's scorers, assists and penalties (from the game sheets, with corrections on top). Family Watch Party reads it now; Bulldogs Watch Party's own marks, Summary and Season stats move into it in a later release.
+- Coaches who join from now on get it in the same pick as the rest of the team folder.
+- The Game Book code is a fixed copy of Game Book 0.2.0 in `vendor/game-book/0.2.0/`.
+
 ## 2.7.1 — 2026-11-25 (league schedule's new address)
 
 - **The league schedule loads from Alliance Tracker's new address**, `bench-boss-labs.github.io/alliance-tracker`. The old address now only forwards people to the new site, so the schedule, scores, logos, and LiveBarn and GameSheet links would have stopped loading.

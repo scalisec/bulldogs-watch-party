@@ -3,7 +3,7 @@
    Online, every app file still comes from the network first, so updates arrive as before (version.json and the
    "Reload now" banner); the copy is only used when the network doesn't answer.
    Everything else (videos, Google, Drive, league data, fonts) is left alone. */
-const VERSION = '2.7.1';
+const VERSION = '2.8.0';
 const CACHE = 'wp-app-' + VERSION;
 const FILES = [
   './', 'index.html', 'shortcuts.html', 'styles.css', 'manifest.webmanifest',
@@ -11,7 +11,8 @@ const FILES = [
   'vendor/mp4-muxer.js', 'vendor/pdf.min.js', 'vendor/pdf.worker.min.js',
   'app/base.js', 'app/diag.js', 'app/player.js', 'app/lineup.js', 'app/league.js', 'app/games.js', 'app/tag.js',
   'app/editor.js', 'app/record.js', 'app/export.js', 'app/settings.js', 'app/team.js', 'app/team-sync.js',
-  'app/library.js', 'app/review.js', 'app/summary.js', 'app/gamesheet.js', 'app/teams.js', 'app/main.js',
+  'app/library.js', 'app/review.js', 'app/summary.js', 'app/gamesheet.js', 'app/teams.js', 'app/game-book.js', 'app/main.js',
+  'vendor/game-book/0.2.0/core/index.js', 'vendor/game-book/0.2.0/core/book.js', 'vendor/game-book/0.2.0/core/sheet.js', 'vendor/game-book/0.2.0/core/merge.js', 'vendor/game-book/0.2.0/core/file.js',
   'icons/favicon.svg', 'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png'
 ];
 const SCOPE = new URL('./', self.location).href;

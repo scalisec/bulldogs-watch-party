@@ -206,6 +206,7 @@ App.ready.then(() => {
     LIB.busy = true;
     try {
       await ensureTeamLibrary();
+      if (App.ensureGameBook) await App.ensureGameBook();
       await ensurePrivateLibrary();
       if (S.lib.teamSync) await libSync('team');
       // after the library sync, so this device knows the folders other devices already made (no duplicates)

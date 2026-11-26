@@ -220,10 +220,15 @@ with sync_playwright() as p:
     A.click('button:has-text("Create team data in my Drive")')
     wait_synced(A)
     tf = team_file()
+    A.wait_for_function("window.__bwp.state.sync.gameBook", timeout=8000)
     root = next(f for f in drive.values() if f['name'] == 'Bulldogs Watch Party')
     names = sorted(x['name'] for x in root_items())
-    check(tf['parents'] == [root['id']] and names == sorted(['Watch Party team data.json', 'Watch Party clip library.json', 'Team clips', 'Coaches only', 'Family \u2013 #7 Sam']),
-          'A (admin): one team folder holds team data, clip library, Team clips, Coaches only and a family folder per player: %s' % names)
+    check(tf['parents'] == [root['id']] and names == sorted(['Watch Party team data.json', 'Watch Party clip library.json', 'Game Book \u2013 Bulldogs U10 Blue 2026-27.json', 'Team clips', 'Coaches only', 'Family \u2013 #7 Sam']),
+          'A (admin): one team folder holds team data, clip library, the Game Book, Team clips, Coaches only and a family folder per player: %s' % names)
+    gbf = next(f for f in drive.values() if f['name'].startswith('Game Book'))
+    gbd = json.loads(gbf['content'])
+    check(gbd['app'] == 'game-book' and gbd['schema'] == 1 and gbd['team'] == {'name': 'Bulldogs U10 Blue', 'season': '2026-27'} and gbd['games'] == {}
+          and [(p['number'], p['name']) for p in gbd['roster']] == [('7', 'Sam')], 'A (admin): the Game Book has the team, season and roster, and no games yet')
     data = json.loads(tf['content'])
     check([(p['number'], p['first'], p['name']) for p in data['roster']] == [('7', 'Sam', 'Sam')] and data['team']['season'] == '2026-27', 'A: roster and season are in the Drive file')
     check({c['email'] for c in data['coaches']} == {'a@team.com', 'b@team.com'}, 'A: A is added as a coach automatically')
