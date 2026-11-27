@@ -410,6 +410,31 @@ tr.schedrow td { background: transparent; }
 #g-upcoming th:nth-child(5), #g-played th:nth-child(5) { width: 140px; }
 #g-upcoming th:nth-child(6), #g-played th:nth-child(6) { width: 230px; }
 #g-upcoming th:nth-child(7), #g-played th:nth-child(7) { width: 210px; }
+/* 2.8.1: the fixed columns add up to about 1,000px, so the table needs room for the Game column too (tablets scroll sideways) */
+#g-upcoming, #g-played { min-width: 1280px !important; }
+/* Phones: each game becomes a card, as in Family Watch Party */
+@media (max-width: 760px) {
+  #g-upcoming, #g-played { min-width: 0 !important; table-layout: auto; }
+  #g-upcoming thead, #g-played thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  #g-upcoming tbody, #g-played tbody { display: block; }
+  #g-upcoming tr, #g-played tr {
+    display: grid !important; gap: 6px 12px; padding: 14px 16px; border-top: 1px solid var(--line);
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "game result" "date summary" "clips clips" "links links" "action action";
+  }
+  #g-upcoming tbody tr:first-child, #g-played tbody tr:first-child { border-top: 0; }
+  #g-upcoming td, #g-played td { display: block; padding: 0 !important; border: 0; min-width: 0; white-space: normal !important; }
+  #g-upcoming td:empty, #g-played td:empty { display: none; }
+  #g-upcoming td:nth-child(1), #g-played td:nth-child(1) { grid-area: date; color: var(--muted); font-size: 13px; }
+  #g-upcoming td:nth-child(1) .small, #g-played td:nth-child(1) .small { display: inline; margin-left: 6px; }
+  #g-upcoming td:nth-child(2), #g-played td:nth-child(2) { grid-area: game; }
+  #g-upcoming td:nth-child(3), #g-played td:nth-child(3) { grid-area: result; text-align: right; }
+  #g-upcoming td:nth-child(4), #g-played td:nth-child(4) { grid-area: summary; text-align: right; }
+  #g-upcoming td:nth-child(5), #g-played td:nth-child(5) { grid-area: clips; font-size: 13px; color: var(--muted); }
+  #g-upcoming td:nth-child(6), #g-played td:nth-child(6) { grid-area: links; align-self: center; }
+  #g-upcoming td:nth-child(7), #g-played td:nth-child(7) { grid-area: action; }
+  #g-upcoming td:nth-child(6) .row, #g-played td:nth-child(6) .row, #g-upcoming td:nth-child(7) .row, #g-played td:nth-child(7) .row { flex-wrap: wrap !important; justify-content: flex-start !important; gap: 8px !important; }
+}
 
 /* v2.1.1: Watch and tag uses the whole width of the screen; the video gets the room */
 body.wide-game .gamehead { max-width: none; padding: 10px 20px 0; gap: 8px 16px; }

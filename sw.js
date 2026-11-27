@@ -3,7 +3,7 @@
    Online, every app file still comes from the network first, so updates arrive as before (version.json and the
    "Reload now" banner); the copy is only used when the network doesn't answer.
    Everything else (videos, Google, Drive, league data, fonts) is left alone. */
-const VERSION = '2.8.0';
+const VERSION = '2.8.1';
 const CACHE = 'wp-app-' + VERSION;
 const FILES = [
   './', 'index.html', 'shortcuts.html', 'styles.css', 'manifest.webmanifest',

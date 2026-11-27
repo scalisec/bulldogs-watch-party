@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.8.1 — 2026-11-26
+
+- **Games on a phone:** each game is now a card (opponent and result on top, date and summary below, then the buttons) instead of a wide table whose columns ran into each other.
+- On a tablet or a narrow PC window, the Games table scrolls sideways instead of squeezing the Game column to nothing.
+
 ## 2.8.0 — 2026-11-26 (the team's Game Book)
 
 - **The team folder gets a Game Book**: `Game Book – Bulldogs U10 Blue 2026-27.json`, next to the team data. The admin's device creates it once, with the team name, season and roster, and no games yet. Nothing else in the app changes.
